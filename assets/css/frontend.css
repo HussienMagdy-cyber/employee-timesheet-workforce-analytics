@@ -1,0 +1,1279 @@
+/* Frontend portal shell — standalone page styling outside wp-admin */
+
+.etwa-page-shell {
+	max-width: 1200px !important;
+	margin: 0 auto !important;
+	padding: 24px 20px 48px !important;
+}
+
+.etwa-portal-message {
+	max-width: 640px !important;
+	margin: 40px auto !important;
+	padding: 24px !important;
+	border-radius: 16px !important;
+	background: #fff7ed !important;
+	border: 1px solid #fed7aa !important;
+	text-align: center !important;
+}
+
+.etwa-portal-layout {
+	display: flex !important;
+	min-height: 100vh !important;
+	background: var(--etwa-bg) !important;
+	color: var(--etwa-text) !important;
+}
+
+/* Isolate portal UI from theme/Elementor global button & link colors */
+.etwa-portal-layout .etwa-app button:not(.etwa-btn-primary):not(.etwa-btn-danger):not(.etwa-tab.active):not(.etwa-vacation-tab.is-active),
+.etwa-portal-layout button.etwa-tab:not(.active),
+.etwa-portal-layout button.etwa-vacation-tab:not(.is-active) {
+	color: var(--etwa-text-secondary) !important;
+}
+
+.etwa-portal-layout button.etwa-tab:not(.active):hover,
+.etwa-portal-layout button.etwa-tab:not(.active):focus-visible,
+.etwa-portal-layout button.etwa-vacation-tab:not(.is-active):hover,
+.etwa-portal-layout button.etwa-vacation-tab:not(.is-active):focus-visible {
+	color: var(--etwa-text) !important;
+}
+
+.etwa-portal-layout .etwa-app a:not(.etwa-btn):not(.etwa-week-arrow) {
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-portal-layout .etwa-app a:not(.etwa-btn):not(.etwa-week-arrow):hover {
+	color: var(--etwa-primary-hover) !important;
+}
+
+.etwa-portal-layout .etwa-portal-nav-link,
+.etwa-portal-layout .etwa-portal-nav-link:hover {
+	color: inherit !important;
+}
+
+.etwa-portal-layout button.etwa-add-day-entry,
+.etwa-portal-layout button.etwa-add-day-entry:hover,
+.etwa-portal-layout button.etwa-add-day-entry:focus-visible {
+	color: var(--etwa-text-secondary) !important;
+}
+
+.etwa-portal-layout button.etwa-add-day-entry:hover,
+.etwa-portal-layout button.etwa-add-day-entry:focus-visible {
+	color: var(--etwa-primary) !important;
+	background: var(--etwa-primary-muted) !important;
+	border-color: var(--etwa-primary) !important;
+}
+
+.etwa-portal-layout a.etwa-week-arrow,
+.etwa-portal-layout a.etwa-week-arrow:hover,
+.etwa-portal-layout a.etwa-week-arrow:focus-visible {
+	color: var(--etwa-text-secondary) !important;
+	text-decoration: none !important;
+}
+
+.etwa-portal-layout a.etwa-week-arrow:hover,
+.etwa-portal-layout a.etwa-week-arrow:focus-visible {
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-portal-overlay {
+	display: none !important;
+	position: fixed !important;
+	inset: 0 !important;
+	background: rgba(15, 23, 42, 0.4) !important;
+	z-index: 90 !important;
+}
+
+.etwa-portal-sidebar {
+	width: var(--etwa-sidebar-width) !important;
+	flex-shrink: 0 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	background: var(--etwa-sidebar) !important;
+	border-right: 1px solid var(--etwa-border) !important;
+	padding: var(--etwa-space-5) var(--etwa-space-4) !important;
+	position: sticky !important;
+	top: 0 !important;
+	height: 100vh !important;
+	z-index: 100 !important;
+}
+
+.etwa-portal-brand {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-3) !important;
+	margin-bottom: var(--etwa-space-6) !important;
+	padding: 0 var(--etwa-space-2) !important;
+}
+
+.etwa-portal-brand-mark {
+	width: 36px !important;
+	height: 36px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	border-radius: var(--etwa-radius) !important;
+	background: var(--etwa-primary) !important;
+	color: #fff !important;
+	font-weight: 700 !important;
+	font-size: var(--etwa-text-sm) !important;
+}
+
+.etwa-portal-brand-text {
+	display: flex !important;
+	flex-direction: column !important;
+	line-height: 1.2 !important;
+}
+
+.etwa-portal-brand-text strong {
+	font-size: var(--etwa-text-sm) !important;
+	letter-spacing: 0.04em !important;
+}
+
+.etwa-portal-brand-text span {
+	font-size: var(--etwa-text-xs) !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-portal-nav {
+	flex: 1 !important;
+	overflow-y: auto !important;
+}
+
+.etwa-portal-nav ul {
+	list-style: none !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-1) !important;
+}
+
+.etwa-portal-nav-link {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-3) !important;
+	padding: 10px 12px !important;
+	border-radius: var(--etwa-radius) !important;
+	text-decoration: none !important;
+	color: var(--etwa-text-secondary) !important;
+	font-size: var(--etwa-text-sm) !important;
+	font-weight: 500 !important;
+	transition: background var(--etwa-duration) var(--etwa-ease), color var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-portal-nav-link .dashicons {
+	font-size: 18px !important;
+	width: 18px !important;
+	height: 18px !important;
+	opacity: 0.85 !important;
+}
+
+.etwa-portal-nav-link:hover {
+	background: var(--etwa-border-subtle) !important;
+	color: var(--etwa-text) !important;
+}
+
+.etwa-portal-nav-link.is-active {
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+	font-weight: 600 !important;
+}
+
+.etwa-portal-sidebar-foot {
+	margin-top: auto !important;
+	padding-top: var(--etwa-space-4) !important;
+	border-top: 1px solid var(--etwa-border) !important;
+}
+
+.etwa-portal-user-card {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-3) !important;
+	padding: var(--etwa-space-2) !important;
+}
+
+.etwa-portal-avatar {
+	width: 36px !important;
+	height: 36px !important;
+	border-radius: var(--etwa-radius-full) !important;
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	font-weight: 700 !important;
+	font-size: var(--etwa-text-sm) !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-portal-user-meta strong {
+	display: block !important;
+	font-size: var(--etwa-text-sm) !important;
+	line-height: 1.3 !important;
+}
+
+.etwa-portal-role {
+	font-size: var(--etwa-text-xs) !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-portal-frame {
+	flex: 1 !important;
+	min-width: 0 !important;
+	display: flex !important;
+	flex-direction: column !important;
+}
+
+.etwa-portal-header {
+	position: sticky !important;
+	top: 0 !important;
+	z-index: 50 !important;
+	height: var(--etwa-header-height) !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-4) !important;
+	padding: 0 var(--etwa-space-6) !important;
+	background: rgba(248, 250, 252, 0.85) !important;
+	backdrop-filter: blur(12px) !important;
+	border-bottom: 1px solid var(--etwa-border) !important;
+}
+
+.etwa-dark .etwa-portal-header {
+	background: rgba(0, 0, 0, 0.92) !important;
+}
+
+.etwa-portal-header-start {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-3) !important;
+	min-width: 0 !important;
+}
+
+.etwa-portal-nav-toggle {
+	display: none !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 36px !important;
+	height: 36px !important;
+	padding: 0 !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius) !important;
+	background: var(--etwa-panel) !important;
+	cursor: pointer !important;
+}
+
+.etwa-breadcrumbs {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-2) !important;
+	font-size: var(--etwa-text-sm) !important;
+	color: var(--etwa-muted) !important;
+	min-width: 0 !important;
+}
+
+.etwa-breadcrumb-current {
+	color: var(--etwa-text) !important;
+	font-weight: 600 !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+
+.etwa-portal-header-actions {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-2) !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-portal-header-actions .etwa-btn-ghost {
+	background: var(--etwa-panel) !important;
+	border-color: var(--etwa-border) !important;
+	color: var(--etwa-text-secondary) !important;
+}
+
+.etwa-portal-header-actions .etwa-btn-ghost .dashicons {
+	color: var(--etwa-text-secondary) !important;
+}
+
+.etwa-portal-header-actions .etwa-btn-ghost:hover {
+	background: var(--etwa-border-subtle) !important;
+	border-color: var(--etwa-border) !important;
+	color: var(--etwa-text) !important;
+}
+
+.etwa-portal-header-actions .etwa-btn-ghost:hover .dashicons {
+	color: var(--etwa-text) !important;
+}
+
+.etwa-dark .etwa-portal-header-actions .etwa-btn-ghost {
+	background: rgba(255, 255, 255, 0.08) !important;
+	border-color: rgba(255, 255, 255, 0.15) !important;
+	color: #f5f5f5 !important;
+}
+
+.etwa-dark .etwa-portal-header-actions .etwa-btn-ghost .dashicons {
+	color: #f5f5f5 !important;
+}
+
+.etwa-dark .etwa-portal-header-actions .etwa-btn-ghost:hover {
+	background: rgba(255, 255, 255, 0.12) !important;
+	color: #ffffff !important;
+}
+
+.etwa-dark .etwa-portal-header-actions .etwa-btn-ghost:hover .dashicons {
+	color: #ffffff !important;
+}
+
+.etwa-portal-page-head {
+	padding: var(--etwa-space-6) var(--etwa-space-6) var(--etwa-space-4) !important;
+	max-width: var(--etwa-content-max) !important;
+	width: 100% !important;
+	margin: 0 auto !important;
+}
+
+.etwa-portal-page-title {
+	margin: 0 !important;
+	font-size: var(--etwa-text-2xl) !important;
+	font-weight: 700 !important;
+	letter-spacing: -0.025em !important;
+	line-height: 1.2 !important;
+}
+
+.etwa-portal-page-subtitle {
+	margin: var(--etwa-space-2) 0 0 !important;
+	font-size: var(--etwa-text-sm) !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-portal-main {
+	flex: 1 !important;
+	padding: 0 var(--etwa-space-6) var(--etwa-space-10) !important;
+	max-width: var(--etwa-content-max) !important;
+	width: 100% !important;
+	margin: 0 auto !important;
+}
+
+.etwa-portal-main .etwa-page-shell,
+.etwa-portal-main .etwa-in-portal {
+	max-width: none !important;
+	margin: 0 !important;
+	padding: 0 !important;
+}
+
+.etwa-portal-layout .etwa-hero {
+	display: none !important;
+}
+
+.etwa-portal-layout.etwa-nav-open .etwa-portal-overlay {
+	display: block !important;
+}
+
+@media (max-width: 960px) {
+	.etwa-portal-layout {
+		flex-direction: column !important;
+	}
+
+	.etwa-portal-sidebar {
+		position: fixed !important;
+		left: 0 !important;
+		top: 0 !important;
+		display: flex !important;
+		transform: translateX(-100%) !important;
+		transition: transform 0.22s var(--etwa-ease) !important;
+		box-shadow: var(--etwa-shadow-lg) !important;
+	}
+
+	.etwa-portal-layout.etwa-nav-open .etwa-portal-sidebar,
+	.etwa-portal-sidebar.is-open {
+		transform: translateX(0) !important;
+	}
+
+	.etwa-portal-nav-toggle {
+		display: inline-flex !important;
+		position: relative !important;
+		z-index: 101 !important;
+	}
+
+	.etwa-portal-header,
+	.etwa-portal-page-head,
+	.etwa-portal-main {
+		padding-left: var(--etwa-space-4) !important;
+		padding-right: var(--etwa-space-4) !important;
+	}
+
+	.etwa-dark-toggle-label,
+	.etwa-portal-logout {
+		display: none !important;
+	}
+}
+
+.etwa-history-table td {
+	vertical-align: middle !important;
+}
+
+.etwa-history-dates {
+	display: block !important;
+	margin-top: 4px !important;
+	color: var(--etwa-muted, #64748b) !important;
+	font-size: 12px !important;
+}
+
+.etwa-history-empty {
+	margin: 0 !important;
+	color: var(--etwa-muted, #64748b) !important;
+}
+
+.etwa-history-table tr.is-current-week {
+	background: #f8fafc !important;
+}
+
+.etwa-btn-small {
+	padding: 7px 12px !important;
+	font-size: 13px !important;
+}
+
+.etwa-log-filter {
+	margin-bottom: 16px !important;
+}
+
+.etwa-log-filter select {
+	margin-left: 8px !important;
+	padding: 8px 12px !important;
+	border-radius: 10px !important;
+	border: 1px solid var(--etwa-border, #e2e8f0) !important;
+	background: var(--etwa-panel, #fff) !important;
+}
+
+.etwa-pagination {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 8px !important;
+	margin-top: 16px !important;
+}
+
+.etwa-pagination .is-active {
+	background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+	color: #fff !important;
+	border-color: transparent !important;
+}
+
+.etwa-checkbox-row {
+	display: flex !important;
+	align-items: flex-start !important;
+	gap: 10px !important;
+	font-weight: 600 !important;
+}
+
+.etwa-audit-logs-table code {
+	font-size: 12px !important;
+}
+
+.etwa-wp-debug-meta {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: center !important;
+	gap: 12px !important;
+	margin-bottom: 12px !important;
+}
+
+.etwa-wp-debug-log {
+	max-height: 420px !important;
+	overflow: auto !important;
+	padding: 16px !important;
+	border-radius: 12px !important;
+	background: #0f172a !important;
+	color: #e2e8f0 !important;
+	font-size: 12px !important;
+	line-height: 1.5 !important;
+	white-space: pre-wrap !important;
+	word-break: break-word !important;
+}
+
+.etwa-wp-debug-log .etwa-log-line-plugin {
+	display: block !important;
+	color: #fde68a !important;
+	background: rgba(251, 191, 36, 0.08) !important;
+	margin: 0 -16px !important;
+	padding: 0 16px !important;
+}
+
+.etwa-dark .etwa-wp-debug-log {
+	background: #000000 !important;
+}
+
+.etwa-muted {
+	color: var(--etwa-muted, #64748b) !important;
+}
+
+.etwa-dark .etwa-portal-sidebar {
+	background: #000000 !important;
+	border-color: #1a1a1a !important;
+}
+
+.etwa-dark .etwa-portal-nav-link:hover {
+	background: #111111 !important;
+}
+
+.etwa-dark .etwa-portal-role {
+	background: rgba(99, 102, 241, 0.2) !important;
+	color: #c7d2fe !important;
+}
+
+.etwa-dark .etwa-history-table tr.is-current-week {
+	background: #111111 !important;
+}
+
+.etwa-hr-review-toolbar {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	gap: 12px !important;
+	margin-bottom: 20px !important;
+	padding: 16px 18px !important;
+	border-radius: 16px !important;
+	background: var(--etwa-panel, #fff) !important;
+	border: 1px solid var(--etwa-border, #e2e8f0) !important;
+	box-shadow: var(--etwa-shadow, 0 10px 30px rgba(15, 23, 42, 0.08)) !important;
+}
+
+.etwa-hr-review-meta {
+	display: flex !important;
+	align-items: center !important;
+	gap: 10px !important;
+}
+
+.etwa-hr-review-actions {
+	display: flex !important;
+	gap: 8px !important;
+}
+
+.etwa-hr-row-actions {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 6px !important;
+	align-items: center !important;
+}
+
+.etwa-hr-review-app .etwa-hero-actions {
+	display: none !important;
+}
+
+.etwa-portal {
+	font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+.etwa-hero {
+	display: flex !important;
+	justify-content: space-between !important;
+	align-items: flex-start !important;
+	gap: 20px !important;
+	margin-bottom: 24px !important;
+	padding: 28px 30px !important;
+	border-radius: 20px !important;
+	background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 55%, #6d28d9 100%) !important;
+	color: #fff !important;
+	box-shadow: 0 20px 45px rgba(37, 99, 235, 0.25) !important;
+}
+
+.etwa-hero h1 {
+	margin: 8px 0 6px !important;
+	font-size: clamp(1.75rem, 3vw, 2.35rem) !important;
+	line-height: 1.1 !important;
+	color: #fff !important;
+}
+
+.etwa-hero .etwa-subtitle,
+.etwa-hero-copy .etwa-subtitle {
+	color: rgba(255, 255, 255, 0.82) !important;
+	margin: 0 !important;
+}
+
+.etwa-eyebrow {
+	margin: 0 !important;
+	font-size: 12px !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.12em !important;
+	opacity: 0.85 !important;
+}
+
+.etwa-week-nav {
+	display: grid !important;
+	grid-template-columns: auto 1fr auto !important;
+	align-items: center !important;
+	gap: 16px !important;
+	margin-bottom: 22px !important;
+}
+
+.etwa-week-arrow {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 40px !important;
+	height: 40px !important;
+	border-radius: var(--etwa-radius-full, 9999px) !important;
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	color: var(--etwa-text-secondary) !important;
+	text-decoration: none !important;
+	box-shadow: var(--etwa-shadow-xs) !important;
+	transition: background var(--etwa-duration, 150ms) ease, border-color var(--etwa-duration, 150ms) ease, color var(--etwa-duration, 150ms) ease, box-shadow var(--etwa-duration, 150ms) ease !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-week-arrow .dashicons,
+.etwa-week-arrow-icon {
+	display: block !important;
+	width: 8px !important;
+	height: 8px !important;
+	border-top: 2px solid currentColor !important;
+	border-right: 2px solid currentColor !important;
+}
+
+.etwa-week-arrow-prev .etwa-week-arrow-icon {
+	transform: rotate(-135deg) !important;
+}
+
+.etwa-week-arrow-next .etwa-week-arrow-icon {
+	transform: rotate(45deg) !important;
+}
+
+.etwa-week-arrow:hover,
+.etwa-week-arrow:focus-visible {
+	background: var(--etwa-primary-muted) !important;
+	border-color: var(--etwa-primary) !important;
+	color: var(--etwa-primary) !important;
+	box-shadow: var(--etwa-shadow-sm, var(--etwa-shadow-xs)) !important;
+	text-decoration: none !important;
+}
+
+.etwa-dark .etwa-week-arrow {
+	background: var(--etwa-panel) !important;
+	border-color: var(--etwa-border) !important;
+	color: var(--etwa-text-secondary) !important;
+}
+
+.etwa-dark .etwa-week-arrow:hover,
+.etwa-dark .etwa-week-arrow:focus-visible {
+	background: var(--etwa-primary-muted) !important;
+	border-color: var(--etwa-primary) !important;
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-week-badge {
+	text-align: center !important;
+	padding: 16px 20px !important;
+	border-radius: 18px !important;
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	box-shadow: var(--etwa-shadow) !important;
+}
+
+.etwa-week-badge strong {
+	display: block !important;
+	font-size: 1.35rem !important;
+	margin: 4px 0 !important;
+}
+
+.etwa-week-label,
+.etwa-week-range,
+.etwa-week-days-tag {
+	display: block !important;
+	color: var(--etwa-muted) !important;
+	font-size: 13px !important;
+}
+
+.etwa-week-days-tag {
+	display: inline-block !important;
+	margin-top: 6px !important;
+	padding: 2px 10px !important;
+	border-radius: 999px !important;
+	background: #eef2ff !important;
+	color: #3730a3 !important;
+	font-weight: 600 !important;
+}
+
+.etwa-week-toolbar {
+	margin-bottom: 18px !important;
+}
+
+.etwa-week-grid-seven {
+	grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+}
+
+.etwa-day-card.is-non-working {
+	opacity: 0.92 !important;
+}
+
+.etwa-day-card.etwa-day-holiday {
+	border-color: #fbbf24 !important;
+	background: linear-gradient(180deg, rgba(251, 191, 36, 0.08), var(--etwa-panel)) !important;
+}
+
+.etwa-day-card.etwa-day-day_off {
+	border-style: dashed !important;
+	background: var(--etwa-border-subtle) !important;
+}
+
+.etwa-day-badge {
+	display: inline-flex !important;
+	padding: 4px 8px !important;
+	border-radius: 999px !important;
+	font-size: 10px !important;
+	font-weight: 700 !important;
+	letter-spacing: 0.04em !important;
+}
+
+.etwa-day-badge-holiday {
+	background: #fef3c7 !important;
+	color: #92400e !important;
+}
+
+.etwa-day-badge-off {
+	background: var(--etwa-border-subtle) !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-day-holiday-msg {
+	margin: 0 !important;
+	padding: 12px !important;
+	text-align: center !important;
+	font-weight: 600 !important;
+	color: #92400e !important;
+}
+
+.etwa-calendar-weekdays {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+	gap: var(--etwa-space-3) !important;
+}
+
+.etwa-calendar-day-config {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-1) !important;
+}
+
+.etwa-calendar-form-actions {
+	grid-column: 1 / -1 !important;
+	margin-top: var(--etwa-space-2) !important;
+}
+
+.etwa-panel-intro {
+	margin: 0 0 var(--etwa-space-4) !important;
+}
+
+.etwa-dark .etwa-day-badge-holiday {
+	background: rgba(251, 191, 36, 0.15) !important;
+	color: #fcd34d !important;
+}
+
+.etwa-dark .etwa-day-holiday-msg {
+	color: #fcd34d !important;
+}
+
+@media (max-width: 1200px) {
+	.etwa-week-grid-seven {
+		grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+	}
+}
+
+@media (max-width: 782px) {
+	.etwa-week-grid-seven {
+		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	}
+}
+
+@media (max-width: 480px) {
+	.etwa-week-grid-seven {
+		grid-template-columns: 1fr !important;
+	}
+}
+
+.etwa-week-grid {
+	display: grid !important;
+	grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+	gap: 14px !important;
+	margin-bottom: 22px !important;
+}
+
+.etwa-day-card {
+	display: flex !important;
+	flex-direction: column !important;
+	min-height: 280px !important;
+	padding: 14px !important;
+	border-radius: 18px !important;
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	box-shadow: var(--etwa-shadow) !important;
+}
+
+.etwa-day-card.is-today {
+	border-color: #2563eb !important;
+	box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15), var(--etwa-shadow) !important;
+}
+
+.etwa-day-head {
+	display: flex !important;
+	justify-content: space-between !important;
+	align-items: flex-start !important;
+	gap: 8px !important;
+	margin-bottom: 12px !important;
+	padding-bottom: 10px !important;
+	border-bottom: 1px dashed var(--etwa-border) !important;
+}
+
+.etwa-day-name {
+	display: block !important;
+	font-weight: 700 !important;
+	font-size: 14px !important;
+}
+
+.etwa-day-date {
+	display: block !important;
+	color: var(--etwa-muted) !important;
+	font-size: 12px !important;
+}
+
+.etwa-day-hours {
+	font-size: 13px !important;
+	font-weight: 700 !important;
+	color: var(--etwa-primary) !important;
+	background: #eff6ff !important;
+	padding: 4px 8px !important;
+	border-radius: 999px !important;
+}
+
+.etwa-day-entries {
+	flex: 1 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 8px !important;
+	margin-bottom: 10px !important;
+}
+
+.etwa-day-empty {
+	margin: 0 !important;
+	color: var(--etwa-muted) !important;
+	font-size: 13px !important;
+	font-style: italic !important;
+}
+
+.etwa-entry-chip {
+	padding: 10px !important;
+	border-radius: 12px !important;
+	background: #f8fafc !important;
+	border: 1px solid #e2e8f0 !important;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+
+.etwa-entry-chip.is-clickable {
+	cursor: pointer !important;
+}
+
+.etwa-entry-chip.is-clickable:hover,
+.etwa-entry-chip.is-clickable:focus-visible {
+	border-color: #93c5fd !important;
+	box-shadow: 0 4px 14px rgba(37, 99, 235, 0.12) !important;
+	transform: translateY(-1px) !important;
+	outline: none !important;
+}
+
+.etwa-entry-chip.is-break {
+	background: #fffbeb !important;
+	border-color: #fde68a !important;
+}
+
+.etwa-entry-time {
+	font-size: 12px !important;
+	font-weight: 700 !important;
+	color: #334155 !important;
+}
+
+.etwa-entry-meta strong {
+	display: block !important;
+	font-size: 13px !important;
+}
+
+.etwa-entry-meta span {
+	display: block !important;
+	font-size: 12px !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-entry-hours {
+	margin-top: 6px !important;
+	font-size: 12px !important;
+	font-weight: 600 !important;
+}
+
+.etwa-ot-tag {
+	margin-left: 4px !important;
+	color: var(--etwa-accent) !important;
+	font-style: normal !important;
+}
+
+.etwa-break-tag {
+	color: #92400e !important;
+}
+
+.etwa-entry-actions {
+	display: flex !important;
+	gap: 8px !important;
+	margin-top: 8px !important;
+}
+
+.etwa-btn {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 8px !important;
+	padding: 10px 16px !important;
+	border-radius: 12px !important;
+	border: 1px solid transparent !important;
+	font-weight: 600 !important;
+	cursor: pointer !important;
+	text-decoration: none !important;
+	transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.etwa-btn:hover {
+	transform: translateY(-1px) !important;
+}
+
+.etwa-btn-primary {
+	background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+	color: #fff !important;
+	box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25) !important;
+}
+
+.etwa-btn-secondary {
+	background: var(--etwa-panel) !important;
+	border-color: var(--etwa-border) !important;
+	color: var(--etwa-text) !important;
+}
+
+.etwa-hero .etwa-btn-ghost {
+	background: rgba(255, 255, 255, 0.12) !important;
+	border-color: rgba(255, 255, 255, 0.25) !important;
+	color: #fff !important;
+}
+
+.etwa-btn-block {
+	width: 100% !important;
+	margin-top: auto !important;
+}
+
+.etwa-add-day-entry {
+	border-style: dashed !important;
+	color: var(--etwa-text-secondary) !important;
+	background: transparent !important;
+	font-weight: 600 !important;
+}
+
+.etwa-add-day-entry:hover,
+.etwa-add-day-entry:focus-visible {
+	color: var(--etwa-primary) !important;
+	background: var(--etwa-primary-muted) !important;
+	border-color: var(--etwa-primary) !important;
+	border-style: solid !important;
+}
+
+.etwa-dark .etwa-add-day-entry {
+	color: var(--etwa-text-secondary) !important;
+	background: transparent !important;
+	border-color: var(--etwa-border) !important;
+}
+
+.etwa-dark .etwa-add-day-entry:hover,
+.etwa-dark .etwa-add-day-entry:focus-visible {
+	color: var(--etwa-primary) !important;
+	background: var(--etwa-primary-muted) !important;
+	border-color: var(--etwa-primary) !important;
+}
+
+.etwa-btn-large {
+	padding: 12px 22px !important;
+}
+
+.etwa-link {
+	background: none !important;
+	border: none !important;
+	padding: 0 !important;
+	color: var(--etwa-primary) !important;
+	cursor: pointer !important;
+	font-size: 12px !important;
+	font-weight: 600 !important;
+}
+
+.etwa-alert {
+	padding: 12px 16px !important;
+	border-radius: 12px !important;
+	margin-bottom: 16px !important;
+}
+
+.etwa-alert-warning {
+	background: #fffbeb !important;
+	border: 1px solid #fde68a !important;
+	color: #92400e !important;
+}
+
+.etwa-badge {
+	display: inline-block !important;
+	padding: 2px 10px !important;
+	border-radius: 999px !important;
+	background: #e0e7ff !important;
+	color: #3730a3 !important;
+	font-size: 12px !important;
+	font-weight: 600 !important;
+}
+
+.etwa-dark .etwa-week-days-tag {
+	background: rgba(99, 102, 241, 0.2) !important;
+	color: #c7d2fe !important;
+}
+
+.etwa-dark .etwa-day-hours {
+	background: #111111 !important;
+	color: #e5e5e5 !important;
+}
+
+.etwa-dark .etwa-entry-chip {
+	background: #0d0d0d !important;
+	border-color: #262626 !important;
+}
+
+.etwa-dark .etwa-entry-chip.is-break {
+	background: #422006 !important;
+	border-color: #92400e !important;
+}
+
+.etwa-dark .etwa-hero {
+	box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35) !important;
+}
+
+.etwa-sticky-footer {
+	position: sticky !important;
+	bottom: 0 !important;
+	z-index: 20 !important;
+	margin-top: 16px !important;
+	padding: 14px 16px !important;
+	border-radius: 16px !important;
+	background: rgba(255, 255, 255, 0.92) !important;
+	border: 1px solid var(--etwa-border, #e2e8f0) !important;
+	backdrop-filter: blur(8px) !important;
+	box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+.etwa-dark .etwa-sticky-footer {
+	background: rgba(0, 0, 0, 0.95) !important;
+}
+
+.etwa-history-toolbar {
+	margin-bottom: 16px !important;
+}
+
+.etwa-history-cards {
+	display: none !important;
+	gap: 12px !important;
+}
+
+.etwa-history-card {
+	padding: 16px !important;
+	border-radius: 16px !important;
+	border: 1px solid var(--etwa-border, #e2e8f0) !important;
+	background: #f8fafc !important;
+}
+
+.etwa-history-card-head {
+	display: flex !important;
+	justify-content: space-between !important;
+	align-items: flex-start !important;
+	gap: 10px !important;
+	margin-bottom: 12px !important;
+}
+
+.etwa-history-card-stats {
+	display: grid !important;
+	grid-template-columns: repeat(3, 1fr) !important;
+	gap: 8px !important;
+	margin-bottom: 12px !important;
+}
+
+.etwa-history-card-stats span {
+	display: block !important;
+	font-size: 11px !important;
+	text-transform: uppercase !important;
+	color: var(--etwa-muted, #64748b) !important;
+}
+
+.etwa-history-card-stats strong {
+	font-size: 15px !important;
+}
+
+@media (max-width: 1100px) {
+	.etwa-week-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	}
+}
+
+@media (max-width: 900px) {
+	.etwa-history-table-desktop {
+		display: none !important;
+	}
+
+	.etwa-history-cards {
+		display: grid !important;
+	}
+}
+
+@media (max-width: 700px) {
+	.etwa-week-grid {
+		grid-template-columns: 1fr !important;
+	}
+
+	.etwa-hero {
+		flex-direction: column !important;
+		padding: 22px !important;
+	}
+
+	.etwa-sticky-footer {
+		position: fixed !important;
+		left: 0 !important;
+		right: 0 !important;
+		bottom: 0 !important;
+		margin: 0 !important;
+		border-radius: 16px 16px 0 0 !important;
+		padding: 12px 16px calc(12px + env(safe-area-inset-bottom)) !important;
+	}
+
+	#etwa-employee-app {
+		padding-bottom: 88px !important;
+	}
+
+	.etwa-footer-actions {
+		flex-wrap: wrap !important;
+	}
+
+	.etwa-footer-actions .etwa-btn-large {
+		flex: 1 1 140px !important;
+	}
+}
+
+/* ——— Timesheet page refinements ——— */
+.etwa-timesheet-page .etwa-week-nav {
+	padding: var(--etwa-space-4) !important;
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-lg) !important;
+	box-shadow: var(--etwa-shadow-xs) !important;
+}
+
+.etwa-timesheet-kpis {
+	margin-bottom: var(--etwa-space-5) !important;
+}
+
+.etwa-kpi-status {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-2) !important;
+}
+
+.etwa-timesheet-page .etwa-day-card {
+	border-radius: var(--etwa-radius-lg) !important;
+	transition: border-color var(--etwa-duration) var(--etwa-ease), box-shadow var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-timesheet-page .etwa-day-card:hover {
+	box-shadow: var(--etwa-shadow) !important;
+}
+
+.etwa-timesheet-page .etwa-entry-chip {
+	border-radius: var(--etwa-radius) !important;
+	transition: background var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-timesheet-page .etwa-sticky-footer {
+	background: rgba(255, 255, 255, 0.92) !important;
+	backdrop-filter: blur(10px) !important;
+	border-top: 1px solid var(--etwa-border) !important;
+}
+
+.etwa-dark .etwa-timesheet-page .etwa-sticky-footer {
+	background: rgba(0, 0, 0, 0.95) !important;
+}
+
+/* Confirm overlay — appended to body; beat Elementor/theme button hovers */
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-actions .etwa-btn {
+	transform: none !important;
+}
+
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-cancel,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-btn-secondary {
+	background: #ffffff !important;
+	background-image: none !important;
+	color: #0f172a !important;
+	border: 1px solid #e2e8f0 !important;
+	box-shadow: none !important;
+}
+
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-cancel:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-cancel:focus-visible,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-btn-secondary:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-btn-secondary:focus-visible {
+	background: #f1f5f9 !important;
+	background-image: none !important;
+	color: #0f172a !important;
+	border-color: #e2e8f0 !important;
+}
+
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-ok,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-reason-ok,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-actions .etwa-btn-primary {
+	background: #4f46e5 !important;
+	background-image: none !important;
+	color: #ffffff !important;
+	border: 1px solid #4f46e5 !important;
+	box-shadow: none !important;
+}
+
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-ok:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-ok:focus-visible,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-reason-ok:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-reason-ok:focus-visible,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-actions .etwa-btn-primary:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-actions .etwa-btn-primary:focus-visible {
+	background: #4338ca !important;
+	background-image: none !important;
+	color: #ffffff !important;
+	border-color: #4338ca !important;
+	box-shadow: none !important;
+}
+
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-cancel,
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-btn-secondary {
+	background: #0d0d0d !important;
+	color: #f5f5f5 !important;
+	border-color: #1a1a1a !important;
+}
+
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-cancel:hover,
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-btn-secondary:hover {
+	background: #111111 !important;
+	color: #f5f5f5 !important;
+}
+
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-ok:hover,
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-confirm-ok:focus-visible,
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-reason-ok:hover,
+.etwa-dark #etwa-confirm-overlay.etwa-confirm-overlay.etwa-app .etwa-btn-primary:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app.etwa-dark .etwa-confirm-ok:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app.etwa-dark .etwa-confirm-ok:focus-visible,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app.etwa-dark .etwa-reason-ok:hover,
+#etwa-confirm-overlay.etwa-confirm-overlay.etwa-app.etwa-dark .etwa-btn-primary:hover {
+	background: #6366f1 !important;
+	border-color: #6366f1 !important;
+	color: #ffffff !important;
+}

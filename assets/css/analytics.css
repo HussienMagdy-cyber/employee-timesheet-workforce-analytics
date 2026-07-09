@@ -1,0 +1,518 @@
+/**
+ * Owner analytics & insights UI
+ *
+ * @package ETWA
+ */
+
+/* ——— Date filter ——— */
+.etwa-analytics-page .etwa-analytics-filter {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: flex-end !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-4) !important;
+	margin-bottom: var(--etwa-space-6) !important;
+	padding: var(--etwa-space-4) var(--etwa-space-5) !important;
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-lg) !important;
+	box-shadow: var(--etwa-shadow-xs) !important;
+}
+
+.etwa-analytics-filter-fields {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: var(--etwa-space-4) !important;
+}
+
+.etwa-analytics-field {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-1) !important;
+	min-width: 160px !important;
+}
+
+.etwa-analytics-field > span {
+	font-size: var(--etwa-text-xs) !important;
+	font-weight: 600 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.05em !important;
+	color: var(--etwa-muted) !important;
+}
+
+/* ——— KPI row ——— */
+.etwa-analytics-kpi-grid {
+	display: grid !important;
+	grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+	gap: var(--etwa-space-4) !important;
+	margin-bottom: var(--etwa-space-6) !important;
+}
+
+.etwa-analytics-extended-kpis {
+	grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.etwa-analytics-kpi {
+	display: flex !important;
+	align-items: flex-start !important;
+	gap: var(--etwa-space-4) !important;
+	padding: var(--etwa-space-5) !important;
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-lg) !important;
+	box-shadow: var(--etwa-shadow-xs) !important;
+	transition: box-shadow var(--etwa-duration) var(--etwa-ease), transform var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-analytics-kpi:hover {
+	box-shadow: var(--etwa-shadow-md) !important;
+	transform: translateY(-1px) !important;
+}
+
+.etwa-analytics-kpi-icon {
+	width: 44px !important;
+	height: 44px !important;
+	border-radius: var(--etwa-radius) !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-analytics-kpi-icon .dashicons {
+	font-size: 22px !important;
+	width: 22px !important;
+	height: 22px !important;
+}
+
+.etwa-analytics-kpi-icon-hours {
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-analytics-kpi-icon-regular {
+	background: #ecfeff !important;
+	color: #0891b2 !important;
+}
+
+.etwa-analytics-kpi-icon-ot {
+	background: var(--etwa-warning-muted) !important;
+	color: var(--etwa-warning) !important;
+}
+
+.etwa-analytics-kpi-icon-util {
+	background: var(--etwa-success-muted) !important;
+	color: var(--etwa-success) !important;
+}
+
+.etwa-dark .etwa-analytics-kpi-icon-regular {
+	background: rgba(8, 145, 178, 0.15) !important;
+}
+
+.etwa-analytics-kpi-body {
+	min-width: 0 !important;
+	flex: 1 !important;
+}
+
+.etwa-analytics-kpi-hint {
+	display: block !important;
+	margin-top: var(--etwa-space-1) !important;
+	font-size: var(--etwa-text-xs) !important;
+	color: var(--etwa-muted) !important;
+	line-height: 1.35 !important;
+}
+
+.etwa-analytics-mini-bar {
+	height: 4px !important;
+	margin-top: var(--etwa-space-2) !important;
+	border-radius: var(--etwa-radius-full) !important;
+	background: var(--etwa-border-subtle) !important;
+	overflow: hidden !important;
+}
+
+.etwa-analytics-mini-bar span {
+	display: block !important;
+	height: 100% !important;
+	border-radius: inherit !important;
+	background: var(--etwa-warning) !important;
+	transition: width 0.4s var(--etwa-ease) !important;
+}
+
+.etwa-analytics-mini-bar-util span {
+	background: var(--etwa-primary) !important;
+}
+
+/* ——— Chart cards ——— */
+.etwa-analytics-charts {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	gap: var(--etwa-space-4) !important;
+	margin-bottom: var(--etwa-space-8) !important;
+}
+
+.etwa-chart-card {
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-lg) !important;
+	box-shadow: var(--etwa-shadow-xs) !important;
+	overflow: hidden !important;
+	display: flex !important;
+	flex-direction: column !important;
+}
+
+.etwa-chart-card-wide {
+	grid-column: 1 / -1 !important;
+}
+
+.etwa-chart-card-head {
+	padding: var(--etwa-space-5) var(--etwa-space-5) var(--etwa-space-3) !important;
+	border-bottom: 1px solid var(--etwa-border-subtle) !important;
+}
+
+.etwa-chart-card-head h2 {
+	margin: 0 !important;
+	font-size: var(--etwa-text-base) !important;
+	font-weight: 700 !important;
+	letter-spacing: -0.01em !important;
+}
+
+.etwa-chart-card-head p {
+	margin: var(--etwa-space-1) 0 0 !important;
+	font-size: var(--etwa-text-sm) !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-chart-canvas-wrap {
+	position: relative !important;
+	padding: var(--etwa-space-4) var(--etwa-space-5) var(--etwa-space-5) !important;
+	min-height: 260px !important;
+}
+
+.etwa-chart-canvas-wrap canvas {
+	max-height: 280px !important;
+}
+
+.etwa-chart-canvas-wrap.is-loading canvas {
+	opacity: 0 !important;
+}
+
+.etwa-chart-skeleton {
+	position: absolute !important;
+	inset: var(--etwa-space-4) var(--etwa-space-5) var(--etwa-space-5) !important;
+	border-radius: var(--etwa-radius) !important;
+	background: linear-gradient(
+		90deg,
+		var(--etwa-border-subtle) 25%,
+		var(--etwa-border) 50%,
+		var(--etwa-border-subtle) 75%
+	) !important;
+	background-size: 200% 100% !important;
+	animation: etwa-shimmer 1.2s ease-in-out infinite !important;
+}
+
+.etwa-chart-canvas-wrap:not(.is-loading) .etwa-chart-skeleton {
+	display: none !important;
+}
+
+/* ——— Insights section ——— */
+.etwa-insights-section {
+	margin-bottom: var(--etwa-space-8) !important;
+}
+
+.etwa-insights-section-head {
+	margin-bottom: var(--etwa-space-5) !important;
+}
+
+.etwa-insights-section-head h2 {
+	margin: var(--etwa-space-1) 0 !important;
+	font-size: var(--etwa-text-xl) !important;
+	font-weight: 700 !important;
+	letter-spacing: -0.02em !important;
+}
+
+.etwa-insights-section .etwa-eyebrow {
+	margin: 0 !important;
+	font-size: var(--etwa-text-xs) !important;
+	font-weight: 700 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.1em !important;
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-insights-grid {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	gap: var(--etwa-space-4) !important;
+}
+
+.etwa-insight-card {
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-lg) !important;
+	box-shadow: var(--etwa-shadow-xs) !important;
+	padding: var(--etwa-space-5) !important;
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-4) !important;
+}
+
+.etwa-insight-card-warning {
+	border-color: rgba(217, 119, 6, 0.25) !important;
+	background: linear-gradient(180deg, var(--etwa-panel) 0%, var(--etwa-warning-muted) 140%) !important;
+}
+
+.etwa-insight-card-ot {
+	border-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+.etwa-insight-card-head {
+	display: flex !important;
+	align-items: flex-start !important;
+	gap: var(--etwa-space-3) !important;
+}
+
+.etwa-insight-icon {
+	width: 40px !important;
+	height: 40px !important;
+	border-radius: var(--etwa-radius) !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	flex-shrink: 0 !important;
+	background: var(--etwa-border-subtle) !important;
+	color: var(--etwa-text-secondary) !important;
+}
+
+.etwa-insight-icon .dashicons {
+	font-size: 20px !important;
+	width: 20px !important;
+	height: 20px !important;
+}
+
+.etwa-insight-icon-clients {
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-insight-icon-overload {
+	background: var(--etwa-warning-muted) !important;
+	color: var(--etwa-warning) !important;
+}
+
+.etwa-insight-icon-under {
+	background: #f0f9ff !important;
+	color: #0284c7 !important;
+}
+
+.etwa-insight-icon-ot {
+	background: #faf5ff !important;
+	color: #7c3aed !important;
+}
+
+.etwa-dark .etwa-insight-icon-under {
+	background: rgba(2, 132, 199, 0.15) !important;
+}
+
+.etwa-dark .etwa-insight-icon-ot {
+	background: rgba(124, 58, 237, 0.15) !important;
+}
+
+.etwa-insight-card-head h3 {
+	margin: 0 !important;
+	font-size: var(--etwa-text-base) !important;
+	font-weight: 700 !important;
+}
+
+.etwa-insight-card-head p {
+	margin: 2px 0 0 !important;
+	font-size: var(--etwa-text-xs) !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-insight-list {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-3) !important;
+	min-height: 48px !important;
+}
+
+.etwa-insight-item {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-2) !important;
+}
+
+.etwa-insight-item-head {
+	display: flex !important;
+	align-items: baseline !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-3) !important;
+}
+
+.etwa-insight-name {
+	font-size: var(--etwa-text-sm) !important;
+	font-weight: 600 !important;
+	color: var(--etwa-text) !important;
+	min-width: 0 !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+	white-space: nowrap !important;
+}
+
+.etwa-insight-value {
+	font-size: var(--etwa-text-xs) !important;
+	font-weight: 600 !important;
+	color: var(--etwa-muted) !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-insight-bar {
+	height: 6px !important;
+	border-radius: var(--etwa-radius-full) !important;
+	background: var(--etwa-border-subtle) !important;
+	overflow: hidden !important;
+}
+
+.etwa-insight-bar span {
+	display: block !important;
+	height: 100% !important;
+	border-radius: inherit !important;
+	background: var(--etwa-primary) !important;
+	transition: width 0.5s var(--etwa-ease) !important;
+}
+
+.etwa-insight-item-warning .etwa-insight-bar span {
+	background: var(--etwa-warning) !important;
+}
+
+.etwa-insight-item-info .etwa-insight-bar span {
+	background: #0284c7 !important;
+}
+
+.etwa-insight-item-ot .etwa-insight-bar span {
+	background: #7c3aed !important;
+}
+
+.etwa-insight-empty {
+	padding: var(--etwa-space-4) !important;
+	text-align: center !important;
+	font-size: var(--etwa-text-sm) !important;
+	color: var(--etwa-muted) !important;
+	border: 1px dashed var(--etwa-border) !important;
+	border-radius: var(--etwa-radius) !important;
+	background: var(--etwa-border-subtle) !important;
+}
+
+/* ——— Responsive ——— */
+@media (max-width: 1100px) {
+	.etwa-analytics-kpi-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	}
+}
+
+@media (max-width: 782px) {
+	.etwa-analytics-kpi-grid,
+	.etwa-analytics-charts,
+	.etwa-insights-grid {
+		grid-template-columns: 1fr !important;
+	}
+
+	.etwa-chart-card-wide {
+		grid-column: auto !important;
+	}
+
+	.etwa-analytics-page .etwa-analytics-filter {
+		flex-direction: column !important;
+		align-items: stretch !important;
+	}
+
+	.etwa-analytics-filter .etwa-btn {
+		width: 100% !important;
+	}
+}
+
+/* ——— Client Analytics ——— */
+.etwa-client-analytics-page .etwa-date-range-filter {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-4) !important;
+	margin-bottom: var(--etwa-space-6) !important;
+	padding: var(--etwa-space-4) var(--etwa-space-5) !important;
+	background: var(--etwa-panel) !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-lg) !important;
+	box-shadow: var(--etwa-shadow-xs) !important;
+}
+
+.etwa-date-preset-row {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: var(--etwa-space-2) !important;
+	margin-bottom: 0 !important;
+}
+
+.etwa-date-preset-row.etwa-tabs {
+	margin-bottom: 0 !important;
+}
+
+.etwa-custom-range-fields {
+	display: none !important;
+	flex-wrap: wrap !important;
+	gap: var(--etwa-space-4) !important;
+	align-items: flex-end !important;
+}
+
+.etwa-custom-range-fields.is-visible {
+	display: flex !important;
+}
+
+.etwa-code-inline {
+	margin-left: var(--etwa-space-2) !important;
+	font-size: var(--etwa-text-xs) !important;
+}
+
+.etwa-back-link-wrap {
+	margin-bottom: var(--etwa-space-4) !important;
+}
+
+.etwa-hero-compact {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: flex-start !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-4) !important;
+	margin-bottom: var(--etwa-space-5) !important;
+}
+
+.etwa-hero-actions {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: var(--etwa-space-2) !important;
+}
+
+.etwa-ca-detail-kpis {
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+}
+
+.etwa-analytics-grid.zwei-col {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	gap: var(--etwa-space-5) !important;
+	margin-top: var(--etwa-space-5) !important;
+}
+
+.etwa-empty-cell {
+	text-align: center !important;
+	color: var(--etwa-muted) !important;
+	padding: var(--etwa-space-6) !important;
+}
+
+@media (max-width: 900px) {
+	.etwa-analytics-grid.zwei-col {
+		grid-template-columns: 1fr !important;
+	}
+
+	.etwa-date-preset-row .etwa-tab {
+		flex: 1 1 auto !important;
+	}
+}

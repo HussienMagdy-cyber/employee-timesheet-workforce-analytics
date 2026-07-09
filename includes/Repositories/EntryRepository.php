@@ -1,0 +1,209 @@
+<?php
+/**
+ * Entry repository.
+ *
+ * @package ETWA
+ */
+
+declare(strict_types=1);
+
+namespace ETWA\Repositories;
+
+use ETWA\Models\Entry;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+final class EntryRepository {
+
+	private string $table;
+	private string $clients_table;
+
+	public function __construct() {
+		global $wpdb;
+		$this->table         = $wpdb->prefix . 'etwa_entries';
+		$this->clients_table = $wpdb->prefix . 'etwa_clients';
+	}
+
+	public function find( int $id ): ?Entry {
+		global $wpdb;
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT e.*, c.name AS client_name FROM {$this->table} e
+				LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
+				WHERE e.id = %d",
+				$id
+			)
+		);
+		return $row ? Entry::from_row( $row ) : null;
+	}
+
+	/** @return Entry[] */
+	public function find_by_timesheet( int $timesheet_id ): array {
+		global $wpdb;
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT e.*, c.name AS client_name FROM {$this->table} e
+				LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
+				WHERE e.timesheet_id = %d ORDER BY e.entry_date ASC, e.start_time ASC",
+				$timesheet_id
+			)
+		);
+		return array_map( fn( $row ) => Entry::from_row( $row ), $rows ?: array() );
+	}
+
+	/** @return Entry[] */
+	public function find_by_date_range( string $date_from, string $date_to, ?int $user_id = null ): array {
+		return $this->find_by_date_range_page( $date_from, $date_to, 0, 0, $user_id );
+	}
+
+	/** @return Entry[] */
+	public function find_by_date_range_page(
+		string $date_from,
+		string $date_to,
+		int $limit,
+		int $offset,
+		?int $user_id = null,
+		?int $client_id = null
+	): array {
+		global $wpdb;
+		$sql    = "SELECT e.*, c.name AS client_name FROM {$this->table} e
+			LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
+			WHERE e.entry_date BETWEEN %s AND %s";
+		$params = array( $date_from, $date_to );
+
+		if ( $user_id ) {
+			$sql     .= ' AND e.user_id = %d';
+			$params[] = $user_id;
+		}
+		if ( $client_id ) {
+			$sql     .= ' AND e.client_id = %d';
+			$params[] = $client_id;
+		}
+		$sql .= ' ORDER BY e.entry_date ASC, e.start_time ASC, e.id ASC';
+
+		if ( $limit > 0 ) {
+			$sql     .= ' LIMIT %d OFFSET %d';
+			$params[] = $limit;
+			$params[] = max( 0, $offset );
+		}
+
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
+		return array_map( fn( $row ) => Entry::from_row( $row ), $rows ?: array() );
+	}
+
+	public function count_by_date_range( string $date_from, string $date_to, ?int $user_id = null ): int {
+		global $wpdb;
+		$sql    = "SELECT COUNT(*) FROM {$this->table} WHERE entry_date BETWEEN %s AND %s";
+		$params = array( $date_from, $date_to );
+
+		if ( $user_id ) {
+			$sql     .= ' AND user_id = %d';
+			$params[] = $user_id;
+		}
+
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, ...$params ) );
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 * @return int[]
+	 */
+	public function create_many( array $rows ): array {
+		if ( ! $rows ) {
+			return array();
+		}
+
+		global $wpdb;
+		$now = current_time( 'mysql' );
+		$ids = array();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query( 'START TRANSACTION' );
+
+		foreach ( $rows as $data ) {
+			$inserted = $wpdb->insert(
+				$this->table,
+				array_merge( $data, array( 'created_at' => $now, 'updated_at' => $now ) )
+			);
+			if ( false === $inserted ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->query( 'ROLLBACK' );
+				return array();
+			}
+			$ids[] = (int) $wpdb->insert_id;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query( 'COMMIT' );
+		return $ids;
+	}
+
+	/** @param array<string,mixed> $data */
+	public function create( array $data ): int {
+		global $wpdb;
+		$now = current_time( 'mysql' );
+		$wpdb->insert(
+			$this->table,
+			array_merge( $data, array( 'created_at' => $now, 'updated_at' => $now ) )
+		);
+		return (int) $wpdb->insert_id;
+	}
+
+	/** @param array<string,mixed> $data */
+	public function update( int $id, array $data ): bool {
+		global $wpdb;
+		$data['updated_at'] = current_time( 'mysql' );
+		return false !== $wpdb->update( $this->table, $data, array( 'id' => $id ) );
+	}
+
+	public function delete( int $id ): bool {
+		global $wpdb;
+		return false !== $wpdb->delete( $this->table, array( 'id' => $id ) );
+	}
+
+	public function delete_by_timesheet( int $timesheet_id ): void {
+		global $wpdb;
+		$wpdb->delete( $this->table, array( 'timesheet_id' => $timesheet_id ) );
+	}
+
+	public function has_overlap(
+		int $timesheet_id,
+		string $entry_date,
+		string $start_time,
+		string $end_time,
+		?int $exclude_id = null
+	): bool {
+		global $wpdb;
+
+		$sql    = "SELECT COUNT(*) FROM {$this->table}
+			WHERE timesheet_id = %d AND entry_date = %s
+			AND start_time < %s AND end_time > %s";
+		$params = array( $timesheet_id, $entry_date, $end_time, $start_time );
+
+		if ( $exclude_id ) {
+			$sql     .= ' AND id != %d';
+			$params[] = $exclude_id;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, ...$params ) ) > 0;
+	}
+
+	/** @return array{regular:float,overtime:float} */
+	public function sum_hours_by_timesheet( int $timesheet_id ): array {
+		global $wpdb;
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(regular_hours),0) AS regular, COALESCE(SUM(overtime_hours),0) AS overtime
+				FROM {$this->table} WHERE timesheet_id = %d",
+				$timesheet_id
+			)
+		);
+		return array(
+			'regular'  => (float) ( $row->regular ?? 0 ),
+			'overtime' => (float) ( $row->overtime ?? 0 ),
+		);
+	}
+}

@@ -1,0 +1,225 @@
+/* Branded login and password setup pages — full-screen, theme-isolated */
+
+html.etwa-auth-page,
+html:has(body.etwa-auth-page) {
+	height: 100% !important;
+}
+
+body.etwa-auth-page {
+	margin: 0 !important;
+	padding: 0 !important;
+	min-height: 100% !important;
+	background: var(--etwa-bg, #f8fafc) !important;
+	color: var(--etwa-text, #0f172a) !important;
+	overflow-x: hidden !important;
+}
+
+body.etwa-auth-page #wpadminbar {
+	display: none !important;
+}
+
+body.etwa-auth-page.admin-bar {
+	margin-top: 0 !important;
+}
+
+body.etwa-auth-page .etwa-auth-page-main {
+	margin: 0 !important;
+	padding: 0 !important;
+	min-height: 100vh !important;
+}
+
+.etwa-auth-layout {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	min-height: 100vh !important;
+	width: 100% !important;
+	margin: 0 !important;
+	padding: 24px 16px !important;
+	box-sizing: border-box !important;
+	background: var(--etwa-bg, #f8fafc) !important;
+}
+
+.etwa-auth-card {
+	width: 100% !important;
+	max-width: 420px !important;
+	padding: 28px 24px 24px !important;
+	border-radius: 16px !important;
+	background: #fff !important;
+	border: 1px solid var(--etwa-border, #e2e8f0) !important;
+	box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08) !important;
+	box-sizing: border-box !important;
+}
+
+.etwa-auth-brand {
+	display: flex !important;
+	align-items: center !important;
+	gap: 12px !important;
+	margin-bottom: 20px !important;
+}
+
+.etwa-auth-brand-mark {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 40px !important;
+	height: 40px !important;
+	border-radius: 12px !important;
+	background: var(--etwa-primary, #ea580c) !important;
+	color: #fff !important;
+	font-weight: 700 !important;
+	font-size: 1rem !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-auth-brand-text {
+	display: flex !important;
+	flex-direction: column !important;
+	line-height: 1.2 !important;
+}
+
+.etwa-auth-brand-text strong {
+	font-size: 1rem !important;
+	color: var(--etwa-text, #0f172a) !important;
+}
+
+.etwa-auth-brand-text span {
+	font-size: 0.8rem !important;
+	color: var(--etwa-text-muted, #64748b) !important;
+}
+
+.etwa-auth-title {
+	margin: 0 0 16px !important;
+	font-size: 1.35rem !important;
+	font-weight: 700 !important;
+	color: var(--etwa-text, #0f172a) !important;
+}
+
+.etwa-auth-lead {
+	margin: 0 0 16px !important;
+	color: var(--etwa-text-muted, #64748b) !important;
+	font-size: 0.95rem !important;
+	line-height: 1.5 !important;
+}
+
+.etwa-auth-form {
+	display: grid !important;
+	gap: 14px !important;
+	margin: 0 !important;
+}
+
+.etwa-auth-form > label:not(.etwa-auth-remember) {
+	display: grid !important;
+	gap: 6px !important;
+	font-size: 0.9rem !important;
+	font-weight: 600 !important;
+	color: var(--etwa-text-secondary, #334155) !important;
+}
+
+.etwa-auth-form input[type='email'],
+.etwa-auth-form input[type='password'] {
+	width: 100% !important;
+	padding: 10px 12px !important;
+	border: 1px solid var(--etwa-border, #cbd5e1) !important;
+	border-radius: 10px !important;
+	font-size: 1rem !important;
+	box-sizing: border-box !important;
+	background: #fff !important;
+	color: var(--etwa-text, #0f172a) !important;
+}
+
+.etwa-auth-form label.etwa-auth-remember {
+	display: flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	gap: 8px !important;
+	font-weight: 500 !important;
+	cursor: pointer !important;
+	margin: 0 !important;
+}
+
+.etwa-auth-form label.etwa-auth-remember input[type='checkbox'] {
+	width: auto !important;
+	height: auto !important;
+	margin: 0 !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-auth-form label.etwa-auth-remember span {
+	font-weight: 500 !important;
+}
+
+.etwa-auth-layout .etwa-btn {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	padding: 10px 16px !important;
+	border-radius: 10px !important;
+	border: 1px solid transparent !important;
+	font-size: 0.95rem !important;
+	font-weight: 600 !important;
+	cursor: pointer !important;
+	text-decoration: none !important;
+	box-sizing: border-box !important;
+}
+
+.etwa-auth-layout .etwa-btn-primary {
+	background: var(--etwa-primary, #ea580c) !important;
+	color: #fff !important;
+	border-color: var(--etwa-primary, #ea580c) !important;
+}
+
+.etwa-auth-layout .etwa-btn-primary:hover:not(:disabled) {
+	background: var(--etwa-primary-hover, #c2410c) !important;
+	border-color: var(--etwa-primary-hover, #c2410c) !important;
+	color: #fff !important;
+}
+
+.etwa-auth-submit {
+	width: 100% !important;
+	margin-top: 4px !important;
+}
+
+.etwa-auth-footnote {
+	margin: 16px 0 0 !important;
+	text-align: center !important;
+	font-size: 0.9rem !important;
+}
+
+.etwa-auth-layout a,
+.etwa-auth-footnote a {
+	color: var(--etwa-primary, #ea580c) !important;
+	text-decoration: none !important;
+}
+
+.etwa-auth-layout a:hover,
+.etwa-auth-footnote a:hover {
+	color: var(--etwa-primary-hover, #c2410c) !important;
+	text-decoration: underline !important;
+}
+
+.etwa-auth-notice {
+	margin: 0 0 16px !important;
+	padding: 12px 14px !important;
+	border-radius: 10px !important;
+	font-size: 0.92rem !important;
+	line-height: 1.45 !important;
+}
+
+.etwa-auth-notice-success {
+	background: #ecfdf5 !important;
+	border: 1px solid #a7f3d0 !important;
+	color: #065f46 !important;
+}
+
+.etwa-auth-notice-info {
+	background: #eff6ff !important;
+	border: 1px solid #bfdbfe !important;
+	color: #1e40af !important;
+}
+
+.etwa-auth-notice-error {
+	background: #fef2f2 !important;
+	border: 1px solid #fecaca !important;
+	color: #991b1b !important;
+}

@@ -1,0 +1,101 @@
+/**
+ * Think Marketing Design System — Tokens (8px scale, SaaS-inspired)
+ *
+ * @package ETWA
+ */
+
+.etwa-app,
+.etwa-portal-layout {
+	--etwa-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+	--etwa-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
+
+	/* Color — light */
+	--etwa-bg: #f8fafc !important;
+	--etwa-bg-elevated: #ffffff !important;
+	--etwa-panel: #ffffff !important;
+	--etwa-sidebar: #ffffff !important;
+	--etwa-text: #0f172a !important;
+	--etwa-text-secondary: #475569 !important;
+	--etwa-muted: #64748b !important;
+	--etwa-border: #e2e8f0 !important;
+	--etwa-border-subtle: #f1f5f9 !important;
+
+	--etwa-primary: #4f46e5 !important;
+	--etwa-primary-hover: #1405b5 !important;
+	--etwa-primary-muted: #eef2ff !important;
+	--etwa-accent: #d97706 !important;
+	--etwa-success: #059669 !important;
+	--etwa-success-muted: #ecfdf5 !important;
+	--etwa-warning: #d97706 !important;
+	--etwa-warning-muted: #fffbeb !important;
+	--etwa-danger: #dc2626 !important;
+	--etwa-danger-muted: #fef2f2 !important;
+	--etwa-info: #0284c7 !important;
+
+	/* Spacing — 8px system */
+	--etwa-space-1: 4px !important;
+	--etwa-space-2: 8px !important;
+	--etwa-space-3: 12px !important;
+	--etwa-space-4: 16px !important;
+	--etwa-space-5: 20px !important;
+	--etwa-space-6: 24px !important;
+	--etwa-space-8: 32px !important;
+	--etwa-space-10: 40px !important;
+	--etwa-space-12: 48px !important;
+
+	/* Radius */
+	--etwa-radius-sm: 6px !important;
+	--etwa-radius: 10px !important;
+	--etwa-radius-lg: 14px !important;
+	--etwa-radius-xl: 18px !important;
+	--etwa-radius-full: 9999px !important;
+
+	/* Shadows */
+	--etwa-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+	--etwa-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+	--etwa-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+	--etwa-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.1) !important;
+
+	/* Layout */
+	--etwa-sidebar-width: 248px !important;
+	--etwa-header-height: 56px !important;
+	--etwa-content-max: 1200px !important;
+
+	/* Motion */
+	--etwa-ease: cubic-bezier(0.4, 0, 0.2, 1) !important;
+	--etwa-duration: 150ms !important;
+
+	/* Typography */
+	--etwa-text-xs: 0.75rem !important;
+	--etwa-text-sm: 0.875rem !important;
+	--etwa-text-base: 1rem !important;
+	--etwa-text-lg: 1.125rem !important;
+	--etwa-text-xl: 1.25rem !important;
+	--etwa-text-2xl: 1.5rem !important;
+	--etwa-text-3xl: 1.875rem !important;
+
+	font-family: var(--etwa-font) !important;
+	-webkit-font-smoothing: antialiased !important;
+	-moz-osx-font-smoothing: grayscale !important;
+}
+
+.etwa-app.etwa-dark,
+.etwa-portal-layout.etwa-dark,
+.etwa-portal-layout.etwa-dark .etwa-app {
+	--etwa-bg: #000000 !important;
+	--etwa-bg-elevated: #050505 !important;
+	--etwa-panel: #0d0d0d !important;
+	--etwa-sidebar: #000000 !important;
+	--etwa-text: #f5f5f5 !important;
+	--etwa-text-secondary: #a3a3a3 !important;
+	--etwa-muted: #737373 !important;
+	--etwa-border: #1a1a1a !important;
+	--etwa-border-subtle: #111111 !important;
+	--etwa-primary-muted: rgba(99, 102, 241, 0.18) !important;
+	--etwa-success-muted: rgba(5, 150, 105, 0.18) !important;
+	--etwa-warning-muted: rgba(217, 119, 6, 0.18) !important;
+	--etwa-danger-muted: rgba(220, 38, 38, 0.18) !important;
+	--etwa-shadow: none !important;
+	--etwa-shadow-md: none !important;
+	--etwa-shadow-lg: none !important;
+}
