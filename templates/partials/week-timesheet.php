@@ -13,6 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use ETWA\Repositories\ClientRepository;
 use ETWA\Helpers\DateHelper;
+use ETWA\Helpers\EntryTypeHelper;
 
 extract( $view, EXTR_SKIP );
 
@@ -104,7 +105,23 @@ $hr_can_edit = ! empty( $hr_can_edit );
 				<span class="etwa-status-label"><?php echo esc_html( ucfirst( $timesheet->status ) ); ?></span>
 			</span>
 		</div>
+		<?php if ( empty( $hr_review ) && ! $readonly ) : ?>
+			<div class="etwa-kpi-card etwa-kpi-draft-sync">
+				<span class="etwa-kpi-label"><?php esc_html_e( 'Draft Sync', 'etwa' ); ?></span>
+				<span class="etwa-draft-sync-status is-<?php echo esc_attr( $draft_sync_state ?? 'never_saved' ); ?>" id="etwa-draft-sync-status">
+					<?php echo esc_html( $draft_sync_label ?? __( 'Not saved for review yet', 'etwa' ) ); ?>
+				</span>
+			</div>
+		<?php endif; ?>
 	</div>
+
+	<?php if ( empty( $hr_review ) && ! $readonly && in_array( $draft_sync_state ?? 'never_saved', array( 'unsaved', 'never_saved' ), true ) ) : ?>
+		<div class="etwa-alert etwa-alert-info" id="etwa-draft-sync-notice">
+			<?php esc_html_e( 'HR can only see your timesheet after you click Save Draft. Until then, your latest edits stay private.', 'etwa' ); ?>
+		</div>
+	<?php else : ?>
+		<div class="etwa-alert etwa-alert-info" id="etwa-draft-sync-notice" hidden></div>
+	<?php endif; ?>
 
 	<?php if ( $readonly ) : ?>
 		<div class="etwa-alert etwa-alert-warning"><?php esc_html_e( 'This week is approved or locked. Editing is disabled.', 'etwa' ); ?></div>
@@ -154,6 +171,11 @@ $hr_can_edit = ! empty( $hr_can_edit );
 					<?php else : ?>
 						<?php foreach ( $day_items as $entry ) : ?>
 							<?php $is_break_entry = (int) $entry->client_id === $break_client_id; ?>
+							<?php
+							$entry_hours = $is_break_entry
+								? $entry->duration_minutes / 60
+								: $entry->regular_hours + $entry->overtime_hours;
+							?>
 							<article
 								class="etwa-entry-chip is-clickable<?php echo $is_break_entry ? ' is-break' : ''; ?>"
 								data-entry-id="<?php echo esc_attr( (string) $entry->id ); ?>"
@@ -163,6 +185,9 @@ $hr_can_edit = ! empty( $hr_can_edit );
 								data-client-id="<?php echo esc_attr( (string) $entry->client_id ); ?>"
 								data-task="<?php echo esc_attr( $entry->task ); ?>"
 								data-notes="<?php echo esc_attr( (string) $entry->notes ); ?>"
+								data-entry-type="<?php echo esc_attr( $entry->entry_type ); ?>"
+								data-overtime-hours="<?php echo esc_attr( (string) $entry->overtime_hours ); ?>"
+								data-duration-minutes="<?php echo esc_attr( (string) $entry->duration_minutes ); ?>"
 								tabindex="0"
 								role="button"
 							>
@@ -172,10 +197,15 @@ $hr_can_edit = ! empty( $hr_can_edit );
 									<span><?php echo esc_html( $entry->task ); ?></span>
 								</div>
 								<div class="etwa-entry-hours">
-									<?php if ( ! $is_break_entry ) : ?>
-										<?php echo esc_html( number_format( $entry->regular_hours + $entry->overtime_hours, 1 ) ); ?>h
+									<?php if ( $is_break_entry ) : ?>
+										<span class="etwa-break-tag"><?php echo esc_html( number_format( $entry_hours, 1 ) ); ?>h <?php esc_html_e( 'Break', 'etwa' ); ?></span>
 									<?php else : ?>
-										<span class="etwa-break-tag"><?php echo esc_html( number_format( $entry->duration_minutes / 60, 1 ) ); ?>h <?php esc_html_e( 'Break', 'etwa' ); ?></span>
+										<?php echo esc_html( number_format( $entry_hours, 1 ) ); ?>h
+										<?php if ( EntryTypeHelper::OVERTIME === $entry->entry_type || (float) $entry->overtime_hours > 0 ) : ?>
+											<span class="etwa-ot-tag"><?php esc_html_e( 'OT', 'etwa' ); ?></span>
+										<?php elseif ( EntryTypeHelper::COMPENSATION === $entry->entry_type ) : ?>
+											<span class="etwa-comp-tag"><?php esc_html_e( 'Comp', 'etwa' ); ?></span>
+										<?php endif; ?>
 									<?php endif; ?>
 								</div>
 								<?php if ( ! $readonly ) : ?>
@@ -219,6 +249,15 @@ $hr_can_edit = ! empty( $hr_can_edit );
 					</label>
 					<label><?php esc_html_e( 'Start', 'etwa' ); ?><select name="start_time" id="etwa-start-time" required></select></label>
 					<label><?php esc_html_e( 'End', 'etwa' ); ?><select name="end_time" id="etwa-end-time" required></select></label>
+					<label class="etwa-span-2" id="etwa-entry-type-wrap" hidden>
+						<?php esc_html_e( 'Entry Type', 'etwa' ); ?>
+						<select name="entry_type" id="etwa-entry-type" required>
+							<option value=""><?php esc_html_e( 'Select…', 'etwa' ); ?></option>
+							<option value="overtime"><?php esc_html_e( 'Overtime', 'etwa' ); ?></option>
+							<option value="compensation"><?php esc_html_e( 'Compensation', 'etwa' ); ?></option>
+						</select>
+						<span class="etwa-muted"><?php esc_html_e( 'Required for entries starting after 6:00 PM.', 'etwa' ); ?></span>
+					</label>
 					<div class="etwa-span-2 etwa-duration-preview-wrap">
 						<p class="etwa-duration-preview" id="etwa-duration-preview" aria-live="polite"></p>
 					</div>
@@ -256,7 +295,7 @@ $hr_can_edit = ! empty( $hr_can_edit );
 					</label>
 					<label class="etwa-span-2"><?php esc_html_e( 'Task', 'etwa' ); ?><input type="text" name="task" id="etwa-task" placeholder="<?php esc_attr_e( 'e.g. Website', 'etwa' ); ?>" /></label>
 					<label class="etwa-span-2"><?php esc_html_e( 'Notes', 'etwa' ); ?><textarea name="notes" id="etwa-notes" rows="2" placeholder="<?php esc_attr_e( 'Optional details…', 'etwa' ); ?>"></textarea></label>
-					<p class="etwa-span-2 etwa-field-hint" id="etwa-all-clients-hint" hidden><?php esc_html_e( 'Notes are required — describe the work performed in detail because this entry applies to all clients.', 'etwa' ); ?></p>
+					<p class="etwa-span-2 etwa-field-hint" id="etwa-all-clients-hint" hidden><?php esc_html_e( 'Notes are required — describe the work performed in detail because this entry applies to Moderation.', 'etwa' ); ?></p>
 					<?php if ( $hr_can_edit ) : ?>
 						<label class="etwa-span-2 etwa-hr-reason-field">
 							<?php esc_html_e( 'Audit reason (required)', 'etwa' ); ?>

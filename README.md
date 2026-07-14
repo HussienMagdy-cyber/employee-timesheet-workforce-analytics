@@ -1,8 +1,40 @@
 # Employee Timesheet & Workforce Analytics
 
-**Think Marketing Workforce** — a production-ready WordPress plugin for date-based time tracking, overtime, approvals, leave & requests, departments, employee management, analytics, and Excel exports.
+**Think Marketing Workforce** — a production-ready WordPress plugin for date-based time tracking, overtime, compensation, approvals, leave & requests, departments, employee management, analytics, and Excel exports.
+
+**Current version:** `1.1.3` (database schema `1.17.0`)
 
 > **Full system reference:** [docs/SYSTEM-DOCUMENTATION.md](docs/SYSTEM-DOCUMENTATION.md)
+
+---
+
+## What's new in 1.1.x
+
+### After-hours entry types
+- Employees logging time **at or after 6:00 PM** must choose **Overtime** or **Compensation**
+- Entry type is stored on each row (`entry_type`) and shown on timesheet chips (OT / Comp tags)
+- **Overtime** hours flow into Client Analytics **Overtime Hours**
+- **Compensation** hours count toward **Regular Hours** and **Combined Hours** (also shown separately on the client detail page)
+
+### Client Analytics
+- Per-client **Regular**, **Overtime**, **Combined**, **Compensation**, and **OT %** KPIs
+- Employee breakdown table with Regular / OT / Comp / Combined columns
+- Overtime cost uses a **1×** multiplier (same hourly rate as regular time)
+- Analytics cache refreshes automatically when entries are saved
+
+### Email & branding
+- **Settings → Email** — configurable HTML signature, appreciation text, and closing line
+- Signature is appended to outgoing plugin emails (password setup, notifications, etc.)
+
+### UX & naming
+- **All Clients** client renamed to **Moderation** (requires detailed notes on each entry)
+- **View Weeks** shortened to **View** in HR dashboards
+- Guest users on protected pages are **redirected to login** (no inline “please log in” message)
+
+### Timesheet reliability
+- Draft snapshots preserve `entry_type` and hour columns on save/submit
+- Database migrations (`1.13.0`–`1.17.0`) repair legacy OT/comp hour splits and prevent double-counting
+- Hard refresh after upgrade if timesheet JS looks stale (`employee-dashboard.js?ver=1.1.3`)
 
 ---
 
@@ -114,6 +146,30 @@ See [Authentication](docs/SYSTEM-DOCUMENTATION.md#authentication) in the system 
 
 Navigate with `?etwa_view=timesheet&etwa_week=YYYY-MM-DD` (Sunday of the work week).
 
+### Timesheet drafts & HR review
+
+Employees work in **draft** or **rejected** weeks before submitting. HR does not see live edits until the employee clicks **Save Draft**.
+
+| Who | What they see |
+|-----|----------------|
+| **Employee** | Live timesheet; status labels: *Draft Saved*, *Unsaved changes — not visible to HR yet*, *Not saved for review yet* |
+| **HR / Dept Head** | Last **saved draft** snapshot when the employee has saved; otherwise an **empty week** (never blocked from opening the report) |
+| **After Submit** | Submitted data for approval |
+
+HR can open any employee week from **HR Dashboard → employee weeks** even when no entries exist yet.
+
+### My Profile
+
+All portal users can view **My Profile**. Who can edit what:
+
+| Field | Employee (self) | HR / Owner |
+|-------|:-----------------:|:----------:|
+| Full name, email, phone, birthday | ✓ | ✓ |
+| Role, job title, join date | — | ✓ |
+| Send password reset / deactivate | — | ✓ |
+
+Employees save changes via `PUT /employees/me/profile`. HR edits any employee via the **Employees** tab or full profile endpoint.
+
 ### Individual shortcodes
 
 Use standalone shortcodes if not using the unified portal:
@@ -141,7 +197,8 @@ Use standalone shortcodes if not using the unified portal:
 
 - **Create** — name, email, role, department, job title, join date, birthday; password setup email sent automatically
 - **Edit** (list) — role, department, hourly cost (EGP)
-- **Profile** — view/edit details, send password reset (`?employee_id=` on Employees tab)
+- **Profile** (HR) — view/edit all fields, send password reset, deactivate/reactivate (`?employee_id=` on Employees tab)
+- **My Profile** (all roles) — employees edit their own name, email, phone, and birthday; HR-only fields remain read-only
 
 Assignable roles: Owner, HR Manager, Department Head, Employee.
 
@@ -170,9 +227,20 @@ Dual approval (department + HR) when enabled in settings.
 | Work week | Sunday → Thursday |
 | Working hours | 10:00 – 18:00 |
 | Time interval | 30 minutes |
-| Overtime | After 18:00, min 30 min, rounded to 30 min |
+| After-hours entries | At or from 18:00 — **Overtime** or **Compensation** required |
+| Overtime cost multiplier | 1× (same rate as regular) |
 
-Configurable by Owner in **Settings**.
+Configurable by Owner in **Settings** (work day end, interval, OT rules).
+
+### Entry types (after 6:00 PM)
+
+| Type | Stored in | Client Analytics |
+|------|-----------|------------------|
+| **Regular** | `regular_hours` | Regular Hours |
+| **Overtime** | `overtime_hours` | Overtime Hours |
+| **Compensation** | `regular_hours` + `duration_minutes` | Regular + Combined (+ Comp KPI on detail) |
+
+Break entries are excluded from client analytics totals.
 
 ---
 
@@ -188,6 +256,21 @@ Configurable by Owner in **Settings**.
 | Login / password pages | `X-ETWA-Nonce` | `etwa_auth` |
 
 See [docs/REST-API.md](docs/REST-API.md) for the full endpoint list.
+
+Notable profile endpoints:
+
+| Method | Path | Who |
+|--------|------|-----|
+| GET | `/employees/me/profile` | Any logged-in portal user |
+| PUT | `/employees/me/profile` | Employee — own name, email, phone, birthday |
+| PUT | `/employees/{id}/profile` | HR / Owner — full profile fields |
+
+Notable timesheet endpoints:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/timesheets/{id}/save-draft` | Employee saves draft snapshot for HR review |
+| POST | `/timesheets/{id}/submit` | Employee submits week for approval |
 
 ---
 
@@ -226,7 +309,9 @@ Patterns: OOP, Service Layer, Repository. Storage: custom MySQL tables + user me
 | My Timesheet | Employee |
 | HR Dashboard | HR, Owner |
 | Vacations | HR, Owner |
+| Client Analytics | HR, Owner |
 | Owner Analytics | Owner |
+| Email Settings | Owner |
 | Settings | Owner |
 | Audit Logs | HR, Owner |
 
@@ -239,6 +324,7 @@ The **Timesheets** admin menu opens My Timesheet for employees and HR Dashboard 
 - Light / dark theme toggle (saved per user)
 - Scoped CSS for Elementor/theme compatibility
 - Toasts & confirm dialogs via `etwa-ui.js`
+- **Save Draft** on timesheet — shares the current week with HR without submitting
 - **Copy Previous Week** on timesheet — copies from the week before the one you are viewing
 
 ---

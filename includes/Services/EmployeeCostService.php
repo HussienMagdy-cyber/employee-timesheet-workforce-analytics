@@ -30,7 +30,7 @@ final class EmployeeCostService {
 	/**
 	 * @return array{items:array<int,array<string,mixed>>,total:int,page:int,per_page:int}|WP_Error
 	 */
-	public function list_employees( int $page, int $per_page, string $search = '' ): array|WP_Error {
+	public function list_employees( int $page, int $per_page, string $search = '', bool $include_inactive = false ): array|WP_Error {
 		if ( ! EmployeeCostHelper::can_view_labor_cost() ) {
 			return new WP_Error( 'forbidden', __( 'You cannot view employee labor costs.', 'etwa' ), array( 'status' => 403 ) );
 		}
@@ -52,6 +52,21 @@ final class EmployeeCostService {
 			$args['search_columns'] = array( 'user_login', 'user_email', 'display_name' );
 		}
 
+		if ( ! $include_inactive ) {
+			$args['meta_query'] = array(
+				'relation' => 'OR',
+				array(
+					'key'     => EmployeeProfileHelper::META_EMPLOYMENT_STATUS,
+					'compare' => 'NOT EXISTS',
+				),
+				array(
+					'key'     => EmployeeProfileHelper::META_EMPLOYMENT_STATUS,
+					'value'   => EmployeeProfileHelper::STATUS_ACTIVE,
+					'compare' => '=',
+				),
+			);
+		}
+
 		$query = new \WP_User_Query( $args );
 		$users = $query->get_results();
 		$ids   = array_map( fn( $user ) => (int) $user->ID, $users );
@@ -62,14 +77,19 @@ final class EmployeeCostService {
 		foreach ( $users as $user ) {
 			$uid = (int) $user->ID;
 			$items[] = array(
-				'id'              => $uid,
-				'display_name'    => $user->display_name,
-				'email'           => $user->user_email,
-				'role'            => EmployeeProfileHelper::primary_role_slug( $user ),
-				'role_label'      => EmployeeProfileHelper::role_label_for_user( $user ),
-				'hourly_cost_egp' => $rates[ $uid ] ?? 0.0,
-				'department_id'   => $depts[ $uid ]['id'] ?? null,
-				'department_name' => $depts[ $uid ]['name'] ?? '',
+				'id'                => $uid,
+				'display_name'      => $user->display_name,
+				'email'             => $user->user_email,
+				'role'              => EmployeeProfileHelper::primary_role_slug( $user ),
+				'role_label'        => EmployeeProfileHelper::role_label_for_user( $user ),
+				'employment_status' => EmployeeProfileHelper::get_employment_status( $uid ),
+				'is_active'         => EmployeeProfileHelper::is_active( $uid ),
+				'employment_label'  => EmployeeProfileHelper::employment_status_label(
+					EmployeeProfileHelper::get_employment_status( $uid )
+				),
+				'hourly_cost_egp'   => $rates[ $uid ] ?? 0.0,
+				'department_id'     => $depts[ $uid ]['id'] ?? null,
+				'department_name'   => $depts[ $uid ]['name'] ?? '',
 			);
 		}
 

@@ -48,12 +48,15 @@ final class DepartmentDashboardPage {
 
 	private function render_week_report( int $review_user, string $ref, string $dept_base_url ): void {
 		$employee_weeks_url = HrReviewLinks::employee_weeks_url( $dept_base_url, $review_user );
-		$view               = TimesheetViewData::prepare_hr_review( $review_user, get_current_user_id(), $ref, 'admin', $employee_weeks_url, 'dept-dashboard' );
-		if ( ! $view ) {
-			wp_die( esc_html__( 'You do not have permission to view this timesheet.', 'etwa' ) );
+		$result             = TimesheetViewData::prepare_hr_review_result( $review_user, get_current_user_id(), $ref, 'admin', $employee_weeks_url, 'dept-dashboard' );
+		echo '<div class="wrap etwa-app">';
+		if ( ! $result['ok'] ) {
+			$this->render_review_notice( $result, $employee_weeks_url, true );
+			echo '</div>';
+			return;
 		}
 
-		echo '<div class="wrap etwa-app">';
+		$view = $result['view'];
 		include ETWA_PLUGIN_DIR . 'templates/partials/hr-week-review.php';
 		echo '</div>';
 	}
@@ -81,5 +84,14 @@ final class DepartmentDashboardPage {
 			return sanitize_text_field( wp_unslash( (string) $_GET['etwa_week'] ) );
 		}
 		return null;
+	}
+
+	/** @param array{ok:false,code:string,message:string} $result */
+	private function render_review_notice( array $result, string $back_url, bool $dept_review = false ): void {
+		$code       = $result['code'] ?? 'forbidden';
+		$type       = 'draft_not_shared' === $code ? 'info' : 'error';
+		$message    = $result['message'] ?? __( 'This timesheet is not available for review yet.', 'etwa' );
+		$back_label = __( 'Employee weeks', 'etwa' );
+		include ETWA_PLUGIN_DIR . 'templates/partials/hr-review-notice.php';
 	}
 }

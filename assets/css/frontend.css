@@ -403,6 +403,15 @@
 		padding-right: var(--etwa-space-4) !important;
 	}
 
+	.etwa-portal-page-head {
+		padding-top: var(--etwa-space-4) !important;
+		padding-bottom: var(--etwa-space-3) !important;
+	}
+
+	.etwa-portal-page-title {
+		font-size: var(--etwa-text-xl) !important;
+	}
+
 	.etwa-dark-toggle-label,
 	.etwa-portal-logout {
 		display: none !important;
@@ -426,7 +435,7 @@
 }
 
 .etwa-history-table tr.is-current-week {
-	background: #f8fafc !important;
+	background: var(--etwa-border-subtle) !important;
 }
 
 .etwa-btn-small {
@@ -522,7 +531,7 @@
 }
 
 .etwa-dark .etwa-history-table tr.is-current-week {
-	background: #111111 !important;
+	background: var(--etwa-border-subtle) !important;
 }
 
 .etwa-hr-review-toolbar {
@@ -913,6 +922,14 @@
 	margin-left: 4px !important;
 	color: var(--etwa-accent) !important;
 	font-style: normal !important;
+	font-weight: 600 !important;
+}
+
+.etwa-comp-tag {
+	margin-left: 4px !important;
+	color: #7c3aed !important;
+	font-style: normal !important;
+	font-weight: 600 !important;
 }
 
 .etwa-break-tag {
@@ -1024,10 +1041,15 @@
 	display: inline-block !important;
 	padding: 2px 10px !important;
 	border-radius: 999px !important;
-	background: #e0e7ff !important;
-	color: #3730a3 !important;
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
 	font-size: 12px !important;
 	font-weight: 600 !important;
+}
+
+.etwa-dark .etwa-badge {
+	background: rgba(99, 102, 241, 0.2) !important;
+	color: #c7d2fe !important;
 }
 
 .etwa-dark .etwa-week-days-tag {
@@ -1084,7 +1106,12 @@
 	padding: 16px !important;
 	border-radius: 16px !important;
 	border: 1px solid var(--etwa-border, #e2e8f0) !important;
-	background: #f8fafc !important;
+	background: var(--etwa-panel) !important;
+	color: var(--etwa-text) !important;
+}
+
+.etwa-dark .etwa-history-card.is-current-week {
+	background: var(--etwa-border-subtle) !important;
 }
 
 .etwa-history-card-head {

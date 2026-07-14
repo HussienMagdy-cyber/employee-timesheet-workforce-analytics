@@ -34,7 +34,7 @@ use ETWA\Helpers\DateHelper;
 
 ?>
 
-<div class="etwa-page-shell">
+<div class="etwa-page-shell etwa-app etwa-in-portal">
 
 	<div class="etwa-hero">
 

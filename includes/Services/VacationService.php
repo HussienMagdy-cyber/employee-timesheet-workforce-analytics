@@ -13,6 +13,7 @@ use ETWA\Helpers\CalendarHelper;
 use ETWA\Helpers\ApprovalWorkflowHelper;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\DepartmentHelper;
+use ETWA\Helpers\EmployeeProfileHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Helpers\VacationApprovalHelper;
 use ETWA\Helpers\VacationHelper;
@@ -154,7 +155,7 @@ final class VacationService {
 
 		$user_id       = absint( $data['user_id'] ?? 0 );
 		$leave_type_id = absint( $data['leave_type_id'] ?? 0 );
-		$days          = (float) ( $data['days'] ?? 0 );
+		$days          = VacationHelper::normalize_days( (float) ( $data['days'] ?? 0 ) );
 		$effective     = sanitize_text_field( (string) ( $data['effective_date'] ?? '' ) );
 		$notes         = sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) );
 
@@ -230,7 +231,7 @@ final class VacationService {
 
 		$payload = array();
 		if ( isset( $data['days'] ) ) {
-			$days = (float) $data['days'];
+			$days = VacationHelper::normalize_days( (float) $data['days'] );
 			if ( $days <= 0 ) {
 				return new WP_Error( 'invalid_days', __( 'Allocated days must be greater than zero.', 'etwa' ), array( 'status' => 400 ) );
 			}
@@ -288,6 +289,180 @@ final class VacationService {
 		return true;
 	}
 
+	/** @param array<string,mixed> $data @return VacationTransaction|WP_Error */
+	public function create_adjustment( int $editor_id, array $data ): VacationTransaction|WP_Error {
+		if ( ! $this->can_manage( $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot adjust leave balances.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$user_id   = absint( $data['user_id'] ?? 0 );
+		$mode      = sanitize_key( (string) ( $data['mode'] ?? 'add' ) );
+		$days      = VacationHelper::normalize_days( (float) ( $data['days'] ?? 0 ) );
+		$effective = sanitize_text_field( (string) ( $data['effective_date'] ?? '' ) );
+		$notes     = sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) );
+
+		$annual = VacationHelper::annual_leave_type();
+		if ( ! $annual ) {
+			return new WP_Error( 'invalid_type', __( 'Annual leave type is not configured.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		$error = $this->validate_employee_and_type( $user_id, (int) $annual->id, true );
+		if ( is_wp_error( $error ) ) {
+			return $error;
+		}
+
+		if ( ! VacationHelper::validate_date( $effective ) ) {
+			return new WP_Error( 'invalid_date', __( 'Invalid effective date.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		$adjustment_days = $this->resolve_adjustment_days( $user_id, $mode, $days );
+		if ( is_wp_error( $adjustment_days ) ) {
+			return $adjustment_days;
+		}
+
+		if ( abs( (float) $adjustment_days ) < 0.001 ) {
+			return new WP_Error( 'no_change', __( 'Balance is already at the requested amount.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		$balance_check = $this->validate_adjustment_days( $user_id, 0.0, (float) $adjustment_days );
+		if ( is_wp_error( $balance_check ) ) {
+			return $balance_check;
+		}
+
+		$id = $this->transactions->create(
+			array(
+				'user_id'          => $user_id,
+				'leave_type_id'    => (int) $annual->id,
+				'transaction_type' => 'adjustment',
+				'days'             => (float) $adjustment_days,
+				'effective_date'   => $effective,
+				'notes'            => $notes,
+				'created_by'       => $editor_id,
+			)
+		);
+
+		$transaction = $this->transactions->find( $id );
+		$this->audit_vacation(
+			'adjust',
+			'vacation_adjustment',
+			$id,
+			null,
+			$transaction?->to_array(),
+			$editor_id,
+			$user_id,
+			sprintf(
+				/* translators: 1: signed days, 2: mode label */
+				__( 'Balance adjustment: %1$s days (%2$s)', 'etwa' ),
+				number_format( (float) $adjustment_days, 2 ),
+				$this->adjustment_mode_label( $mode )
+			)
+		);
+
+		return $transaction ?: new WP_Error( 'create_failed', __( 'Could not create balance adjustment.', 'etwa' ) );
+	}
+
+	/** @param array<string,mixed> $data @return VacationTransaction|WP_Error */
+	public function update_adjustment( int $editor_id, int $id, array $data ): VacationTransaction|WP_Error {
+		if ( ! $this->can_manage( $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot edit balance adjustments.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$existing = $this->transactions->find( $id );
+		if ( ! $existing || 'adjustment' !== $existing->transaction_type ) {
+			return new WP_Error( 'not_found', __( 'Balance adjustment not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		$payload = array();
+		if ( isset( $data['days'] ) ) {
+			$days = VacationHelper::normalize_days( (float) $data['days'] );
+			if ( 0.0 === $days ) {
+				return new WP_Error( 'invalid_days', __( 'Adjustment days cannot be zero.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			$payload['days'] = $days;
+		}
+		if ( isset( $data['effective_date'] ) ) {
+			$effective = sanitize_text_field( (string) $data['effective_date'] );
+			if ( ! VacationHelper::validate_date( $effective ) ) {
+				return new WP_Error( 'invalid_date', __( 'Invalid effective date.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			$payload['effective_date'] = $effective;
+		}
+		if ( isset( $data['notes'] ) ) {
+			$payload['notes'] = sanitize_textarea_field( (string) $data['notes'] );
+		}
+
+		if ( $payload ) {
+			$new_days = isset( $payload['days'] ) ? (float) $payload['days'] : $existing->days;
+			$balance_check = $this->validate_adjustment_days( $existing->user_id, $existing->days, $new_days );
+			if ( is_wp_error( $balance_check ) ) {
+				return $balance_check;
+			}
+			$this->transactions->update( $id, $payload );
+		}
+
+		$updated = $this->transactions->find( $id );
+		$this->audit_vacation(
+			'update',
+			'vacation_adjustment',
+			$id,
+			$existing->to_array(),
+			$updated?->to_array(),
+			$editor_id,
+			$existing->user_id,
+			__( 'Edited balance adjustment', 'etwa' )
+		);
+
+		return $updated ?: new WP_Error( 'update_failed', __( 'Could not update balance adjustment.', 'etwa' ) );
+	}
+
+	public function delete_adjustment( int $editor_id, int $id ): true|WP_Error {
+		if ( ! $this->can_delete( $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'Only the owner can delete balance adjustments.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$existing = $this->transactions->find( $id );
+		if ( ! $existing || 'adjustment' !== $existing->transaction_type ) {
+			return new WP_Error( 'not_found', __( 'Balance adjustment not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		$balance_check = $this->validate_adjustment_days( $existing->user_id, $existing->days, 0.0 );
+		if ( is_wp_error( $balance_check ) ) {
+			return $balance_check;
+		}
+
+		$this->transactions->delete( $id );
+		$this->audit_vacation(
+			'delete',
+			'vacation_adjustment',
+			$id,
+			$existing->to_array(),
+			null,
+			$editor_id,
+			$existing->user_id,
+			__( 'Deleted balance adjustment', 'etwa' )
+		);
+
+		return true;
+	}
+
+	/** @return array<string,mixed>|WP_Error */
+	public function get_adjustment( int $viewer_id, int $id ): array|WP_Error {
+		if ( ! $this->can_manage( $viewer_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot view balance adjustments.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$transaction = $this->transactions->find( $id );
+		if ( ! $transaction || 'adjustment' !== $transaction->transaction_type ) {
+			return new WP_Error( 'not_found', __( 'Balance adjustment not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		$type = $this->leave_types->find( $transaction->leave_type_id );
+		return array_merge(
+			$transaction->to_array(),
+			array( 'leave_type_name' => $type ? $type->name : '' )
+		);
+	}
+
 	/** @param array<string,mixed> $data @return VacationRecord|WP_Error */
 	public function create_record( int $editor_id, array $data ): VacationRecord|WP_Error {
 		if ( ! $this->can_manage( $editor_id ) ) {
@@ -320,7 +495,7 @@ final class VacationService {
 		$record = $this->records->find( $id );
 		if ( $record && VacationHelper::STATUS_APPROVED === $record->status ) {
 			$this->sync_usage_transaction( $record, $editor_id );
-			$this->notify_employee_approved( $record );
+			$this->notify_employee_approved( $record, $editor_id );
 		}
 
 		$this->audit_vacation(
@@ -400,7 +575,7 @@ final class VacationService {
 		$this->sync_record_transactions( $existing, $record, $editor_id );
 
 		if ( VacationHelper::STATUS_APPROVED === $new_status && VacationHelper::STATUS_APPROVED !== $old_status ) {
-			$this->notify_employee_approved( $record );
+			$this->notify_employee_approved( $record, $editor_id );
 		}
 
 		$this->audit_vacation(
@@ -535,7 +710,11 @@ final class VacationService {
 			return new WP_Error( 'forbidden', __( 'Only employees can submit vacation requests.', 'etwa' ), array( 'status' => 403 ) );
 		}
 
-		$validated = $this->validate_request_payload( $data, $user_id );
+		if ( ! EmployeeProfileHelper::is_active( $user_id ) ) {
+			return new WP_Error( 'inactive', __( 'Your account is inactive. You cannot submit vacation requests.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$validated = $this->validate_request_payload( $data, $user_id, true );
 		if ( is_wp_error( $validated ) ) {
 			return $validated;
 		}
@@ -592,7 +771,7 @@ final class VacationService {
 	}
 
 	/** @return VacationRequest|WP_Error */
-	public function review_request( int $reviewer_id, int $request_id, string $status, string $notes = '', string $approval_slot = '' ): VacationRequest|WP_Error {
+	public function review_request( int $reviewer_id, int $request_id, string $status, string $notes = '', string $approval_slot = '', ?float $days = null ): VacationRequest|WP_Error {
 		if ( ! $this->can_review( $reviewer_id ) ) {
 			return new WP_Error( 'forbidden', __( 'You cannot review vacation requests.', 'etwa' ), array( 'status' => 403 ) );
 		}
@@ -615,9 +794,6 @@ final class VacationService {
 
 		if ( VacationHelper::STATUS_REJECTED === $status ) {
 			$notes = trim( $notes );
-			if ( '' === $notes ) {
-				return new WP_Error( 'notes_required', __( 'A rejection reason is required.', 'etwa' ), array( 'status' => 400 ) );
-			}
 
 			if ( ! VacationApprovalHelper::can_user_reject( $reviewer_id, $request ) ) {
 				return new WP_Error( 'forbidden', __( 'You cannot reject this request.', 'etwa' ), array( 'status' => 403 ) );
@@ -643,7 +819,12 @@ final class VacationService {
 				$audit_msg
 			);
 
-			do_action( 'etwa_vacation_rejected', $request_id, $request->user_id, $updated?->to_array() );
+			do_action(
+				'etwa_vacation_rejected',
+				$request_id,
+				$request->user_id,
+				$updated ? $this->format_request_for_viewer( $updated, $request->user_id ) : array()
+			);
 
 			return $updated ?: new WP_Error( 'update_failed', __( 'Could not update request.', 'etwa' ) );
 		}
@@ -682,6 +863,17 @@ final class VacationService {
 			return new WP_Error( 'forbidden', __( 'You cannot approve this request.', 'etwa' ), array( 'status' => 403 ) );
 		}
 
+		$approved_days = $this->resolve_approval_days( $request, $days );
+		if ( is_wp_error( $approved_days ) ) {
+			return $approved_days;
+		}
+
+		$this->requests->update( $request_id, array( 'days' => $approved_days ) );
+		$request = $this->requests->find( $request_id );
+		if ( ! $request ) {
+			return new WP_Error( 'not_found', __( 'Request not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
 		$record = $this->create_record(
 			$reviewer_id,
 			array(
@@ -689,7 +881,7 @@ final class VacationService {
 				'leave_type_id' => $request->leave_type_id,
 				'start_date'    => $request->start_date,
 				'end_date'      => $request->end_date,
-				'days'          => $request->days,
+				'days'          => $approved_days,
 				'reason'        => $request->reason,
 				'status'        => VacationHelper::STATUS_APPROVED,
 				'notes'         => $notes ?: $request->notes,
@@ -734,7 +926,8 @@ final class VacationService {
 
 		foreach ( $items as $item ) {
 			$id     = (int) ( $item['id'] ?? 0 );
-			$result = $this->review_request( $reviewer_id, $id, $status, $notes, $approval_slot );
+			$days   = isset( $item['days'] ) ? (float) $item['days'] : null;
+			$result = $this->review_request( $reviewer_id, $id, $status, $notes, $approval_slot, $days );
 			if ( is_wp_error( $result ) ) {
 				++$failed;
 				$errors[] = sprintf(
@@ -833,9 +1026,37 @@ final class VacationService {
 			$formatted['can_approve_as_department'] = VacationApprovalHelper::can_user_approve_department_slot( $viewer_id, $request );
 			$formatted['can_approve_as_owner']      = false;
 			$formatted['can_reject']                = VacationApprovalHelper::can_user_reject( $viewer_id, $request );
+			$formatted['requires_hr_days']          = $formatted['can_approve_as_hr'];
 		}
 
+		$formatted['days_display'] = $this->format_request_days_display( $request );
+
 		return $formatted;
+	}
+
+	private function format_request_days_display( VacationRequest $request ): string {
+		if ( VacationHelper::STATUS_PENDING === $request->status && $request->days <= 0 ) {
+			return '';
+		}
+
+		return number_format( (float) $request->days, 2 );
+	}
+
+	/** @return float|WP_Error */
+	private function resolve_approval_days( VacationRequest $request, ?float $days ): float|WP_Error {
+		if ( null !== $days && $days > 0 ) {
+			return VacationHelper::normalize_days( $days );
+		}
+
+		if ( $request->days > 0 ) {
+			return VacationHelper::normalize_days( (float) $request->days );
+		}
+
+		return new WP_Error(
+			'invalid_days',
+			__( 'Enter the number of days to deduct from the employee balance.', 'etwa' ),
+			array( 'status' => 400 )
+		);
 	}
 
 	/** @return array{pending_age_hours:int,is_aging:bool} */
@@ -847,8 +1068,8 @@ final class VacationService {
 			);
 		}
 
-		$created = strtotime( (string) $request->created_at );
-		$hours   = $created ? max( 0, (int) floor( ( time() - $created ) / HOUR_IN_SECONDS ) ) : 0;
+		$created = DateHelper::mysql_to_timestamp( (string) $request->created_at );
+		$hours   = null !== $created ? max( 0, (int) floor( ( time() - $created ) / HOUR_IN_SECONDS ) ) : 0;
 
 		return array(
 			'pending_age_hours' => $hours,
@@ -857,11 +1078,15 @@ final class VacationService {
 	}
 
 	/** @param array<string,mixed> $data @return array<string,mixed>|WP_Error */
-	private function validate_request_payload( array $data, int $user_id ): array|WP_Error {
+	private function validate_request_payload( array $data, int $user_id, bool $allow_pending_days = false ): array|WP_Error {
 		$leave_type_id = (int) ( $data['leave_type_id'] ?? 0 );
 		$start         = sanitize_text_field( (string) ( $data['start_date'] ?? '' ) );
 		$end           = sanitize_text_field( (string) ( $data['end_date'] ?? '' ) );
-		$days          = isset( $data['days'] ) ? (float) $data['days'] : VacationHelper::days_between( $start, $end );
+		if ( $allow_pending_days ) {
+			$days = 0.0;
+		} else {
+			$days = isset( $data['days'] ) ? VacationHelper::normalize_days( (float) $data['days'] ) : VacationHelper::days_between( $start, $end );
+		}
 		$reason        = sanitize_textarea_field( (string) ( $data['reason'] ?? '' ) );
 
 		$error = $this->validate_employee_and_type( $user_id, $leave_type_id );
@@ -881,7 +1106,7 @@ final class VacationService {
 			return new WP_Error( 'invalid_range', __( 'End date cannot be before start date.', 'etwa' ), array( 'status' => 400 ) );
 		}
 
-		if ( $days <= 0 ) {
+		if ( $days <= 0 && ! $allow_pending_days ) {
 			return new WP_Error( 'invalid_days', __( 'Number of days must be greater than zero.', 'etwa' ), array( 'status' => 400 ) );
 		}
 
@@ -918,13 +1143,12 @@ final class VacationService {
 		}
 		$existing[] = $notification;
 		update_user_meta( $request->user_id, 'etwa_vacation_notifications', $existing );
-
-		do_action( 'etwa_vacation_rejected', $request->id, $request->user_id, $notification );
 	}
 
-	private function notify_employee_approved( VacationRecord $record ): void {
-		$type = $this->leave_types->find( $record->leave_type_id );
+	private function notify_employee_approved( VacationRecord $record, int $approver_id = 0 ): void {
+		$type      = $this->leave_types->find( $record->leave_type_id );
 		$remaining = VacationHelper::remaining_annual_balance( $record->user_id );
+		$approver  = $approver_id > 0 ? $approver_id : (int) ( $record->updated_by ?? $record->created_by );
 
 		$notification = array(
 			'type'             => 'vacation_approved',
@@ -933,6 +1157,8 @@ final class VacationService {
 			'end_date'         => $record->end_date,
 			'days'             => $record->days,
 			'remaining'        => $remaining,
+			'reviewed_by'      => $approver > 0 ? $approver : null,
+			'hr_approved_by'   => $approver > 0 ? $approver : null,
 			'read'             => false,
 			'created_at'       => current_time( 'mysql' ),
 		);
@@ -976,7 +1202,9 @@ final class VacationService {
 		$leave_type_id = absint( $data['leave_type_id'] ?? 0 );
 		$start         = sanitize_text_field( (string) ( $data['start_date'] ?? '' ) );
 		$end           = sanitize_text_field( (string) ( $data['end_date'] ?? '' ) );
-		$days          = isset( $data['days'] ) ? (float) $data['days'] : VacationHelper::days_between( $start, $end );
+		$days          = isset( $data['days'] )
+			? VacationHelper::normalize_days( (float) $data['days'] )
+			: VacationHelper::normalize_days( VacationHelper::days_between( $start, $end ) );
 		$reason        = sanitize_textarea_field( (string) ( $data['reason'] ?? '' ) );
 		$status        = sanitize_text_field( (string) ( $data['status'] ?? VacationHelper::STATUS_PENDING ) );
 		$notes         = sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) );
@@ -1062,6 +1290,53 @@ final class VacationService {
 		}
 
 		return true;
+	}
+
+	/** @return float|WP_Error */
+	private function resolve_adjustment_days( int $user_id, string $mode, float $days ) {
+		if ( ! in_array( $mode, array( 'add', 'subtract', 'set_remaining' ), true ) ) {
+			return new WP_Error( 'invalid_mode', __( 'Invalid balance adjustment mode.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		if ( 'set_remaining' === $mode ) {
+			if ( $days < 0 ) {
+				return new WP_Error( 'invalid_days', __( 'Remaining balance cannot be negative.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			$remaining = VacationHelper::remaining_annual_balance( $user_id );
+			return round( $days - $remaining, 2 );
+		}
+
+		if ( $days <= 0 ) {
+			return new WP_Error( 'invalid_days', __( 'Days must be greater than zero.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		return 'subtract' === $mode ? -abs( $days ) : abs( $days );
+	}
+
+	private function validate_adjustment_days( int $user_id, float $existing_days, float $new_days ): true|WP_Error {
+		$remaining = VacationHelper::remaining_annual_balance( $user_id );
+		$result    = $remaining - $existing_days + $new_days;
+		if ( $result < -0.001 ) {
+			return new WP_Error(
+				'negative_balance',
+				sprintf(
+					/* translators: %s: remaining days after change */
+					__( 'This change would leave a negative balance (%s days).', 'etwa' ),
+					number_format( max( 0, $result ), 2 )
+				),
+				array( 'status' => 409 )
+			);
+		}
+
+		return true;
+	}
+
+	private function adjustment_mode_label( string $mode ): string {
+		return match ( $mode ) {
+			'subtract'      => __( 'subtract', 'etwa' ),
+			'set_remaining' => __( 'set remaining', 'etwa' ),
+			default         => __( 'add', 'etwa' ),
+		};
 	}
 
 	/** @param array<string,mixed> $payload */

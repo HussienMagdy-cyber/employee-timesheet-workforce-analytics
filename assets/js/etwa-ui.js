@@ -83,7 +83,8 @@
 		});
 	}
 
-	function promptReason(title) {
+	function promptReason(title, options = {}) {
+		const optional = !!options.optional;
 		const inline = document.getElementById('etwa-edit-reason');
 		if (inline) {
 			const reason = String(inline.value || '').trim();
@@ -103,7 +104,7 @@
 					<h3 class="etwa-confirm-title"></h3>
 					<label class="etwa-hr-reason-field">
 						<span class="etwa-hr-reason-label"></span>
-						<textarea class="etwa-hr-reason-input" rows="3" minlength="3" required></textarea>
+						<textarea class="etwa-hr-reason-input" rows="3"${optional ? '' : ' minlength="3" required'}></textarea>
 					</label>
 					<div class="etwa-confirm-actions">
 						<button type="button" class="etwa-btn etwa-btn-secondary etwa-reason-cancel"></button>
@@ -113,9 +114,14 @@
 
 			const strings = i18n();
 			overlay.querySelector('.etwa-confirm-title').textContent = title || strings.auditReasonTitle || 'Audit reason required';
-			overlay.querySelector('.etwa-hr-reason-label').textContent = strings.auditReasonLabel || 'Why are you making this change?';
+			overlay.querySelector('.etwa-hr-reason-label').textContent =
+				optional
+					? strings.rejectReasonOptional || 'Rejection reason (optional)'
+					: strings.auditReasonLabel || 'Why are you making this change?';
 			overlay.querySelector('.etwa-reason-cancel').textContent = strings.cancel || 'Cancel';
-			overlay.querySelector('.etwa-reason-ok').textContent = strings.confirm || 'Confirm';
+			overlay.querySelector('.etwa-reason-ok').textContent = optional
+				? strings.reject || 'Reject'
+				: strings.confirm || 'Confirm';
 
 			const close = (result) => {
 				overlay.classList.remove('is-visible');
@@ -131,7 +137,7 @@
 			overlay.querySelector('.etwa-reason-cancel').addEventListener('click', () => close(null));
 			overlay.querySelector('.etwa-reason-ok').addEventListener('click', () => {
 				const reason = overlay.querySelector('.etwa-hr-reason-input').value.trim();
-				if (reason.length < 3) {
+				if (!optional && reason.length < 3) {
 					toast(strings.reasonRequired || 'An audit reason is required (minimum 3 characters).', 'error', 6000);
 					return;
 				}
@@ -144,6 +150,83 @@
 			document.body.appendChild(overlay);
 			requestAnimationFrame(() => overlay.classList.add('is-visible'));
 			overlay.querySelector('.etwa-hr-reason-input').focus();
+		});
+	}
+
+	function promptDaysToDeduct(options = {}) {
+		const { startDate = '', endDate = '', api = null } = options;
+		const strings = i18n();
+
+		return new Promise((resolve) => {
+			const overlay = document.createElement('div');
+			overlay.id = 'etwa-confirm-overlay';
+			overlay.className = 'etwa-confirm-overlay etwa-app';
+			overlay.innerHTML = `
+				<div class="etwa-confirm-dialog etwa-hr-reason-dialog" role="alertdialog" aria-modal="true">
+					<h3 class="etwa-confirm-title"></h3>
+					<p class="etwa-confirm-message"></p>
+					<label class="etwa-hr-reason-field">
+						<span class="etwa-hr-reason-label"></span>
+						<input type="number" class="etwa-input etwa-days-deduct-input" min="0.25" step="0.25" required />
+					</label>
+					<div class="etwa-confirm-actions">
+						<button type="button" class="etwa-btn etwa-btn-secondary etwa-days-cancel"></button>
+						<button type="button" class="etwa-btn etwa-btn-primary etwa-days-ok"></button>
+					</div>
+				</div>`;
+
+			overlay.querySelector('.etwa-confirm-title').textContent =
+				strings.daysToDeductTitle || 'Days to deduct';
+			overlay.querySelector('.etwa-confirm-message').textContent =
+				startDate && endDate
+					? `${strings.requestDates || 'Request dates'}: ${startDate} – ${endDate}`
+					: strings.daysToDeductHelp || 'Enter how many days to deduct from the employee balance.';
+			overlay.querySelector('.etwa-hr-reason-label').textContent =
+				strings.daysToDeduct || 'Days to deduct';
+			overlay.querySelector('.etwa-days-cancel').textContent = strings.cancel || 'Cancel';
+			overlay.querySelector('.etwa-days-ok').textContent = strings.approve || 'Approve';
+
+			const input = overlay.querySelector('.etwa-days-deduct-input');
+			const close = (result) => {
+				overlay.classList.remove('is-visible');
+				setTimeout(() => overlay.remove(), 180);
+				resolve(result);
+			};
+
+			const portalRoot = document.getElementById('etwa-portal-root');
+			if (portalRoot && portalRoot.classList.contains('etwa-dark')) {
+				overlay.classList.add('etwa-dark');
+			}
+
+			overlay.querySelector('.etwa-days-cancel').addEventListener('click', () => close(null));
+			overlay.querySelector('.etwa-days-ok').addEventListener('click', () => {
+				const days = parseFloat(input.value);
+				if (!days || days <= 0) {
+					toast(strings.invalidDays || 'Enter a valid number of days.', 'error', 6000);
+					return;
+				}
+				close(days);
+			});
+			overlay.addEventListener('click', (e) => {
+				if (e.target === overlay) close(null);
+			});
+
+			document.body.appendChild(overlay);
+			requestAnimationFrame(() => overlay.classList.add('is-visible'));
+
+			if (api && startDate && endDate) {
+				api(`vacations/days-between?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`)
+					.then((res) => {
+						if (res.success && res.data && res.data.days) {
+							input.value = res.data.days;
+						}
+						input.focus();
+						input.select();
+					})
+					.catch(() => input.focus());
+			} else {
+				input.focus();
+			}
 		});
 	}
 
@@ -242,6 +325,7 @@
 		toast,
 		confirm: confirmDialog,
 		promptReason,
+		promptDaysToDeduct,
 		setButtonLoading,
 		formatTime12,
 		formatDateTime12,

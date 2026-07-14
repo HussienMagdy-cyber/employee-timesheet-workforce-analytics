@@ -17,8 +17,12 @@
 	--etwa-text: #0f172a !important;
 	--etwa-text-secondary: #475569 !important;
 	--etwa-muted: #64748b !important;
+	--etwa-text-muted: var(--etwa-muted) !important;
 	--etwa-border: #e2e8f0 !important;
 	--etwa-border-subtle: #f1f5f9 !important;
+	--etwa-bg-muted: var(--etwa-border-subtle) !important;
+	--etwa-surface: var(--etwa-panel) !important;
+	--etwa-surface-muted: var(--etwa-border-subtle) !important;
 
 	--etwa-primary: #4f46e5 !important;
 	--etwa-primary-hover: #1405b5 !important;

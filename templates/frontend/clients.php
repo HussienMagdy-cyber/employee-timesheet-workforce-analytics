@@ -18,7 +18,7 @@ use ETWA\Repositories\ClientRepository;
 		<div class="etwa-hero-copy">
 			<p class="etwa-eyebrow"><?php esc_html_e( 'Settings', 'etwa' ); ?></p>
 			<h1><?php esc_html_e( 'Manage Clients', 'etwa' ); ?></h1>
-			<p class="etwa-subtitle"><?php esc_html_e( 'Add, edit, or remove clients for the timesheet dropdown. System options (Break, Meeting, Event, All Clients) cannot be removed.', 'etwa' ); ?></p>
+			<p class="etwa-subtitle"><?php esc_html_e( 'Add, edit, or remove clients for the timesheet dropdown. System options (Break, Meeting, Event, Moderation) cannot be removed.', 'etwa' ); ?></p>
 		</div>
 	</div>
 

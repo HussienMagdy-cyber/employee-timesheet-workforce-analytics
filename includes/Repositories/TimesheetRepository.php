@@ -106,6 +106,10 @@ final class TimesheetRepository {
 			$params       = array_merge( $params, $ids );
 		}
 
+		if ( ! empty( $filters['hide_unshared_drafts'] ) ) {
+			$where[] = "(status <> 'draft' OR draft_saved_at IS NOT NULL)";
+		}
+
 		return array( $where, $params );
 	}
 

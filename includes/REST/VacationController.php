@@ -126,6 +126,40 @@ final class VacationController extends RestController {
 
 		register_rest_route(
 			self::NAMESPACE,
+			'/vacations/adjustments',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'create_adjustment' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/vacations/adjustments/(?P<id>\d+)',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_adjustment' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::EDITABLE,
+					'callback'            => array( $this, 'update_adjustment' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'callback'            => array( $this, 'delete_adjustment' ),
+					'permission_callback' => array( $this, 'can_delete' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/vacations/records',
 			array(
 				array(
@@ -393,6 +427,36 @@ final class VacationController extends RestController {
 		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( array( 'deleted' => true ) );
 	}
 
+	public function create_adjustment( WP_REST_Request $request ) {
+		$result = $this->service->create_adjustment( get_current_user_id(), $this->get_request_data( $request ) );
+		if ( is_wp_error( $result ) ) {
+			return $this->error( $result );
+		}
+		return $this->success( $result->to_array() );
+	}
+
+	public function get_adjustment( WP_REST_Request $request ) {
+		$result = $this->service->get_adjustment( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
+	}
+
+	public function update_adjustment( WP_REST_Request $request ) {
+		$result = $this->service->update_adjustment(
+			get_current_user_id(),
+			$this->get_int_param( $request, 'id' ),
+			$this->get_request_data( $request )
+		);
+		if ( is_wp_error( $result ) ) {
+			return $this->error( $result );
+		}
+		return $this->success( $result->to_array() );
+	}
+
+	public function delete_adjustment( WP_REST_Request $request ) {
+		$result = $this->service->delete_adjustment( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( array( 'deleted' => true ) );
+	}
+
 	public function create_record( WP_REST_Request $request ) {
 		$result = $this->service->create_record( get_current_user_id(), $this->get_request_data( $request ) );
 		if ( is_wp_error( $result ) ) {
@@ -556,12 +620,18 @@ final class VacationController extends RestController {
 	}
 
 	public function review_request( WP_REST_Request $request ) {
+		$data   = $this->get_request_data( $request );
+		$days   = isset( $data['days'] ) ? (float) $data['days'] : null;
+		if ( null !== $days && $days <= 0 ) {
+			$days = null;
+		}
 		$result = $this->service->review_request(
 			get_current_user_id(),
 			$this->get_int_param( $request, 'id' ),
 			$this->get_string_param( $request, 'status' ),
 			$this->get_string_param( $request, 'notes' ),
-			$this->get_string_param( $request, 'approval_slot' )
+			$this->get_string_param( $request, 'approval_slot' ),
+			$days
 		);
 		if ( is_wp_error( $result ) ) {
 			return $this->error( $result );

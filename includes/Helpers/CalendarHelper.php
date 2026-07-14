@@ -67,16 +67,40 @@ final class CalendarHelper {
 		return $out;
 	}
 
-	/** @return string[] Sun–Sat Y-m-d for the week containing period_start (Sunday). */
+	/**
+	 * UI week columns Sun–Fri then Sat (prior calendar Saturday before week Sunday).
+	 *
+	 * @return string[] Seven Y-m-d values: Sun(+0)…Fri(+5), Sat(-1 from Sunday).
+	 */
 	public static function get_calendar_dates( string $period_start ): array {
-		$dt    = new \DateTimeImmutable( $period_start );
-		$dow   = (int) $dt->format( 'w' );
+		$dt     = new \DateTimeImmutable( $period_start );
+		$dow    = (int) $dt->format( 'w' );
 		$sunday = $dt->modify( "-{$dow} days" );
-		$dates = array();
-		for ( $i = 0; $i < 7; $i++ ) {
+		$dates  = array();
+		for ( $i = 0; $i < 6; $i++ ) {
 			$dates[] = $sunday->modify( "+{$i} days" )->format( 'Y-m-d' );
 		}
+		$dates[] = $sunday->modify( '-1 day' )->format( 'Y-m-d' );
+
 		return $dates;
+	}
+
+	/**
+	 * @param string[] $dates
+	 * @return array{from:string,to:string}
+	 */
+	public static function bounds_for_dates( array $dates ): array {
+		if ( ! $dates ) {
+			return array(
+				'from' => '',
+				'to'   => '',
+			);
+		}
+
+		return array(
+			'from' => min( $dates ),
+			'to'   => max( $dates ),
+		);
 	}
 
 	public static function get_day_status( string $date ): string {
@@ -111,9 +135,10 @@ final class CalendarHelper {
 
 	/** @return array<string,array{status:string,label:string,holiday_name:?string}> */
 	public static function build_day_meta( array $dates ): array {
-		$from = $dates[0] ?? '';
-		$to   = $dates[ count( $dates ) - 1 ] ?? $from;
-		$map  = $from && $to ? self::holidays_map_for_range( $from, $to ) : array();
+		$bounds = self::bounds_for_dates( $dates );
+		$from   = $bounds['from'];
+		$to     = $bounds['to'];
+		$map    = $from && $to ? self::holidays_map_for_range( $from, $to ) : array();
 		$meta = array();
 
 		foreach ( $dates as $date ) {

@@ -60,6 +60,11 @@ final class RequestService {
 	}
 
 	/** @return array<string,string> */
+	public function permission_reasons(): array {
+		return RequestHelper::permission_reasons();
+	}
+
+	/** @return array<string,string> */
 	public function holiday_work_types(): array {
 		return RequestHelper::holiday_work_types();
 	}
@@ -218,9 +223,6 @@ final class RequestService {
 
 		if ( RequestHelper::STATUS_REJECTED === $status ) {
 			$notes = trim( $notes );
-			if ( '' === $notes ) {
-				return new WP_Error( 'notes_required', __( 'A rejection reason is required.', 'etwa' ), array( 'status' => 400 ) );
-			}
 
 			if ( ! RequestApprovalHelper::can_user_reject( $reviewer_id, $request ) ) {
 				return new WP_Error( 'forbidden', __( 'You cannot reject this request.', 'etwa' ), array( 'status' => 403 ) );
@@ -415,6 +417,12 @@ final class RequestService {
 				'request_type_label'         => RequestHelper::type_label( $request->request_type ),
 				'rejection_reason'           => $approval->rejection_reason( $request ),
 				'permission_type_label'      => RequestHelper::permission_type_label( $request->permission_type ),
+				'permission_reason'          => $extra['permission_reason'] ?? null,
+				'permission_reason_label'    => RequestHelper::permission_reason_label( $extra['permission_reason'] ?? null ),
+				'specify_reason'             => $extra['specify_reason'] ?? '',
+				'duration_hours'             => isset( $extra['duration_hours'] ) ? (int) $extra['duration_hours'] : null,
+				'duration_label'             => RequestHelper::permission_duration_label( $request->permission_type, $request->start_time, $request->end_time, $extra ),
+				'reason_label'               => RequestHelper::permission_reason_display( $request, $extra ),
 				'holiday_work_type'          => $extra['work_type'] ?? null,
 				'holiday_work_type_label'    => RequestHelper::holiday_work_type_label( $extra['work_type'] ?? null ),
 				'pickup_location'            => $extra['pickup_location'] ?? '',
@@ -423,7 +431,9 @@ final class RequestService {
 				'client_name'                => $this->client_name_from_extra( $extra ),
 				'task'                       => $extra['task'] ?? '',
 				'timesheet_entry_id'         => isset( $extra['timesheet_entry_id'] ) ? (int) $extra['timesheet_entry_id'] : null,
-				'time_range'                 => RequestHelper::format_time_range( $request->start_time, $request->end_time ),
+				'time_range'                 => RequestHelper::TYPE_PERMISSION === $request->request_type
+					? RequestHelper::permission_duration_label( $request->permission_type, $request->start_time, $request->end_time, $extra )
+					: RequestHelper::format_time_range( $request->start_time, $request->end_time ),
 				'employee_name'              => $user ? $user->display_name : '',
 				'employee_email'             => $user ? $user->user_email : '',
 				'reviewed_by_name'           => $reviewer ? $reviewer->display_name : '',
@@ -476,8 +486,8 @@ final class RequestService {
 			);
 		}
 
-		$created = strtotime( (string) $request->created_at );
-		$hours   = $created ? max( 0, (int) floor( ( time() - $created ) / HOUR_IN_SECONDS ) ) : 0;
+		$created = DateHelper::mysql_to_timestamp( (string) $request->created_at );
+		$hours   = null !== $created ? max( 0, (int) floor( ( time() - $created ) / HOUR_IN_SECONDS ) ) : 0;
 
 		return array(
 			'pending_age_hours' => $hours,
@@ -504,6 +514,7 @@ final class RequestService {
 		$reason       = sanitize_textarea_field( (string) ( $data['reason'] ?? '' ) );
 		$notes        = sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) );
 		$extra        = array();
+		$permission_type = null;
 
 		if ( ! $request_date || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $request_date ) ) {
 			return new WP_Error( 'invalid_date', __( 'Request date is required.', 'etwa' ), array( 'status' => 400 ) );
@@ -514,9 +525,40 @@ final class RequestService {
 				return new WP_Error( 'invalid_date', __( 'Work date is required.', 'etwa' ), array( 'status' => 400 ) );
 			}
 		} elseif ( RequestHelper::TYPE_PERMISSION === $type ) {
-			$work_date = $work_date ?: $request_date;
-			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $work_date ) ) {
-				return new WP_Error( 'invalid_date', __( 'Date is required.', 'etwa' ), array( 'status' => 400 ) );
+			$work_date = $request_date;
+
+			$permission_type = sanitize_key( (string) ( $data['permission_type'] ?? '' ) );
+			if ( ! array_key_exists( $permission_type, RequestHelper::permission_types() ) ) {
+				return new WP_Error( 'invalid_permission_type', __( 'Invalid permission type.', 'etwa' ), array( 'status' => 400 ) );
+			}
+
+			$permission_reason = sanitize_key( (string) ( $data['permission_reason'] ?? '' ) );
+			if ( ! array_key_exists( $permission_reason, RequestHelper::permission_reasons() ) ) {
+				return new WP_Error( 'invalid_permission_reason', __( 'Invalid reason.', 'etwa' ), array( 'status' => 400 ) );
+			}
+
+			$specify_reason = sanitize_textarea_field( (string) ( $data['specify_reason'] ?? '' ) );
+			if ( 'other' === $permission_reason && '' === trim( $specify_reason ) ) {
+				return new WP_Error( 'invalid_specify_reason', __( 'Please specify your reason.', 'etwa' ), array( 'status' => 400 ) );
+			}
+
+			$reason = 'other' === $permission_reason
+				? $specify_reason
+				: RequestHelper::permission_reason_label( $permission_reason );
+
+			$window = RequestHelper::permission_time_window( $permission_type );
+			if ( ! $window ) {
+				return new WP_Error( 'invalid_permission_type', __( 'Invalid permission type.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			$start_time = $window['start'];
+			$end_time   = $window['end'];
+
+			$extra = array(
+				'duration_hours'    => RequestHelper::PERMISSION_DURATION_HOURS,
+				'permission_reason' => $permission_reason,
+			);
+			if ( 'other' === $permission_reason ) {
+				$extra['specify_reason'] = $specify_reason;
 			}
 		} elseif ( RequestHelper::TYPE_HOLIDAY_WORK === $type ) {
 			$work_date = $work_date ?: $request_date;
@@ -546,26 +588,20 @@ final class RequestService {
 			);
 		}
 
-		if ( $start_time && ! RequestHelper::is_valid_time( $start_time ) ) {
-			return new WP_Error( 'invalid_time', __( 'Invalid start time.', 'etwa' ), array( 'status' => 400 ) );
-		}
-		if ( $end_time && ! RequestHelper::is_valid_time( $end_time ) ) {
-			return new WP_Error( 'invalid_time', __( 'Invalid end time.', 'etwa' ), array( 'status' => 400 ) );
-		}
-		if ( $start_time && $end_time && $start_time >= $end_time ) {
-			return new WP_Error( 'invalid_time', __( 'End time must be after start time.', 'etwa' ), array( 'status' => 400 ) );
-		}
-
-		if ( '' === trim( $reason ) ) {
-			return new WP_Error( 'invalid_reason', __( 'Reason is required.', 'etwa' ), array( 'status' => 400 ) );
-		}
-
-		$permission_type = null;
-		if ( RequestHelper::TYPE_PERMISSION === $type ) {
-			$permission_type = sanitize_key( (string) ( $data['permission_type'] ?? '' ) );
-			if ( ! array_key_exists( $permission_type, RequestHelper::permission_types() ) ) {
-				return new WP_Error( 'invalid_permission_type', __( 'Invalid permission type.', 'etwa' ), array( 'status' => 400 ) );
+		if ( RequestHelper::TYPE_PERMISSION !== $type ) {
+			if ( $start_time && ! RequestHelper::is_valid_time( $start_time ) ) {
+				return new WP_Error( 'invalid_time', __( 'Invalid start time.', 'etwa' ), array( 'status' => 400 ) );
 			}
+			if ( $end_time && ! RequestHelper::is_valid_time( $end_time ) ) {
+				return new WP_Error( 'invalid_time', __( 'Invalid end time.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			if ( $start_time && $end_time && $start_time >= $end_time ) {
+				return new WP_Error( 'invalid_time', __( 'End time must be after start time.', 'etwa' ), array( 'status' => 400 ) );
+			}
+		}
+
+		if ( RequestHelper::TYPE_PERMISSION !== $type && '' === trim( $reason ) ) {
+			return new WP_Error( 'invalid_reason', __( 'Reason is required.', 'etwa' ), array( 'status' => 400 ) );
 		}
 
 		$payload = array(
@@ -677,7 +713,6 @@ final class RequestService {
 		);
 
 		$this->push_notification( $request->user_id, $notification );
-		do_action( 'etwa_request_approved', $request->id, $request->user_id, $notification );
 	}
 
 	private function notify_employee_rejected( Request $request, string $notes ): void {
@@ -694,7 +729,6 @@ final class RequestService {
 		);
 
 		$this->push_notification( $request->user_id, $notification );
-		do_action( 'etwa_request_rejected', $request->id, $request->user_id, $notification );
 	}
 
 	/** @param array<string,mixed> $notification */

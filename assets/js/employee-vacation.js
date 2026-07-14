@@ -101,7 +101,7 @@
 						<dt>${cfg.i18n?.leaveType || 'Leave Type'}</dt><dd>${r.leave_type_name || ''}</dd>
 						<dt>${cfg.i18n?.startDate || 'Start Date'}</dt><dd>${r.start_date || ''}</dd>
 						<dt>${cfg.i18n?.endDate || 'End Date'}</dt><dd>${r.end_date || ''}</dd>
-						<dt>${cfg.i18n?.days || 'Days'}</dt><dd>${r.days || ''}</dd>
+						<dt>${cfg.i18n?.days || 'Days'}</dt><dd>${formatRequestDays(r) || '—'}</dd>
 						<dt>${cfg.i18n?.submittedDate || 'Submitted Date'}</dt><dd>${r.created_at_label || ui.formatDateTime12(r.created_at) || ''}</dd>
 						<dt>${cfg.i18n?.status || 'Status'}</dt><dd>${r.status_label || r.status || ''}</dd>
 						<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason || ''}</dd>
@@ -142,7 +142,7 @@
 							return `<tr class="etwa-vacation-request-row" data-id="${r.id}">
 						<td>${r.leave_type_name}</td>
 						<td>${r.start_date} – ${r.end_date}</td>
-						<td>${r.days}</td>
+						<td>${formatRequestDays(r)}</td>
 						<td><span class="etwa-status etwa-status-${r.status}">${r.status_label || r.status}</span></td>
 						<td>${reasonCell(r)}</td>
 						<td>${actions}</td>
@@ -196,15 +196,14 @@
 			.catch((err) => ui.error(err.message));
 	}
 
-	function calcDays() {
-		const start = $('#etwa-request-start').val();
-		const end = $('#etwa-request-end').val();
-		if (!start || !end) return;
-		api(`vacations/days-between?start_date=${start}&end_date=${end}`)
-			.then((res) => {
-				if (res.success && res.data) $('#etwa-request-days').val(res.data.days);
-			})
-			.catch(() => {});
+	function formatRequestDays(r) {
+		if (r.days_display) {
+			return r.days_display;
+		}
+		if (r.status === 'pending' && (!r.days || Number(r.days) <= 0)) {
+			return cfg.i18n?.pendingReview || 'Pending review';
+		}
+		return r.days ?? '—';
 	}
 
 	$(function () {
@@ -251,11 +250,10 @@
 			if (tab === 'history') loadHistory();
 		});
 
-		$('#etwa-request-start, #etwa-request-end').on('change', calcDays);
-
 		$('#etwa-vacation-request-form').on('submit', function (e) {
 			e.preventDefault();
 			const data = Object.fromEntries(new FormData(this).entries());
+			delete data.days;
 			const $btn = $(this).find('[type="submit"]');
 			ui.setButtonLoading($btn[0], true, cfg.i18n?.saving);
 

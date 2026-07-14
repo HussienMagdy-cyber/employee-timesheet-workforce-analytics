@@ -76,9 +76,8 @@
 								(e) => `<tr>
 						<td><strong>${e.display_name}</strong></td>
 						<td>${e.email || ''}</td>
-						<td>${e.roles || ''}</td>
 						<td class="etwa-hr-row-actions">
-							<a class="etwa-btn etwa-btn-primary etwa-btn-small" href="${employeeWeeksUrl(e.id)}">${cfg.i18n?.viewWeeks || 'View weeks'}</a>
+							<a class="etwa-btn etwa-btn-primary etwa-btn-small" href="${employeeWeeksUrl(e.id)}">${cfg.i18n?.viewWeeks || 'View'}</a>
 						</td>
 					</tr>`
 							)
@@ -96,7 +95,7 @@
 						<td><span class="${statusClass(row.status)}">${row.status_label}</span></td>
 						<td>${row.total_hours ?? 0}</td>
 						<td class="etwa-hr-row-actions">
-							<a class="etwa-btn etwa-btn-primary etwa-btn-small" href="${employeeWeeksUrl(row.user_id)}">${cfg.i18n?.viewWeeks || 'View weeks'}</a>
+							<a class="etwa-btn etwa-btn-primary etwa-btn-small" href="${employeeWeeksUrl(row.user_id)}">${cfg.i18n?.viewWeeks || 'View'}</a>
 							<a class="etwa-btn etwa-btn-secondary etwa-btn-small" href="${weekReportUrl(row.user_id, row.period_start)}">${cfg.i18n?.weekReport || 'Week report'}</a>
 						</td>
 					</tr>`

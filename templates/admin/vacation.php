@@ -46,12 +46,34 @@ $can_export = current_user_can( RoleManager::CAP_EXPORT );
 		</div>
 		<h2 id="etwa-vacation-profile-name"><?php esc_html_e( 'Employee Profile', 'etwa' ); ?></h2>
 		<div id="etwa-vacation-balance-cards" class="etwa-vacation-cards"></div>
+		<div class="etwa-panel etwa-edit-balance-panel">
+			<h3><?php esc_html_e( 'Edit Balance', 'etwa' ); ?></h3>
+			<p class="etwa-muted etwa-panel-intro"><?php esc_html_e( 'Add days, subtract days, or set the remaining balance directly. Changes are logged in vacation history.', 'etwa' ); ?></p>
+			<form id="etwa-vacation-adjust-form" class="etwa-form-grid">
+				<input type="hidden" name="user_id" id="etwa-adjust-user" value="" />
+				<label>
+					<?php esc_html_e( 'Adjustment', 'etwa' ); ?>
+					<select name="mode" id="etwa-adjust-mode" class="etwa-input" required>
+						<option value="add"><?php esc_html_e( 'Add days', 'etwa' ); ?></option>
+						<option value="subtract"><?php esc_html_e( 'Subtract days', 'etwa' ); ?></option>
+						<option value="set_remaining"><?php esc_html_e( 'Set remaining to', 'etwa' ); ?></option>
+					</select>
+				</label>
+				<label>
+					<span id="etwa-adjust-days-label"><?php esc_html_e( 'Days', 'etwa' ); ?></span>
+					<input type="number" name="days" id="etwa-adjust-days" class="etwa-input" min="0" step="0.25" required />
+				</label>
+				<label><?php esc_html_e( 'Effective Date', 'etwa' ); ?><input type="date" name="effective_date" class="etwa-input" required /></label>
+				<label class="etwa-span-2"><?php esc_html_e( 'Reason / Notes', 'etwa' ); ?><textarea name="notes" class="etwa-input" rows="2" placeholder="<?php esc_attr_e( 'e.g. Manual correction', 'etwa' ); ?>"></textarea></label>
+				<div class="etwa-span-2"><button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Apply Adjustment', 'etwa' ); ?></button></div>
+			</form>
+		</div>
 		<div class="etwa-panel etwa-set-annual-panel">
 			<h3><?php esc_html_e( 'Set Annual Leave Balance', 'etwa' ); ?></h3>
 			<p class="etwa-muted etwa-panel-intro"><?php esc_html_e( 'All leave types (except unpaid) deduct from the annual leave balance.', 'etwa' ); ?></p>
 			<form id="etwa-set-annual-form" class="etwa-form-grid">
 				<input type="hidden" name="user_id" id="etwa-set-annual-user" value="" />
-				<label><?php esc_html_e( 'Annual Leave Days', 'etwa' ); ?><input type="number" name="days" class="etwa-input" min="0.5" step="0.5" required placeholder="<?php esc_attr_e( 'e.g. 21', 'etwa' ); ?>" /></label>
+				<label><?php esc_html_e( 'Annual Leave Days', 'etwa' ); ?><input type="number" name="days" class="etwa-input" min="0.25" step="0.25" required placeholder="<?php esc_attr_e( 'e.g. 21', 'etwa' ); ?>" /></label>
 				<label><?php esc_html_e( 'Effective Date', 'etwa' ); ?><input type="date" name="effective_date" class="etwa-input" required /></label>
 				<label class="etwa-span-2"><?php esc_html_e( 'Notes', 'etwa' ); ?><textarea name="notes" class="etwa-input" rows="2" placeholder="<?php esc_attr_e( 'e.g. 2026 entitlement', 'etwa' ); ?>"></textarea></label>
 				<div class="etwa-span-2"><button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Save Annual Balance', 'etwa' ); ?></button></div>
@@ -70,7 +92,7 @@ $can_export = current_user_can( RoleManager::CAP_EXPORT );
 			<form id="etwa-vacation-allocate-form" class="etwa-form-grid">
 				<label><?php esc_html_e( 'Employee', 'etwa' ); ?><select name="user_id" class="etwa-input etwa-vacation-employee-field" required></select></label>
 				<input type="hidden" name="leave_type_id" class="etwa-annual-leave-type-id" value="" />
-				<label><?php esc_html_e( 'Annual Leave Days', 'etwa' ); ?><input type="number" name="days" class="etwa-input" min="0.5" step="0.5" required /></label>
+				<label><?php esc_html_e( 'Annual Leave Days', 'etwa' ); ?><input type="number" name="days" class="etwa-input" min="0.25" step="0.25" required /></label>
 				<label><?php esc_html_e( 'Effective Date', 'etwa' ); ?><input type="date" name="effective_date" class="etwa-input" required /></label>
 				<label class="etwa-span-2"><?php esc_html_e( 'Notes', 'etwa' ); ?><textarea name="notes" class="etwa-input" rows="2"></textarea></label>
 				<div class="etwa-span-2"><button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Save Annual Balance', 'etwa' ); ?></button></div>
@@ -86,7 +108,7 @@ $can_export = current_user_can( RoleManager::CAP_EXPORT );
 				<label><?php esc_html_e( 'Leave Type', 'etwa' ); ?><select name="leave_type_id" class="etwa-input etwa-vacation-type-all" required></select></label>
 				<label><?php esc_html_e( 'Start Date', 'etwa' ); ?><input type="date" name="start_date" id="etwa-vacation-start" class="etwa-input" required /></label>
 				<label><?php esc_html_e( 'End Date', 'etwa' ); ?><input type="date" name="end_date" id="etwa-vacation-end" class="etwa-input" required /></label>
-				<label><?php esc_html_e( 'Number of Days', 'etwa' ); ?><input type="number" name="days" id="etwa-vacation-days" class="etwa-input" min="0.5" step="0.5" required /></label>
+				<label><?php esc_html_e( 'Number of Days', 'etwa' ); ?><input type="number" name="days" id="etwa-vacation-days" class="etwa-input" min="0.25" step="0.25" required /></label>
 				<label><?php esc_html_e( 'Status', 'etwa' ); ?>
 					<select name="status" class="etwa-input">
 						<option value="approved"><?php esc_html_e( 'Approved', 'etwa' ); ?></option>

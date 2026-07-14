@@ -37,7 +37,7 @@ $filter_url = $in_portal
 <div class="etwa-app etwa-client-analytics-page<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>" id="etwa-client-analytics-app" data-mode="detail" data-client-id="<?php echo esc_attr( (string) $client_id ); ?>">
 
 	<p class="etwa-back-link-wrap">
-		<a class="etwa-link" href="<?php echo esc_url( $list_url ); ?>">&larr; <?php esc_html_e( 'All clients', 'etwa' ); ?></a>
+		<a class="etwa-link" href="<?php echo esc_url( $list_url ); ?>">&larr; <?php esc_html_e( 'Client Analytics', 'etwa' ); ?></a>
 	</p>
 
 	<div class="etwa-hero etwa-hero-compact">
@@ -62,28 +62,52 @@ $filter_url = $in_portal
 	<div class="etwa-analytics-kpi-grid etwa-ca-detail-kpis">
 		<article class="etwa-analytics-kpi">
 			<div class="etwa-analytics-kpi-body">
-				<span class="etwa-kpi-label"><?php esc_html_e( 'Total Hours', 'etwa' ); ?></span>
-				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['total_hours'] ?? 0 ), 1 ) ); ?></strong>
+				<span class="etwa-kpi-label"><?php esc_html_e( 'Regular Hours', 'etwa' ); ?></span>
+				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['regular_hours'] ?? 0 ), 1 ) ); ?>h</strong>
+			</div>
+		</article>
+		<article class="etwa-analytics-kpi">
+			<div class="etwa-analytics-kpi-body">
+				<span class="etwa-kpi-label"><?php esc_html_e( 'Overtime Hours', 'etwa' ); ?></span>
+				<strong class="etwa-kpi-value etwa-accent"><?php echo esc_html( number_format( (float) ( $summary['overtime_hours'] ?? 0 ), 1 ) ); ?>h</strong>
+			</div>
+		</article>
+		<article class="etwa-analytics-kpi">
+			<div class="etwa-analytics-kpi-body">
+				<span class="etwa-kpi-label"><?php esc_html_e( 'Combined Hours', 'etwa' ); ?></span>
+				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['combined_hours'] ?? 0 ), 1 ) ); ?>h</strong>
+			</div>
+		</article>
+		<article class="etwa-analytics-kpi">
+			<div class="etwa-analytics-kpi-body">
+				<span class="etwa-kpi-label"><?php esc_html_e( 'OT Percentage', 'etwa' ); ?></span>
+				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['overtime_percentage'] ?? 0 ), 1 ) ); ?>%</strong>
 			</div>
 		</article>
 		<?php if ( $show_labor_cost ) : ?>
 			<article class="etwa-analytics-kpi">
 				<div class="etwa-analytics-kpi-body">
-					<span class="etwa-kpi-label"><?php esc_html_e( 'Labor Cost (EGP)', 'etwa' ); ?></span>
+					<span class="etwa-kpi-label"><?php esc_html_e( 'Overtime Cost (EGP)', 'etwa' ); ?></span>
+					<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['overtime_cost_egp'] ?? 0 ), 2 ) ); ?></strong>
+				</div>
+			</article>
+			<article class="etwa-analytics-kpi">
+				<div class="etwa-analytics-kpi-body">
+					<span class="etwa-kpi-label"><?php esc_html_e( 'Total Labor Cost (EGP)', 'etwa' ); ?></span>
 					<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['labor_cost_egp'] ?? 0 ), 2 ) ); ?></strong>
 				</div>
 			</article>
 		<?php endif; ?>
 		<article class="etwa-analytics-kpi">
 			<div class="etwa-analytics-kpi-body">
-				<span class="etwa-kpi-label"><?php esc_html_e( 'Employees', 'etwa' ); ?></span>
-				<strong class="etwa-kpi-value"><?php echo esc_html( (string) ( $summary['employee_count'] ?? 0 ) ); ?></strong>
+				<span class="etwa-kpi-label"><?php esc_html_e( 'Compensation Hours', 'etwa' ); ?></span>
+				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['compensation_hours'] ?? 0 ), 1 ) ); ?>h</strong>
 			</div>
 		</article>
 		<article class="etwa-analytics-kpi">
 			<div class="etwa-analytics-kpi-body">
-				<span class="etwa-kpi-label"><?php esc_html_e( 'Overtime', 'etwa' ); ?></span>
-				<strong class="etwa-kpi-value etwa-accent"><?php echo esc_html( number_format( (float) ( $summary['overtime_hours'] ?? 0 ), 1 ) ); ?>h</strong>
+				<span class="etwa-kpi-label"><?php esc_html_e( 'Employees', 'etwa' ); ?></span>
+				<strong class="etwa-kpi-value"><?php echo esc_html( (string) ( $summary['employee_count'] ?? 0 ) ); ?></strong>
 			</div>
 		</article>
 	</div>
@@ -107,23 +131,29 @@ $filter_url = $in_portal
 				<thead>
 					<tr>
 						<th><?php esc_html_e( 'Employee', 'etwa' ); ?></th>
-						<th><?php esc_html_e( 'Hours', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Regular', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'OT', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Comp', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Combined', 'etwa' ); ?></th>
 						<?php if ( $show_labor_cost ) : ?>
+							<th><?php esc_html_e( 'OT Cost', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Labor Cost', 'etwa' ); ?></th>
 						<?php endif; ?>
 					</tr>
 				</thead>
 				<tbody>
 					<?php if ( empty( $detail['employees'] ) ) : ?>
-						<tr><td colspan="<?php echo $show_labor_cost ? 4 : 3; ?>"><?php esc_html_e( 'No entries for this period.', 'etwa' ); ?></td></tr>
+						<tr><td colspan="<?php echo $show_labor_cost ? 8 : 6; ?>"><?php esc_html_e( 'No entries for this period.', 'etwa' ); ?></td></tr>
 					<?php else : ?>
 						<?php foreach ( $detail['employees'] as $emp ) : ?>
 							<tr>
 								<td><?php echo esc_html( $emp['display_name'] ); ?></td>
-								<td><?php echo esc_html( number_format( (float) $emp['total_hours'], 1 ) ); ?>h</td>
-								<td><?php echo esc_html( number_format( (float) $emp['overtime_hours'], 1 ) ); ?>h</td>
+								<td><?php echo esc_html( number_format( (float) ( $emp['regular_hours'] ?? 0 ), 1 ) ); ?>h</td>
+								<td><?php echo esc_html( number_format( (float) ( $emp['overtime_hours'] ?? 0 ), 1 ) ); ?>h</td>
+								<td><?php echo esc_html( number_format( (float) ( $emp['compensation_hours'] ?? 0 ), 1 ) ); ?>h</td>
+								<td><?php echo esc_html( number_format( (float) ( $emp['combined_hours'] ?? $emp['total_hours'] ?? 0 ), 1 ) ); ?>h</td>
 								<?php if ( $show_labor_cost ) : ?>
+									<td><?php echo esc_html( number_format( (float) ( $emp['overtime_cost_egp'] ?? 0 ), 2 ) ); ?></td>
 									<td><?php echo esc_html( number_format( (float) ( $emp['labor_cost_egp'] ?? 0 ), 2 ) ); ?></td>
 								<?php endif; ?>
 							</tr>

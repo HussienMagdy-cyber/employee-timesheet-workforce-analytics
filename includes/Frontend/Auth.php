@@ -26,6 +26,7 @@ final class Auth {
 
 		add_filter( 'show_admin_bar', array( $this, 'hide_admin_bar' ) );
 		add_action( 'admin_init', array( $this, 'block_wp_admin' ) );
+		add_action( 'template_redirect', array( $this, 'redirect_guest_from_protected_pages' ), 5 );
 		add_action( 'template_redirect', array( $this, 'redirect_logged_in_from_auth_pages' ) );
 		add_filter( 'login_url', array( $this, 'filter_login_url' ), 10, 3 );
 		add_filter( 'lostpassword_url', array( $this, 'filter_lostpassword_url' ), 10, 2 );
@@ -135,6 +136,14 @@ final class Auth {
 
 		wp_safe_redirect( AuthHelper::portal_url() );
 		exit;
+	}
+
+	public function redirect_guest_from_protected_pages(): void {
+		if ( is_user_logged_in() || ! AuthHelper::is_protected_page() ) {
+			return;
+		}
+
+		AuthHelper::redirect_to_login();
 	}
 
 	public function redirect_logged_in_from_auth_pages(): void {

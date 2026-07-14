@@ -42,7 +42,6 @@ $embedded = $embedded ?? false;
 				<label><?php esc_html_e( 'Leave Type', 'etwa' ); ?><select name="leave_type_id" id="etwa-request-leave-type" class="etwa-input" required></select></label>
 				<label><?php esc_html_e( 'Start Date', 'etwa' ); ?><input type="date" name="start_date" id="etwa-request-start" class="etwa-input" required /></label>
 				<label><?php esc_html_e( 'End Date', 'etwa' ); ?><input type="date" name="end_date" id="etwa-request-end" class="etwa-input" required /></label>
-				<label><?php esc_html_e( 'Number of Days', 'etwa' ); ?><input type="number" name="days" id="etwa-request-days" class="etwa-input" min="0.5" step="0.5" required /></label>
 				<label class="etwa-span-2"><?php esc_html_e( 'Reason', 'etwa' ); ?><textarea name="reason" class="etwa-input" rows="2" required placeholder="<?php esc_attr_e( 'Why are you requesting this leave?', 'etwa' ); ?>"></textarea></label>
 				<div class="etwa-span-2">
 					<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Submit Request', 'etwa' ); ?></button>

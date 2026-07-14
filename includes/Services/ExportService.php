@@ -12,6 +12,7 @@ namespace ETWA\Services;
 use ETWA\Helpers\BrandHelper;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\EmployeeCostHelper;
+use ETWA\Helpers\EntryTypeHelper;
 use ETWA\Helpers\UserDisplayNames;
 use ETWA\Models\Entry;
 use ETWA\Models\Overtime;
@@ -239,9 +240,15 @@ final class ExportService {
 			array( 'Total Hours', $summary['total_hours'] ?? 0 ),
 			array( 'Regular Hours', $summary['regular_hours'] ?? 0 ),
 			array( 'Overtime Hours', $summary['overtime_hours'] ?? 0 ),
+			array( 'Combined Hours', $summary['combined_hours'] ?? 0 ),
+			array( 'Compensation Hours', $summary['compensation_hours'] ?? 0 ),
+			array( 'Overtime Percentage', ( $summary['overtime_percentage'] ?? 0 ) . '%' ),
 			array( 'Employees', $summary['employee_count'] ?? 0 ),
 			array( 'Last Activity', $summary['last_activity'] ?? '' ),
 		);
+		if ( isset( $summary['overtime_cost_egp'] ) && null !== $summary['overtime_cost_egp'] ) {
+			$rows[] = array( 'Overtime Cost (EGP)', $summary['overtime_cost_egp'] );
+		}
 		if ( isset( $summary['labor_cost_egp'] ) && null !== $summary['labor_cost_egp'] ) {
 			$rows[] = array( 'Labor Cost (EGP)', $summary['labor_cost_egp'] );
 		}
@@ -254,8 +261,9 @@ final class ExportService {
 		$sheet = $spreadsheet->createSheet();
 		$sheet->setTitle( 'Employees' );
 		$include_cost = EmployeeCostHelper::can_view_labor_cost();
-		$headers      = array( 'Employee', 'Total Hours', 'Regular Hours', 'OT Hours' );
+		$headers      = array( 'Employee', 'Regular Hours', 'OT Hours', 'Combined Hours', 'Compensation Hours' );
 		if ( $include_cost ) {
+			$headers[] = 'OT Cost (EGP)';
 			$headers[] = 'Labor Cost (EGP)';
 		}
 		$sheet->fromArray( $headers, null, 'A1' );
@@ -263,11 +271,13 @@ final class ExportService {
 		foreach ( $detail['employees'] ?? array() as $emp ) {
 			$row_data = array(
 				$emp['display_name'],
-				$emp['total_hours'],
 				$emp['regular_hours'],
 				$emp['overtime_hours'],
+				$emp['combined_hours'] ?? $emp['total_hours'],
+				$emp['compensation_hours'] ?? 0,
 			);
 			if ( $include_cost ) {
+				$row_data[] = $emp['overtime_cost_egp'] ?? 0;
 				$row_data[] = $emp['labor_cost_egp'] ?? 0;
 			}
 			$sheet->fromArray( $row_data, null, "A{$row}" );
@@ -300,7 +310,7 @@ final class ExportService {
 		$sheet = $spreadsheet->createSheet();
 		$sheet->setTitle( 'Entries' );
 		$include_cost = EmployeeCostHelper::can_view_labor_cost();
-		$headers      = array( 'Employee', 'Date', 'Start', 'End', 'Task', 'Regular Hrs', 'OT Hrs' );
+		$headers      = array( 'Employee', 'Date', 'Start', 'End', 'Task', 'Entry Type', 'Regular Hrs', 'OT Hrs' );
 		if ( $include_cost ) {
 			$headers[] = 'Labor Cost (EGP)';
 		}
@@ -332,6 +342,7 @@ final class ExportService {
 					DateHelper::format_time( $entry->start_time ),
 					DateHelper::format_time( $entry->end_time ),
 					$entry->task,
+					EntryTypeHelper::label( $entry->entry_type ),
 					$entry->regular_hours,
 					$entry->overtime_hours,
 				);
@@ -358,7 +369,7 @@ final class ExportService {
 		$sheet = $spreadsheet->getActiveSheet();
 		$sheet->setTitle( 'Raw Timesheet' );
 
-		$headers = array( 'Employee', 'Date', 'Start', 'End', 'Client', 'Task', 'Notes', 'Duration (min)', 'Regular Hrs', 'OT Hrs' );
+		$headers = array( 'Employee', 'Date', 'Start', 'End', 'Client', 'Task', 'Notes', 'Duration (min)', 'Entry Type', 'Regular Hrs', 'OT Hrs' );
 		$include_cost = EmployeeCostHelper::can_view_labor_cost();
 		if ( $include_cost ) {
 			$headers[] = 'Labor Cost (EGP)';
@@ -396,6 +407,7 @@ final class ExportService {
 					$entry->task,
 					$entry->notes,
 					$entry->duration_minutes,
+					EntryTypeHelper::label( $entry->entry_type ),
 					$entry->regular_hours,
 					$entry->overtime_hours,
 				);

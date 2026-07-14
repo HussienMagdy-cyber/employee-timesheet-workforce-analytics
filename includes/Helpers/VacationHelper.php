@@ -26,6 +26,17 @@ final class VacationHelper {
 	public const ANNUAL_SLUG = 'annual';
 	public const UNPAID_SLUG = 'unpaid';
 
+	public const DAY_INCREMENT = 0.25;
+
+	public static function normalize_days( float $days ): float {
+		if ( 0.0 === $days ) {
+			return 0.0;
+		}
+
+		$sign = $days < 0 ? -1 : 1;
+		return $sign * round( round( abs( $days ) / self::DAY_INCREMENT ) * self::DAY_INCREMENT, 2 );
+	}
+
 	/** @return string[] */
 	public static function valid_statuses(): array {
 		return array( self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_REJECTED );
@@ -134,11 +145,14 @@ final class VacationHelper {
 		$query = new \WP_User_Query( $args );
 		$items = array();
 		foreach ( $query->get_results() as $user ) {
+			if ( ! EmployeeProfileHelper::is_active( (int) $user->ID ) ) {
+				continue;
+			}
 			$items[] = array(
 				'id'           => (int) $user->ID,
 				'display_name' => $user->display_name,
 				'email'        => $user->user_email,
-				'roles'        => implode( ', ', (array) $user->roles ),
+				'roles'        => EmployeeProfileHelper::role_label_for_user( $user ),
 			);
 		}
 

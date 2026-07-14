@@ -42,6 +42,7 @@ final class AjaxHandler {
 			'client_id'    => (int) ( $_POST['client_id'] ?? 0 ),
 			'task'         => sanitize_text_field( wp_unslash( (string) ( $_POST['task'] ?? '' ) ) ),
 			'notes'        => sanitize_textarea_field( wp_unslash( (string) ( $_POST['notes'] ?? '' ) ) ),
+			'entry_type'   => sanitize_key( wp_unslash( (string) ( $_POST['entry_type'] ?? '' ) ) ),
 		);
 		$entry_id = ! empty( $_POST['entry_id'] ) ? (int) $_POST['entry_id'] : null;
 

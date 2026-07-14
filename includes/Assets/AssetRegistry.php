@@ -13,6 +13,7 @@ use ETWA\Frontend\PortalNav;
 use ETWA\Helpers\AuthHelper;
 use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\EmployeeProfileHelper;
+use ETWA\Helpers\EntryTypeHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Helpers\VacationApprovalHelper;
 use ETWA\Repositories\SettingsRepository;
@@ -45,6 +46,14 @@ final class AssetRegistry {
 
 	public static function mark_hr_week_review(): void {
 		self::mark( 'employee-dashboard' );
+	}
+
+	private static function maybe_mark_hr_week_review_for_request(): void {
+		if ( empty( $_GET['review_user'] ) || empty( $_GET['etwa_week'] ) ) {
+			return;
+		}
+
+		self::mark_hr_week_review();
 	}
 
 	public static function boot(): void {
@@ -86,11 +95,18 @@ final class AssetRegistry {
 					$nav = PortalNav::items_for_user( get_current_user_id() );
 					if ( $nav ) {
 						self::mark( 'portal-shell' );
-						self::mark( PortalNav::script_for_view( PortalNav::resolve_view( $nav ) ) );
+						$view = PortalNav::resolve_view( $nav );
+						self::mark( PortalNav::script_for_view( $view ) );
+						if ( in_array( $view, array( 'hr', 'dept-dashboard' ), true ) ) {
+							self::maybe_mark_hr_week_review_for_request();
+						}
 						return true;
 					}
 				}
 				self::mark( self::map_shortcode_to_script( $tag ) );
+				if ( 'etwa_hr' === $tag ) {
+					self::maybe_mark_hr_week_review_for_request();
+				}
 				return true;
 			}
 		}
@@ -195,6 +211,16 @@ final class AssetRegistry {
 				array( 'etwa-components' ),
 				ETWA_VERSION
 			);
+		}
+
+		if ( 'email-settings' === $script ) {
+			wp_enqueue_style(
+				'etwa-email-settings',
+				ETWA_PLUGIN_URL . 'assets/css/email-settings.css',
+				array( 'etwa-components' ),
+				ETWA_VERSION
+			);
+			wp_enqueue_media();
 		}
 
 		if ( 'owner-analytics' === $script || 'client-analytics' === $script ) {
@@ -319,6 +345,7 @@ final class AssetRegistry {
 				'vacationDualApproval' => VacationApprovalHelper::is_dual_approval_enabled(),
 				'autosaveMs'       => (int) ( new SettingsRepository() )->get( 'autosave_interval', 30 ) * 1000,
 				'breakCode'  => \ETWA\Repositories\ClientRepository::BREAK_CODE,
+				'workDayEnd' => EntryTypeHelper::work_day_end(),
 				'i18n'       => array(
 					'saved'            => __( 'Saved', 'etwa' ),
 					'saving'           => __( 'Saving…', 'etwa' ),
@@ -359,8 +386,11 @@ final class AssetRegistry {
 					'breakLabel'       => __( 'Break', 'etwa' ),
 					'taskPlaceholder'  => __( 'e.g. Website', 'etwa' ),
 					'notesPlaceholder' => __( 'Optional details…', 'etwa' ),
-					'allClientsNotesPlaceholder' => __( 'Describe the work performed in detail (required for all-clients entries)…', 'etwa' ),
-					'allClientsNotesRequired' => __( 'Please describe the work performed in detail in Notes because this entry applies to all clients.', 'etwa' ),
+					'allClientsNotesPlaceholder' => __( 'Describe the work performed in detail (required for Moderation entries)…', 'etwa' ),
+					'allClientsNotesRequired' => __( 'Please describe the work performed in detail in Notes because this entry applies to Moderation.', 'etwa' ),
+					'entryTypeRequired'       => __( 'Please select an entry type for entries after 6:00 PM.', 'etwa' ),
+					'overtimeShort'           => __( 'OT', 'etwa' ),
+					'compensationShort'       => __( 'Comp', 'etwa' ),
 					'costSaved'        => __( 'Hourly cost saved.', 'etwa' ),
 					'invalidCost'      => __( 'Enter a valid hourly cost.', 'etwa' ),
 					'noEmployees'      => __( 'No employees found.', 'etwa' ),
@@ -403,7 +433,8 @@ final class AssetRegistry {
 					'days'             => __( 'days', 'etwa' ),
 					'pending'          => __( 'Pending', 'etwa' ),
 					'view'             => __( 'View', 'etwa' ),
-					'viewWeeks'        => __( 'View weeks', 'etwa' ),
+					'viewWeeks'        => __( 'View', 'etwa' ),
+					'regularHours'     => __( 'Regular Hours', 'etwa' ),
 					'weekReport'       => __( 'Week report', 'etwa' ),
 					'role'             => __( 'Role', 'etwa' ),
 					'editAllocation'   => __( 'Edit Allocation', 'etwa' ),
@@ -426,9 +457,34 @@ final class AssetRegistry {
 					'reject'           => __( 'Reject', 'etwa' ),
 					'confirmApproveRequest' => __( 'Approve this vacation request?', 'etwa' ),
 					'confirmRejectRequest'  => __( 'Reject this vacation request?', 'etwa' ),
+					'pendingReview'         => __( 'Pending review', 'etwa' ),
+					'daysToDeductTitle'     => __( 'Days to deduct', 'etwa' ),
+					'daysToDeductHelp'      => __( 'Enter how many days to deduct from the employee balance.', 'etwa' ),
+					'daysToDeduct'          => __( 'Days to deduct', 'etwa' ),
+					'requestDates'          => __( 'Request dates', 'etwa' ),
+					'invalidDays'           => __( 'Enter a valid number of days.', 'etwa' ),
+					'vacationBulkHrDays'    => __( 'Approve vacation requests individually so you can enter the days to deduct.', 'etwa' ),
+					'active'                => __( 'Active', 'etwa' ),
+					'inactive'              => __( 'Inactive', 'etwa' ),
+					'deactivate'            => __( 'Deactivate', 'etwa' ),
+					'reactivate'            => __( 'Reactivate', 'etwa' ),
+					'confirmDeactivate'     => __( 'Deactivate this employee? They will lose portal access.', 'etwa' ),
+					'confirmReactivate'     => __( 'Reactivate this employee?', 'etwa' ),
+					'employeeDeactivated'   => __( 'Employee deactivated.', 'etwa' ),
+					'employeeReactivated'   => __( 'Employee reactivated.', 'etwa' ),
 					'requestApproved'  => __( 'Request approved.', 'etwa' ),
 					'requestRejected'  => __( 'Request rejected.', 'etwa' ),
 					'annualBalanceSaved' => __( 'Annual leave balance saved.', 'etwa' ),
+					'balanceAdjusted'    => __( 'Vacation balance updated.', 'etwa' ),
+					'editBalance'        => __( 'Edit Balance', 'etwa' ),
+					'editAdjustment'     => __( 'Edit Balance Adjustment', 'etwa' ),
+					'adjustmentAdd'      => __( 'Add days', 'etwa' ),
+					'adjustmentSubtract' => __( 'Subtract days', 'etwa' ),
+					'adjustmentSetRemaining' => __( 'Set remaining to', 'etwa' ),
+					'adjustmentDays'     => __( 'Days', 'etwa' ),
+					'remainingTarget'    => __( 'Remaining days', 'etwa' ),
+					'applyAdjustment'    => __( 'Apply Adjustment', 'etwa' ),
+					'adjustmentEditHint' => __( 'Use positive values to add days and negative values to subtract.', 'etwa' ),
 					'annualPoolNote'   => __( 'All leave types (except unpaid) deduct from this balance.', 'etwa' ),
 					'annualLeave'      => __( 'Annual Leave', 'etwa' ),
 					'usageBreakdown'   => __( 'Usage by type:', 'etwa' ),
@@ -466,6 +522,7 @@ final class AssetRegistry {
 					'aging'          => __( '>48h', 'etwa' ),
 					'agingHint'      => __( 'Pending over 48 hours', 'etwa' ),
 					'rejectReasonRequired' => __( 'Rejection reason (required)', 'etwa' ),
+					'rejectReasonOptional' => __( 'Rejection reason (optional)', 'etwa' ),
 					'rejectionReason'  => __( 'Rejection reason', 'etwa' ),
 					'rejectedBy'       => __( 'Rejected by', 'etwa' ),
 					'requestDetails'   => __( 'Request Details', 'etwa' ),
@@ -486,6 +543,7 @@ final class AssetRegistry {
 					'profileSaved'   => __( 'Profile saved.', 'etwa' ),
 					'employeeSaved'  => __( 'Employee updated.', 'etwa' ),
 					'editEmployee'   => __( 'Edit Employee', 'etwa' ),
+					'editProfile'    => __( 'Edit Profile', 'etwa' ),
 					'saveChanges'    => __( 'Save Changes', 'etwa' ),
 					'saving'         => __( 'Saving…', 'etwa' ),
 					'role'           => __( 'Role', 'etwa' ),
@@ -498,6 +556,18 @@ final class AssetRegistry {
 					'creating'       => __( 'Creating…', 'etwa' ),
 					'fullName'       => __( 'Full name', 'etwa' ),
 					'jobTitle'       => __( 'Job title', 'etwa' ),
+					'phone'          => __( 'Phone number', 'etwa' ),
+					'draftSaved'     => __( 'Draft Saved', 'etwa' ),
+					'unsavedChanges' => __( 'Unsaved changes — not visible to HR yet', 'etwa' ),
+					'notSavedForReview' => __( 'Not saved for review yet', 'etwa' ),
+					'draftSavedSuccess' => __( 'Draft saved for review.', 'etwa' ),
+					'selectLogo'     => __( 'Select Logo', 'etwa' ),
+					'useLogo'        => __( 'Use this logo', 'etwa' ),
+					'noLogo'         => __( 'No logo selected', 'etwa' ),
+					'sendTest'       => __( 'Send Test Email', 'etwa' ),
+					'testSent'       => __( 'Test email sent successfully.', 'etwa' ),
+					'invalidRecipient' => __( 'Enter a valid recipient email address.', 'etwa' ),
+					'sending'        => __( 'Sending…', 'etwa' ),
 					'sendPasswordReset' => __( 'Send password reset', 'etwa' ),
 				),
 		);
@@ -533,16 +603,18 @@ final class AssetRegistry {
 
 	/** Enqueue scripts marked during shortcode render (after wp_enqueue_scripts). */
 	public static function enqueue_scripts_late(): void {
-		if ( is_admin() || ! isset( self::$scripts['employee-vacation'] ) ) {
+		if ( is_admin() ) {
 			return;
 		}
 
-		if ( wp_script_is( 'etwa-employee-vacation', 'enqueued' ) ) {
-			return;
+		if ( isset( self::$scripts['employee-vacation'] ) && ! wp_script_is( 'etwa-employee-vacation', 'enqueued' ) ) {
+			self::ensure_vacation_calendar();
+			self::enqueue_script_handle( 'employee-vacation', array( 'jquery', 'etwa-ui', 'wp-api-fetch', 'etwa-vacation-calendar' ) );
 		}
 
-		self::ensure_vacation_calendar();
-		self::enqueue_script_handle( 'employee-vacation', array( 'jquery', 'etwa-ui', 'wp-api-fetch', 'etwa-vacation-calendar' ) );
+		if ( isset( self::$scripts['employee-dashboard'] ) && ! wp_script_is( 'etwa-employee-dashboard', 'enqueued' ) ) {
+			self::enqueue_script_handle( 'employee-dashboard', array( 'jquery', 'etwa-ui', 'wp-api-fetch' ) );
+		}
 	}
 
 	private static function ensure_vacation_calendar(): void {

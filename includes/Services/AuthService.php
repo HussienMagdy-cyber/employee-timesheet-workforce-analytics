@@ -30,6 +30,10 @@ final class AuthService {
 			return new WP_Error( 'forbidden', __( 'You do not have access to this portal.', 'etwa' ), array( 'status' => 403 ) );
 		}
 
+		if ( EmployeeProfileHelper::is_managed_user( (int) $user->ID ) && ! EmployeeProfileHelper::is_active( (int) $user->ID ) ) {
+			return new WP_Error( 'inactive', __( 'Your account has been deactivated. Contact HR if you need access.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
 		$signed_on = wp_signon(
 			array(
 				'user_login'    => $user->user_login,

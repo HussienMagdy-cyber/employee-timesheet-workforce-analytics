@@ -4,7 +4,7 @@
 	const cfg = window.etwaApp || {};
 	const ui = window.etwaUI || {};
 
-	if (!cfg.canViewLaborCost) {
+	if (!cfg.canManageEmployees && !cfg.canViewLaborCost) {
 		return;
 	}
 
@@ -99,31 +99,52 @@
 		$select.html(departmentOptions(selected || ''));
 	}
 
+	function renderActionLinks(emp) {
+		const editLabel = cfg.i18n?.edit || 'Edit';
+		const links = [
+			`<button type="button" class="etwa-link etwa-employee-edit-link" data-id="${emp.id}">${editLabel}</button>`,
+		];
+
+		if (cfg.canManageEmployees && emp.id !== cfg.userId) {
+			if (emp.is_active) {
+				links.push(
+					`<button type="button" class="etwa-link etwa-employee-deactivate-link" data-id="${emp.id}">${cfg.i18n?.deactivate || 'Deactivate'}</button>`
+				);
+			} else {
+				links.push(
+					`<button type="button" class="etwa-link etwa-employee-reactivate-link" data-id="${emp.id}">${cfg.i18n?.reactivate || 'Reactivate'}</button>`
+				);
+			}
+		}
+
+		return links.join(' · ');
+	}
+
 	function renderRows(items) {
 		if (!items.length) {
 			return `<tr><td colspan="5" class="etwa-empty-cell">${cfg.i18n?.noEmployees || 'No employees found.'}</td></tr>`;
 		}
 
 		const notSet = cfg.i18n?.notSet || 'Not set';
-		const editLabel = cfg.i18n?.edit || 'Edit';
 
 		return items
-			.map(
-				(emp) => `
+			.map((emp) => {
+				const statusBadge = emp.is_active
+					? `<span class="etwa-status etwa-status-approved">${cfg.i18n?.active || 'Active'}</span>`
+					: `<span class="etwa-status etwa-status-rejected">${cfg.i18n?.inactive || 'Inactive'}</span>`;
+				return `
 			<tr data-id="${emp.id}" data-role="${emp.role || ''}" data-department-id="${emp.department_id || ''}" data-hourly-cost="${emp.hourly_cost_egp ?? ''}">
 				<td>
 					<button type="button" class="etwa-link etwa-employee-profile-link" data-id="${emp.id}">
 						<strong>${emp.display_name || ''}</strong>
 					</button>
 				</td>
-				<td>${emp.role_label || notSet}</td>
+				<td>${statusBadge}</td>
 				<td>${emp.department_name || notSet}</td>
 				<td>${emp.email || ''}</td>
-				<td>
-					<button type="button" class="etwa-link etwa-employee-edit-link" data-id="${emp.id}">${editLabel}</button>
-				</td>
-			</tr>`
-			)
+				<td class="etwa-actions-cell">${renderActionLinks(emp)}</td>
+			</tr>`;
+			})
 			.join('');
 	}
 
@@ -138,6 +159,32 @@
 			html += `<button type="button" class="etwa-btn etwa-btn-secondary${i === page ? ' is-active' : ''}" data-page="${i}">${i}</button>`;
 		}
 		return html;
+	}
+
+	function setEmploymentStatus(employeeId, status) {
+		const isDeactivate = status === 'inactive';
+		const msg = isDeactivate
+			? cfg.i18n?.confirmDeactivate || 'Deactivate this employee? They will lose portal access.'
+			: cfg.i18n?.confirmReactivate || 'Reactivate this employee?';
+		const title = isDeactivate ? cfg.i18n?.deactivate || 'Deactivate' : cfg.i18n?.reactivate || 'Reactivate';
+
+		return ui
+			.confirm(msg, title)
+			.then((ok) => {
+				if (!ok) return;
+				return api(`employees/${employeeId}/status`, {
+					method: 'PUT',
+					body: JSON.stringify({ status }),
+				}).then((res) => {
+					if (!res.success) throw new Error(res.message);
+					ui.success(
+						isDeactivate
+							? cfg.i18n?.employeeDeactivated || 'Employee deactivated.'
+							: cfg.i18n?.employeeReactivated || 'Employee reactivated.'
+					);
+					loadEmployees();
+				});
+			});
 	}
 
 	function bindRowEvents() {
@@ -162,6 +209,22 @@
 					hourly_cost_egp: $row.data('hourlyCost'),
 				});
 			});
+
+		$('.etwa-employee-deactivate-link')
+			.off('click')
+			.on('click', function () {
+				const id = parseInt($(this).data('id'), 10);
+				if (!id) return;
+				setEmploymentStatus(id, 'inactive').catch((err) => ui.error(err.message));
+			});
+
+		$('.etwa-employee-reactivate-link')
+			.off('click')
+			.on('click', function () {
+				const id = parseInt($(this).data('id'), 10);
+				if (!id) return;
+				setEmploymentStatus(id, 'active').catch((err) => ui.error(err.message));
+			});
 	}
 
 	function loadDepartments() {
@@ -181,6 +244,9 @@
 		});
 		if (currentSearch) {
 			params.set('search', currentSearch);
+		}
+		if ($('#etwa-employees-show-inactive').is(':checked')) {
+			params.set('include_inactive', '1');
 		}
 
 		$body.html(
@@ -343,6 +409,11 @@
 				loadEmployees();
 			}, 350)
 		);
+
+		$('#etwa-employees-show-inactive').on('change', function () {
+			page = 1;
+			loadEmployees();
+		});
 
 		$('#etwa-employees-pagination').on('click', 'button[data-page]', function () {
 			page = parseInt($(this).data('page'), 10) || 1;

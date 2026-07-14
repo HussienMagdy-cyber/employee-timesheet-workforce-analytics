@@ -80,6 +80,7 @@
 	function syncProfileEmployeeId() {
 		const userId = $('#etwa-vacation-employee').val() || '';
 		$('#etwa-set-annual-user').val(userId);
+		$('#etwa-adjust-user').val(userId);
 		return userId;
 	}
 
@@ -103,14 +104,31 @@
 
 	function setDefaultEffectiveDates() {
 		const today = todayIso();
-		$('#etwa-set-annual-form [name="effective_date"], #etwa-vacation-allocate-form [name="effective_date"]').each(function () {
+		$('#etwa-set-annual-form [name="effective_date"], #etwa-vacation-allocate-form [name="effective_date"], #etwa-vacation-adjust-form [name="effective_date"]').each(function () {
 			if (!this.value) this.value = today;
 		});
+	}
+
+	function updateAdjustDaysField() {
+		const mode = $('#etwa-adjust-mode').val();
+		const $days = $('#etwa-adjust-days');
+		const $label = $('#etwa-adjust-days-label');
+
+		if (mode === 'set_remaining') {
+			$label.text(cfg.i18n?.remainingTarget || 'Remaining days');
+			$days.attr('min', '0');
+			$days.attr('step', '0.25');
+		} else {
+			$label.text(cfg.i18n?.adjustmentDays || cfg.i18n?.days || 'Days');
+			$days.attr('min', '0.25');
+			$days.attr('step', '0.25');
+		}
 	}
 
 	function loadProfile(userId) {
 		if (!userId) return;
 		$('#etwa-set-annual-user').val(userId);
+		$('#etwa-adjust-user').val(userId);
 		api(`vacations/profile/${userId}`)
 			.then((res) => {
 				if (!res.success) throw new Error(res.message);
@@ -206,16 +224,21 @@
 							if (row.source === 'transaction' && row.transaction_type === 'allocation') {
 								actions.push(`<button type="button" class="etwa-link etwa-vacation-edit" data-source="allocation" data-id="${row.id}">${cfg.i18n?.edit || 'Edit'}</button>`);
 								if (canDelete) actions.push(`<button type="button" class="etwa-link etwa-vacation-delete" data-source="allocation" data-id="${row.id}">${cfg.i18n?.delete || 'Delete'}</button>`);
+							} else if (row.source === 'transaction' && row.transaction_type === 'adjustment') {
+								actions.push(`<button type="button" class="etwa-link etwa-vacation-edit" data-source="adjustment" data-id="${row.id}">${cfg.i18n?.edit || 'Edit'}</button>`);
+								if (canDelete) actions.push(`<button type="button" class="etwa-link etwa-vacation-delete" data-source="adjustment" data-id="${row.id}">${cfg.i18n?.delete || 'Delete'}</button>`);
 							} else if (row.source === 'record' || row.transaction_type === 'vacation' || row.transaction_type === 'usage') {
 								actions.push(`<button type="button" class="etwa-link etwa-vacation-view" data-id="${row.record_id || row.id}">${cfg.i18n?.view || 'View'}</button>`);
 								actions.push(`<button type="button" class="etwa-link etwa-vacation-edit" data-source="record" data-id="${row.record_id || row.id}">${cfg.i18n?.edit || 'Edit'}</button>`);
 								if (canDelete) actions.push(`<button type="button" class="etwa-link etwa-vacation-delete" data-source="record" data-id="${row.record_id || row.id}">${cfg.i18n?.delete || 'Delete'}</button>`);
 							}
+							const daysDisplay =
+								row.transaction_type === 'adjustment' ? row.days : Math.abs(row.days);
 							return `<tr>
 							<td>${row.event_date}</td>
 							<td>${row.leave_type_name}</td>
 							<td>${row.transaction_label}</td>
-							<td>${Math.abs(row.days)}</td>
+							<td>${daysDisplay}</td>
 							<td>${row.status ? row.status : '—'}</td>
 							<td>${row.reason || ''}</td>
 							<td>${row.created_by_name || ''}</td>
@@ -256,18 +279,31 @@
 		return html;
 	}
 
+	function formatRequestDays(r) {
+		if (r.days_display) {
+			return r.days_display;
+		}
+		if (r.status === 'pending' && (!r.days || Number(r.days) <= 0)) {
+			return cfg.i18n?.pendingReview || 'Pending review';
+		}
+		return r.days ?? '—';
+	}
+
 	function requestActions(r) {
 		if (r.status !== 'pending') return '—';
 		const buttons = [];
+		const dayAttrs = `data-start="${r.start_date || ''}" data-end="${r.end_date || ''}"`;
 		if (r.dual_approval_enabled) {
 			if (r.can_approve_as_hr) {
-				buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-slot="hr">${cfg.i18n?.approveAsHr || 'Approve (HR)'}</button>`);
+				buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-slot="hr" data-needs-days="1" ${dayAttrs}>${cfg.i18n?.approveAsHr || 'Approve (HR)'}</button>`);
 			}
 			if (r.can_approve_as_owner) {
 				buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-slot="owner">${cfg.i18n?.approveAsOwner || 'Approve (Owner)'}</button>`);
 			}
 		} else if (r.can_approve_as_hr) {
-			buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}">${cfg.i18n?.approve || 'Approve'}</button>`);
+			buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-needs-days="1" ${dayAttrs}>${cfg.i18n?.approve || 'Approve'}</button>`);
+		} else if (r.can_approve_as_department) {
+			buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-slot="department" data-needs-days="0">${cfg.i18n?.approve || 'Approve'}</button>`);
 		}
 		if (r.can_reject) {
 			buttons.push(`<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-sm etwa-reject-request" data-id="${r.id}">${cfg.i18n?.reject || 'Reject'}</button>`);
@@ -308,7 +344,7 @@
 							<td><strong>${r.employee_name}</strong></td>
 							<td>${r.leave_type_name}</td>
 							<td>${r.start_date} – ${r.end_date}</td>
-							<td>${r.days}</td>
+							<td>${formatRequestDays(r)}</td>
 							<td>${r.reason || ''}</td>
 							<td>${requestStatusHtml(r)}</td>
 							<td>${r.created_at_label || ui.formatDateTime12(r.created_at)}</td>
@@ -327,7 +363,40 @@
 			.catch((err) => ui.error(err.message));
 	}
 
-	function reviewRequest(id, status, slot) {
+	function submitReview(id, status, slot, days, notes) {
+		const body = {
+			status,
+			approval_slot: slot || '',
+		};
+		if (days != null && days > 0) {
+			body.days = days;
+		}
+		if (notes != null && String(notes).trim()) {
+			body.notes = String(notes).trim();
+		}
+		return api(`vacations/requests/${id}/review`, {
+			method: 'PUT',
+			body: JSON.stringify(body),
+		})
+			.then((res) => {
+				if (!res.success) throw new Error(res.message);
+				const data = res.data || {};
+				if (status === 'approved' && data.status === 'pending') {
+					ui.success(cfg.i18n?.requestPartiallyApproved || 'Approval recorded. Waiting for the other reviewer.');
+				} else {
+					ui.success(
+						status === 'approved'
+							? cfg.i18n?.requestApproved || 'Request approved.'
+							: cfg.i18n?.requestRejected || 'Request rejected.'
+					);
+				}
+				loadRequests();
+				if ($('#etwa-vacation-employee').val()) loadProfile($('#etwa-vacation-employee').val());
+			})
+			.catch((err) => ui.error(err.message));
+	}
+
+	function reviewRequest(id, status, slot, meta = {}) {
 		let msg;
 		let title;
 		if (status === 'approved') {
@@ -346,31 +415,46 @@
 			title = cfg.i18n?.reject || 'Reject';
 		}
 
+		const needsDays = !!meta.needsDays;
+
+		const proceed = () => {
+			if (status === 'approved' && needsDays) {
+				return ui
+					.promptDaysToDeduct({
+						startDate: meta.startDate,
+						endDate: meta.endDate,
+						api,
+					})
+					.then((days) => {
+						if (days == null) return;
+						return submitReview(id, status, slot, days);
+					});
+			}
+			return ui.confirm(msg, title).then((ok) => {
+				if (!ok) return;
+				return submitReview(id, status, slot);
+			});
+		};
+
+		if (status === 'approved' && needsDays) {
+			proceed();
+			return;
+		}
+
+		if (status === 'rejected') {
+			ui.confirm(msg, title).then((ok) => {
+				if (!ok) return;
+				ui.promptReason(cfg.i18n?.rejectReasonOptional || 'Rejection reason (optional)', { optional: true }).then((notes) => {
+					if (notes === null) return;
+					submitReview(id, status, slot, null, notes);
+				});
+			});
+			return;
+		}
+
 		ui.confirm(msg, title).then((ok) => {
 			if (!ok) return;
-			api(`vacations/requests/${id}/review`, {
-				method: 'PUT',
-				body: JSON.stringify({
-					status,
-					approval_slot: slot || '',
-				}),
-			})
-				.then((res) => {
-					if (!res.success) throw new Error(res.message);
-					const data = res.data || {};
-					if (status === 'approved' && data.status === 'pending') {
-						ui.success(cfg.i18n?.requestPartiallyApproved || 'Approval recorded. Waiting for the other reviewer.');
-					} else {
-						ui.success(
-							status === 'approved'
-								? cfg.i18n?.requestApproved || 'Request approved.'
-								: cfg.i18n?.requestRejected || 'Request rejected.'
-						);
-					}
-					loadRequests();
-					if ($('#etwa-vacation-employee').val()) loadProfile($('#etwa-vacation-employee').val());
-				})
-				.catch((err) => ui.error(err.message));
+			submitReview(id, status, slot);
 		});
 	}
 
@@ -392,17 +476,33 @@
 	}
 
 	function openEditModal(source, id) {
-		const endpoint = source === 'allocation' ? `vacations/allocations/${id}` : `vacations/records/${id}`;
+		const endpoint =
+			source === 'allocation'
+				? `vacations/allocations/${id}`
+				: source === 'adjustment'
+					? `vacations/adjustments/${id}`
+					: `vacations/records/${id}`;
 		api(endpoint).then((res) => {
 			if (!res.success) return ui.error(res.message);
 			const row = res.data;
-			const title = source === 'allocation' ? cfg.i18n?.editAllocation || 'Edit Allocation' : cfg.i18n?.editRecord || 'Edit Leave Record';
+			const title =
+				source === 'allocation'
+					? cfg.i18n?.editAllocation || 'Edit Allocation'
+					: source === 'adjustment'
+						? cfg.i18n?.editAdjustment || 'Edit Balance Adjustment'
+						: cfg.i18n?.editRecord || 'Edit Leave Record';
 			$('#etwa-vacation-edit-title').text(title);
 			let formHtml = `<input type="hidden" name="source" value="${source}" /><input type="hidden" name="id" value="${id}" />`;
 			if (source === 'allocation') {
 				formHtml += `
 				<label>${cfg.i18n?.leaveType || 'Leave Type'}<select name="leave_type_id" class="etwa-input">${leaveTypes.filter(t=>t.tracks_allocation).map(t=>`<option value="${t.id}"${t.id==row.leave_type_id?' selected':''}>${t.name}</option>`).join('')}</select></label>
-				<label>${cfg.i18n?.days || 'Days'}<input type="number" name="days" class="etwa-input" value="${row.days}" min="0.5" step="0.5" required /></label>
+				<label>${cfg.i18n?.days || 'Days'}<input type="number" name="days" class="etwa-input" value="${row.days}" min="0.25" step="0.25" required /></label>
+				<label>${cfg.i18n?.effectiveDate || 'Effective Date'}<input type="date" name="effective_date" class="etwa-input" value="${row.effective_date}" required /></label>
+				<label class="etwa-span-2">${cfg.i18n?.notes || 'Notes'}<textarea name="notes" class="etwa-input">${row.notes || ''}</textarea></label>`;
+			} else if (source === 'adjustment') {
+				formHtml += `
+				<label>${cfg.i18n?.days || 'Days'}<input type="number" name="days" class="etwa-input" value="${row.days}" step="0.25" required /></label>
+				<p class="etwa-span-2 etwa-muted">${cfg.i18n?.adjustmentEditHint || 'Use positive values to add days and negative values to subtract.'}</p>
 				<label>${cfg.i18n?.effectiveDate || 'Effective Date'}<input type="date" name="effective_date" class="etwa-input" value="${row.effective_date}" required /></label>
 				<label class="etwa-span-2">${cfg.i18n?.notes || 'Notes'}<textarea name="notes" class="etwa-input">${row.notes || ''}</textarea></label>`;
 			} else {
@@ -410,7 +510,7 @@
 				<label>${cfg.i18n?.leaveType || 'Leave Type'}<select name="leave_type_id" class="etwa-input">${leaveTypes.map(t=>`<option value="${t.id}"${t.id==row.leave_type_id?' selected':''}>${t.name}</option>`).join('')}</select></label>
 				<label>${cfg.i18n?.startDate || 'Start'}<input type="date" name="start_date" class="etwa-input" value="${row.start_date}" required /></label>
 				<label>${cfg.i18n?.endDate || 'End'}<input type="date" name="end_date" class="etwa-input" value="${row.end_date}" required /></label>
-				<label>${cfg.i18n?.days || 'Days'}<input type="number" name="days" class="etwa-input" value="${row.days}" min="0.5" step="0.5" required /></label>
+				<label>${cfg.i18n?.days || 'Days'}<input type="number" name="days" class="etwa-input" value="${row.days}" min="0.25" step="0.25" required /></label>
 				<label>${cfg.i18n?.status || 'Status'}<select name="status" class="etwa-input">
 					<option value="approved"${row.status==='approved'?' selected':''}>${cfg.i18n?.approved || 'Approved'}</option>
 					<option value="pending"${row.status==='pending'?' selected':''}>${cfg.i18n?.pending || 'Pending'}</option>
@@ -443,6 +543,7 @@
 				populateLeaveTypes();
 				populateEmployees();
 				setDefaultEffectiveDates();
+				updateAdjustDaysField();
 			})
 			.catch((err) => ui.error(err.message));
 
@@ -477,7 +578,12 @@
 		});
 
 		$('#etwa-vacation-requests-body').on('click', '.etwa-approve-request', function () {
-			reviewRequest($(this).data('id'), 'approved', $(this).data('slot') || '');
+			const $btn = $(this);
+			reviewRequest($btn.data('id'), 'approved', $btn.data('slot') || '', {
+				needsDays: $btn.attr('data-needs-days') === '1',
+				startDate: $btn.attr('data-start') || '',
+				endDate: $btn.attr('data-end') || '',
+			});
 		});
 
 		$('#etwa-vacation-requests-body').on('click', '.etwa-reject-request', function () {
@@ -487,6 +593,29 @@
 		$('#etwa-vacation-employee').on('change', function () {
 			syncProfileEmployeeId();
 			loadProfile($(this).val());
+		});
+
+		$('#etwa-adjust-mode').on('change', updateAdjustDaysField);
+
+		$('#etwa-vacation-adjust-form').on('submit', function (e) {
+			e.preventDefault();
+			syncProfileEmployeeId();
+			const data = Object.fromEntries(new FormData(this).entries());
+			if (!data.user_id) {
+				ui.error(cfg.i18n?.selectEmployee || 'Please select an employee.');
+				return;
+			}
+			const $btn = $(this).find('[type="submit"]');
+			ui.setButtonLoading($btn[0], true, cfg.i18n?.saving);
+			api('vacations/adjustments', { method: 'POST', body: JSON.stringify(data) })
+				.then((res) => {
+					if (!res.success) throw new Error(res.message);
+					$('#etwa-adjust-days').val('');
+					ui.success(cfg.i18n?.balanceAdjusted || 'Vacation balance updated.');
+					loadProfile(data.user_id);
+				})
+				.catch((err) => ui.error(err.message))
+				.finally(() => ui.setButtonLoading($btn[0], false));
 		});
 
 		$('#etwa-vacation-allocate-form').on('submit', function (e) {
@@ -582,7 +711,12 @@
 			const id = $(this).data('id');
 			ui.confirm(cfg.i18n?.confirmDeleteVacation || 'Delete this record?', cfg.i18n?.delete || 'Delete').then((ok) => {
 				if (!ok) return;
-				const path = source === 'allocation' ? `vacations/allocations/${id}` : `vacations/records/${id}`;
+				const path =
+					source === 'allocation'
+						? `vacations/allocations/${id}`
+						: source === 'adjustment'
+							? `vacations/adjustments/${id}`
+							: `vacations/records/${id}`;
 				api(path, { method: 'DELETE' })
 					.then((res) => {
 						if (!res.success) throw new Error(res.message);
@@ -600,7 +734,12 @@
 			const id = data.id;
 			delete data.source;
 			delete data.id;
-			const path = source === 'allocation' ? `vacations/allocations/${id}` : `vacations/records/${id}`;
+			const path =
+				source === 'allocation'
+					? `vacations/allocations/${id}`
+					: source === 'adjustment'
+						? `vacations/adjustments/${id}`
+						: `vacations/records/${id}`;
 			api(path, { method: 'PUT', body: JSON.stringify(data) })
 				.then((res) => {
 					if (!res.success) throw new Error(res.message);

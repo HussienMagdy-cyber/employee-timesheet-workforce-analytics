@@ -19,6 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use ETWA\Frontend\PortalNav;
+use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\DateRangeHelper;
 
 $context     = $context ?? 'frontend';
@@ -104,7 +105,7 @@ $search      = isset( $_GET['search'] ) ? sanitize_text_field( wp_unslash( (stri
 								<?php endif; ?>
 								<td><?php echo esc_html( (string) $item['employee_count'] ); ?></td>
 								<td><?php echo esc_html( number_format( (float) $item['overtime_hours'], 1 ) ); ?>h</td>
-								<td><?php echo esc_html( $item['last_activity'] ? wp_date( get_option( 'date_format' ), strtotime( $item['last_activity'] ) ) : '—' ); ?></td>
+								<td><?php echo esc_html( $item['last_activity'] ? DateHelper::format_date( (string) $item['last_activity'] ) : '—' ); ?></td>
 								<td><a class="etwa-btn etwa-btn-secondary etwa-btn-sm" href="<?php echo esc_url( $detail_url ); ?>"><?php esc_html_e( 'View', 'etwa' ); ?></a></td>
 							</tr>
 						<?php endforeach; ?>

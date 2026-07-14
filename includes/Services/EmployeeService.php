@@ -67,6 +67,8 @@ final class EmployeeService {
 			return new WP_Error( 'invalid_birthday', __( 'Enter a valid birthday or leave it empty.', 'etwa' ) );
 		}
 
+		$phone = sanitize_text_field( (string) ( $data['phone'] ?? '' ) );
+
 		$department_id = ! empty( $data['department_id'] ) ? absint( $data['department_id'] ) : null;
 
 		$user_id = wp_insert_user(
@@ -84,7 +86,7 @@ final class EmployeeService {
 			return $user_id;
 		}
 
-		EmployeeProfileHelper::save_meta( (int) $user_id, $job_title, $join_date, $birthday );
+		EmployeeProfileHelper::save_meta( (int) $user_id, $job_title, $join_date, $birthday, $phone );
 
 		if ( $department_id ) {
 			$assigned = $this->department_service->assign_employee( $creator_id, (int) $user_id, $department_id );
@@ -128,6 +130,82 @@ final class EmployeeService {
 		}
 
 		return EmployeeProfileHelper::build_profile_payload( $employee_id, $viewer_id );
+	}
+
+	/** @param array<string,mixed> $data @return array<string,mixed>|WP_Error */
+	public function update_own_profile( int $editor_id, array $data ): array|WP_Error {
+		if ( ! EmployeeProfileHelper::can_edit_own_profile( $editor_id, $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot edit this profile.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$user = get_userdata( $editor_id );
+		if ( ! $user ) {
+			return new WP_Error( 'not_found', __( 'Employee not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		$old_meta = EmployeeProfileHelper::read_meta( $editor_id );
+
+		if ( isset( $data['display_name'] ) ) {
+			$display_name = sanitize_text_field( (string) $data['display_name'] );
+			if ( '' === $display_name ) {
+				return new WP_Error( 'invalid_name', __( 'Full name is required.', 'etwa' ) );
+			}
+			wp_update_user(
+				array(
+					'ID'           => $editor_id,
+					'display_name' => $display_name,
+					'first_name'   => $display_name,
+				)
+			);
+		}
+
+		if ( isset( $data['email'] ) ) {
+			$email = sanitize_email( (string) $data['email'] );
+			if ( ! is_email( $email ) ) {
+				return new WP_Error( 'invalid_email', __( 'Enter a valid email address.', 'etwa' ) );
+			}
+			$existing = email_exists( $email );
+			if ( $existing && (int) $existing !== $editor_id ) {
+				return new WP_Error( 'email_exists', __( 'An account with this email already exists.', 'etwa' ), array( 'status' => 409 ) );
+			}
+			wp_update_user(
+				array(
+					'ID'         => $editor_id,
+					'user_email' => $email,
+				)
+			);
+		}
+
+		$birthday = array_key_exists( 'birthday', $data )
+			? EmployeeProfileHelper::sanitize_optional_date( $data['birthday'] )
+			: ( $old_meta['birthday'] ?: null );
+		if ( array_key_exists( 'birthday', $data ) && null !== $data['birthday'] && '' !== $data['birthday'] && null === $birthday ) {
+			return new WP_Error( 'invalid_birthday', __( 'Enter a valid birthday or leave it empty.', 'etwa' ) );
+		}
+
+		$phone = array_key_exists( 'phone', $data )
+			? sanitize_text_field( (string) $data['phone'] )
+			: $old_meta['phone'];
+
+		EmployeeProfileHelper::save_meta(
+			$editor_id,
+			$old_meta['job_title'],
+			$old_meta['join_date'],
+			$birthday,
+			$phone
+		);
+
+		$this->audit->log(
+			'employee_profile_update',
+			'employee',
+			$editor_id,
+			$old_meta,
+			EmployeeProfileHelper::read_meta( $editor_id ),
+			$editor_id,
+			array( 'employee_id' => $editor_id, 'self_service' => true )
+		);
+
+		return EmployeeProfileHelper::build_profile_payload( $editor_id, $editor_id );
 	}
 
 	/** @param array<string,mixed> $data @return array<string,mixed>|WP_Error */
@@ -208,7 +286,11 @@ final class EmployeeService {
 			return new WP_Error( 'invalid_birthday', __( 'Enter a valid birthday or leave it empty.', 'etwa' ) );
 		}
 
-		EmployeeProfileHelper::save_meta( $employee_id, $job_title, $join_date, $birthday );
+		$phone = array_key_exists( 'phone', $data )
+			? sanitize_text_field( (string) $data['phone'] )
+			: $old_meta['phone'];
+
+		EmployeeProfileHelper::save_meta( $employee_id, $job_title, $join_date, $birthday, $phone );
 
 		if ( array_key_exists( 'department_id', $data ) ) {
 			$department_id = ! empty( $data['department_id'] ) ? absint( $data['department_id'] ) : null;
@@ -232,6 +314,40 @@ final class EmployeeService {
 			$employee_id,
 			$old_meta,
 			EmployeeProfileHelper::read_meta( $employee_id ),
+			$editor_id,
+			array( 'employee_id' => $employee_id )
+		);
+
+		return EmployeeProfileHelper::build_profile_payload( $employee_id, $editor_id );
+	}
+
+	/** @return array<string,mixed>|WP_Error */
+	public function set_employment_status( int $editor_id, int $employee_id, string $status ): array|WP_Error {
+		if ( ! EmployeeProfileHelper::can_manage_employees( $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot change employee status.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		if ( ! EmployeeProfileHelper::is_managed_user( $employee_id ) ) {
+			return new WP_Error( 'invalid_employee', __( 'Invalid employee.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		if ( $employee_id === $editor_id && EmployeeProfileHelper::STATUS_INACTIVE === $status ) {
+			return new WP_Error( 'invalid', __( 'You cannot deactivate your own account.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		$old_status = EmployeeProfileHelper::get_employment_status( $employee_id );
+		$new_status = EmployeeProfileHelper::STATUS_INACTIVE === $status
+			? EmployeeProfileHelper::STATUS_INACTIVE
+			: EmployeeProfileHelper::STATUS_ACTIVE;
+
+		EmployeeProfileHelper::set_employment_status( $employee_id, $new_status );
+
+		$this->audit->log(
+			EmployeeProfileHelper::STATUS_INACTIVE === $new_status ? 'employee_deactivated' : 'employee_reactivated',
+			'employee',
+			$employee_id,
+			array( 'employment_status' => $old_status ),
+			array( 'employment_status' => $new_status ),
 			$editor_id,
 			array( 'employee_id' => $employee_id )
 		);

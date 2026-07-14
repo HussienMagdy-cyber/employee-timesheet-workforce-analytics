@@ -3,7 +3,7 @@
  * Plugin Name:       Employee Timesheet & Workforce Analytics
  * Plugin URI:        https://example.com/employee-timesheet-workforce-analytics
  * Description:       Enterprise date-based employee time tracking, overtime management, approvals, analytics dashboards, and Excel exports.
- * Version:           1.0.0
+ * Version:           1.1.3
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            Think Marketing
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'ETWA_VERSION', '1.0.0' );
+define( 'ETWA_VERSION', '1.1.3' );
 define( 'ETWA_PLUGIN_FILE', __FILE__ );
 define( 'ETWA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ETWA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

@@ -33,8 +33,13 @@
 
 	let timeSlots = [];
 	let timeSlotOptions = [];
+	let defaultStartTime = '';
+	let defaultEndTime = '';
 	let breakClientId = null;
 	let allClientsClientId = null;
+	let timeSlotsReady = Promise.resolve();
+
+	const SELECTABLE_ENTRY_TYPES = ['overtime', 'compensation'];
 
 	function loadTimeSlots() {
 		const path = isHrEdit() ? 'hr/time-slots' : 'time-slots';
@@ -42,6 +47,8 @@
 			if (res.success) {
 				timeSlots = res.data.slots || [];
 				timeSlotOptions = res.data.slot_options || timeSlots.map((slot) => ({ value: slot, label: ui.formatTime12(slot) }));
+				defaultStartTime = res.data.default_start || timeSlots[0] || '';
+				defaultEndTime = res.data.default_end || timeSlots[1] || '';
 				populateSelect('#etwa-start-time', timeSlotOptions);
 				populateSelect('#etwa-end-time', timeSlotOptions);
 			}
@@ -58,13 +65,162 @@
 		});
 	}
 
+	const WORK_DAY_END = '18:00:00';
+
+	function getWorkDayEnd() {
+		return cfg.workDayEnd || WORK_DAY_END;
+	}
+
+	function normalizeSlotTime(time) {
+		if (!time) return '';
+		const parts = String(time).trim().split(':');
+		if (parts.length < 2) return String(time);
+		return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+	}
+
+	function setTimeSelect(selector, time) {
+		const normalized = normalizeSlotTime(time);
+		const $el = $(selector);
+		if (!normalized) return;
+
+		if ($el.find(`option[value="${normalized}"]`).length) {
+			$el.val(normalized);
+			return;
+		}
+
+		if (timeSlots.length) {
+			const match = timeSlots.find((slot) => slot >= normalized);
+			if (match) {
+				$el.val(match);
+				return;
+			}
+		}
+
+		$el.val(normalized);
+	}
+
+	function isAfterWorkHours(startTime) {
+		if (!startTime) return false;
+		const normalized = startTime.length === 5 ? `${startTime}:00` : startTime;
+		return normalized >= getWorkDayEnd();
+	}
+
+	function toggleEntryTypeField() {
+		const afterHours = isAfterWorkHours($('#etwa-start-time').val());
+		const $wrap = $('#etwa-entry-type-wrap');
+		const $field = $('#etwa-entry-type');
+		$wrap.prop('hidden', !afterHours);
+		$field.prop('required', afterHours);
+		if (!afterHours) {
+			$field.val('');
+		}
+	}
+
+	function resolveEntryTypeForForm(entry) {
+		if (!entry) return '';
+		let type = String(entry.entryType || '').toLowerCase();
+		if (SELECTABLE_ENTRY_TYPES.includes(type)) {
+			return type;
+		}
+		if (Number(entry.overtimeHours || 0) > 0) {
+			return 'overtime';
+		}
+		if (isAfterWorkHours(entry.start) && Number(entry.durationMinutes || 0) > 0) {
+			return 'overtime';
+		}
+		return '';
+	}
+
+	function applyEntryTypeField(entry) {
+		toggleEntryTypeField();
+		if (!isAfterWorkHours($('#etwa-start-time').val())) {
+			return;
+		}
+		const type = resolveEntryTypeForForm(entry);
+		if (SELECTABLE_ENTRY_TYPES.includes(type)) {
+			$('#etwa-entry-type').val(type);
+		} else {
+			$('#etwa-entry-type').val('');
+		}
+	}
+
+	function fillEntryForm(date, entry) {
+		$('#etwa-entry-date').val(date || '');
+
+		if (entry) {
+			$('#etwa-entry-id').val(entry.id);
+			setTimeSelect('#etwa-start-time', entry.start);
+			setTimeSelect('#etwa-end-time', entry.end);
+			$('#etwa-client-id').val(entry.clientId);
+			$('#etwa-task').val(entry.task);
+			$('#etwa-notes').val(entry.notes);
+			toggleEntryTypeField();
+			applyEntryTypeField(entry);
+		} else {
+			$('#etwa-entry-id').val('');
+			$('#etwa-task').val('');
+			$('#etwa-notes').val('');
+			if (isHrEdit()) {
+				$('#etwa-edit-reason').val('');
+			}
+			if (defaultStartTime && defaultEndTime) {
+				$('#etwa-start-time').val(defaultStartTime);
+				$('#etwa-end-time').val(defaultEndTime);
+			} else if (timeSlots.length > 1) {
+				$('#etwa-start-time').val(timeSlots[0]);
+				$('#etwa-end-time').val(timeSlots[1]);
+			}
+			toggleEntryTypeField();
+		}
+
+		toggleTaskRequired();
+		updateDurationPreview();
+	}
+
+	function openModal(title, date, entry) {
+		$('#etwa-modal-title').text(title);
+		$('#etwa-entry-modal').prop('hidden', false).attr('aria-hidden', 'false');
+		$('body').addClass('etwa-modal-open');
+
+		timeSlotsReady.then(() => {
+			fillEntryForm(date, entry);
+			setTimeout(() => $('#etwa-client-id').trigger('focus'), 50);
+		});
+	}
+
+	function entryTypeChipHtml(entry) {
+		const type = entry.entry_type || '';
+		if (!type || type === 'regular') {
+			if (Number(entry.overtime_hours || 0) > 0) {
+				return ` <span class="etwa-ot-tag">${cfg.i18n?.overtimeShort || 'OT'}</span>`;
+			}
+			return '';
+		}
+		if (type === 'overtime') {
+			return ` <span class="etwa-ot-tag">${cfg.i18n?.overtimeShort || 'OT'}</span>`;
+		}
+		if (type === 'compensation') {
+			return ` <span class="etwa-comp-tag">${cfg.i18n?.compensationShort || 'Comp'}</span>`;
+		}
+		return entry.entry_type_label
+			? ` <span class="etwa-comp-tag">${entry.entry_type_label}</span>`
+			: '';
+	}
+
+	function entryDisplayHours(entry) {
+		if (String(entry.client_id) === String(breakClientId)) {
+			return Number(entry.duration_minutes || 0) / 60;
+		}
+		return Number(entry.regular_hours || 0) + Number(entry.overtime_hours || 0);
+	}
+
 	function detectBreakClientId() {
 		$('#etwa-client-id optgroup option, #etwa-client-id > option').each(function () {
 			const text = $(this).text().trim().toLowerCase();
 			if (text === 'break') {
 				breakClientId = $(this).val();
 			}
-			if (text === 'all clients') {
+			if (text === 'moderation' || text === 'all clients') {
 				allClientsClientId = $(this).val();
 			}
 		});
@@ -79,43 +235,14 @@
 		}
 	}
 
-	function openModal(title, date, entry) {
-		$('#etwa-modal-title').text(title);
-		$('#etwa-entry-modal').prop('hidden', false).attr('aria-hidden', 'false');
-		$('body').addClass('etwa-modal-open');
-		$('#etwa-entry-date').val(date || '');
-
-		if (entry) {
-			$('#etwa-entry-id').val(entry.id);
-			$('#etwa-start-time').val(entry.start);
-			$('#etwa-end-time').val(entry.end);
-			$('#etwa-client-id').val(entry.clientId);
-			$('#etwa-task').val(entry.task);
-			$('#etwa-notes').val(entry.notes);
-		} else {
-			$('#etwa-entry-id').val('');
-			$('#etwa-task').val('');
-			$('#etwa-notes').val('');
-			if (isHrEdit()) {
-				$('#etwa-edit-reason').val('');
-			}
-			if (timeSlots.length > 1) {
-				$('#etwa-start-time').val(timeSlots[0]);
-				$('#etwa-end-time').val(timeSlots[1]);
-			}
-		}
-
-		toggleTaskRequired();
-		updateDurationPreview();
-		setTimeout(() => $('#etwa-client-id').trigger('focus'), 50);
-	}
-
 	function closeModal() {
 		$('#etwa-entry-modal').prop('hidden', true).attr('aria-hidden', 'true');
 		$('body').removeClass('etwa-modal-open');
 		$('#etwa-entry-form')[0].reset();
 		$('#etwa-entry-id').val('');
 		$('#etwa-duration-preview').text('');
+		$('#etwa-entry-type-wrap').prop('hidden', true);
+		$('#etwa-entry-type').prop('required', false).val('');
 	}
 
 	function toggleTaskRequired() {
@@ -183,13 +310,16 @@
 
 	function entryFromChip($chip) {
 		return {
-			id: $chip.data('entry-id'),
-			date: $chip.data('entry-date'),
-			start: $chip.data('start-time'),
-			end: $chip.data('end-time'),
-			clientId: $chip.data('client-id'),
-			task: $chip.data('task') || '',
-			notes: $chip.data('notes') || '',
+			id: $chip.attr('data-entry-id'),
+			date: $chip.attr('data-entry-date'),
+			start: normalizeSlotTime($chip.attr('data-start-time') || ''),
+			end: normalizeSlotTime($chip.attr('data-end-time') || ''),
+			clientId: $chip.attr('data-client-id'),
+			task: $chip.attr('data-task') || '',
+			notes: $chip.attr('data-notes') || '',
+			entryType: $chip.attr('data-entry-type') || '',
+			overtimeHours: $chip.attr('data-overtime-hours') || '0',
+			durationMinutes: $chip.attr('data-duration-minutes') || '0',
 		};
 	}
 
@@ -203,10 +333,10 @@
 
 	function renderEntryChip(entry) {
 		const isBreak = String(entry.client_id) === String(breakClientId);
-		const total = Number(entry.regular_hours || 0) + Number(entry.overtime_hours || 0);
+		const total = entryDisplayHours(entry);
 		const hoursHtml = isBreak
-			? `<span class="etwa-break-tag">${formatHours(entry.duration_minutes / 60)}h ${cfg.i18n?.breakLabel || 'Break'}</span>`
-			: `${formatHours(total)}h`;
+			? `<span class="etwa-break-tag">${formatHours(total)}h ${cfg.i18n?.breakLabel || 'Break'}</span>`
+			: `${formatHours(total)}h${entryTypeChipHtml(entry)}`;
 
 		return `
 			<article
@@ -218,6 +348,9 @@
 				data-client-id="${entry.client_id}"
 				data-task="${$('<div>').text(entry.task || '').html()}"
 				data-notes="${$('<div>').text(entry.notes || '').html()}"
+				data-entry-type="${entry.entry_type || 'regular'}"
+				data-overtime-hours="${Number(entry.overtime_hours || 0)}"
+				data-duration-minutes="${Number(entry.duration_minutes || 0)}"
 				tabindex="0"
 				role="button"
 			>
@@ -248,7 +381,7 @@
 	function sumDayHours(entries) {
 		return entries.reduce((sum, e) => {
 			if (String(e.client_id) === String(breakClientId)) return sum;
-			return sum + Number(e.regular_hours || 0) + Number(e.overtime_hours || 0);
+			return sum + entryDisplayHours(e);
 		}, 0);
 	}
 
@@ -261,7 +394,31 @@
 		$('.etwa-kpi-card').eq(0).find('.etwa-kpi-value').text(formatHoursFull(Number(ts.total_regular_hours) + Number(ts.total_overtime_hours)));
 		$('.etwa-kpi-card').eq(1).find('.etwa-status')
 			.attr('class', `etwa-status etwa-status-${ts.status}`)
+			.find('.etwa-status-label')
 			.text(ts.status.charAt(0).toUpperCase() + ts.status.slice(1));
+
+		const $draftSync = $('#etwa-draft-sync-status');
+		if ($draftSync.length) {
+			const syncState = ts.draft_sync_state || (ts.has_unsaved_changes ? 'unsaved' : 'saved');
+			const syncLabel = ts.draft_sync_label
+				|| (syncState === 'saved'
+					? (cfg.i18n?.draftSaved || 'Draft Saved')
+					: syncState === 'never_saved'
+						? (cfg.i18n?.notSavedForReview || 'Not saved for review yet')
+						: (cfg.i18n?.unsavedChanges || 'Unsaved changes — not visible to HR yet'));
+			$draftSync
+				.attr('class', `etwa-draft-sync-status is-${syncState}`)
+				.text(syncLabel);
+
+			const $draftNotice = $('#etwa-draft-sync-notice');
+			if ($draftNotice.length) {
+				if (syncState === 'saved' || syncState === 'submitted') {
+					$draftNotice.attr('hidden', 'hidden');
+				} else {
+					$draftNotice.removeAttr('hidden');
+				}
+			}
+		}
 
 		workDates.forEach((date) => {
 			const $card = $(`.etwa-day-card[data-date="${date}"]`);
@@ -388,12 +545,13 @@
 
 		loadVacationNotifications();
 
-		loadTimeSlots().then(detectBreakClientId);
+		timeSlotsReady = loadTimeSlots().then(detectBreakClientId);
 		bindEntryActions();
 
 		$('#etwa-client-id').on('change', toggleTaskRequired);
 		$('#etwa-start-time, #etwa-end-time').on('change', updateDurationPreview);
 		$('#etwa-start-time').on('change', autoAdvanceEndTime);
+		$('#etwa-start-time').on('change', toggleEntryTypeField);
 
 		$('.etwa-add-day-entry').on('click', function () {
 			openModal(cfg.i18n?.addEntry || 'Add Time Entry', $(this).data('date'));
@@ -420,9 +578,16 @@
 			if (String(data.client_id) === String(allClientsClientId) && !String(data.notes || '').trim()) {
 				ui.error(
 					cfg.i18n?.allClientsNotesRequired ||
-						'Please describe the work performed in detail in Notes because this entry applies to all clients.'
+						'Please describe the work performed in detail in Notes because this entry applies to Moderation.'
 				);
 				return;
+			}
+			if (isAfterWorkHours(data.start_time) && !SELECTABLE_ENTRY_TYPES.includes(String(data.entry_type || ''))) {
+				ui.error(cfg.i18n?.entryTypeRequired || 'Please select an entry type for entries after 6:00 PM.');
+				return;
+			}
+			if (!isAfterWorkHours(data.start_time)) {
+				delete data.entry_type;
 			}
 
 			const saveEntry = (reason) => {
@@ -478,6 +643,23 @@
 					.catch((err) => ui.error(err.message))
 					.finally(() => ui.setButtonLoading($btn[0], false));
 			});
+		});
+
+		$('#etwa-save-draft').on('click', function () {
+			const $btn = $(this);
+			const timesheetId = $('#etwa-submit-timesheet').data('timesheet-id');
+			if (!timesheetId) return;
+
+			ui.setButtonLoading($btn[0], true, cfg.i18n?.saving);
+
+			api(`timesheets/${timesheetId}/save-draft`, { method: 'POST' })
+				.then((res) => {
+					if (!res.success) throw new Error(res.message);
+					ui.success(cfg.i18n?.draftSavedSuccess || 'Draft saved for review.');
+					return refreshTimesheet();
+				})
+				.catch((err) => ui.error(err.message))
+				.finally(() => ui.setButtonLoading($btn[0], false));
 		});
 
 		$('#etwa-copy-week').on('click', () => {

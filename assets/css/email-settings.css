@@ -1,0 +1,177 @@
+.etwa-email-settings-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+	gap: 24px;
+	align-items: start;
+	margin-top: 16px;
+}
+
+.etwa-email-settings-main {
+	min-width: 0;
+}
+
+.etwa-email-settings-preview-wrap {
+	position: sticky;
+	top: 32px;
+}
+
+.etwa-email-logo-field {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.etwa-email-logo-preview {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 160px;
+	min-height: 80px;
+	padding: 12px;
+	border: 1px dashed var(--etwa-border, #d1d5db);
+	border-radius: 8px;
+	background: var(--etwa-surface-muted, #f9fafb);
+}
+
+.etwa-email-logo-preview img {
+	display: block;
+	max-width: 180px;
+	max-height: 80px;
+	height: auto;
+}
+
+.etwa-email-logo-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.etwa-email-placeholder-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 8px 16px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.etwa-email-placeholder-list code {
+	display: inline-block;
+	padding: 4px 8px;
+	border-radius: 4px;
+	background: var(--etwa-surface-muted, #f3f4f6);
+	font-size: 12px;
+}
+
+.etwa-email-preview-frame-wrap {
+	border: 1px solid var(--etwa-border, #e5e7eb);
+	border-radius: 8px;
+	overflow: hidden;
+	background: #f3f4f6;
+}
+
+.etwa-email-preview-frame-wrap iframe {
+	display: block;
+	width: 100%;
+	min-height: 520px;
+	border: 0;
+	background: #fff;
+}
+
+.etwa-email-notice {
+	margin-top: 12px;
+	padding: 10px 14px;
+	border-radius: 6px;
+	font-size: 14px;
+}
+
+.etwa-email-notice.is-success {
+	background: #ecfdf5;
+	color: #065f46;
+	border: 1px solid #a7f3d0;
+}
+
+.etwa-email-notice.is-error {
+	background: #fef2f2;
+	color: #991b1b;
+	border: 1px solid #fecaca;
+}
+
+@media (max-width: 1200px) {
+	.etwa-email-settings-layout {
+		grid-template-columns: 1fr;
+	}
+
+	.etwa-email-settings-preview-wrap {
+		position: static;
+		order: -1;
+	}
+}
+
+@media (max-width: 782px) {
+	.etwa-email-preview-frame-wrap iframe {
+		min-height: 420px;
+	}
+}
+
+.etwa-signature-builder {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px solid var(--etwa-border, #e5e7eb);
+}
+
+.etwa-signature-builder-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+
+.etwa-signature-builder-head h3 {
+	margin: 0;
+	font-size: 15px;
+}
+
+.etwa-signature-rows-list {
+	display: grid;
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.etwa-signature-row {
+	padding: 12px;
+	border: 1px solid var(--etwa-border, #e5e7eb);
+	border-radius: 8px;
+	background: var(--etwa-surface-muted, #f9fafb);
+}
+
+.etwa-signature-row-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px 12px;
+}
+
+.etwa-signature-row-grid label {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 12px;
+}
+
+.etwa-signature-row-grid input,
+.etwa-signature-row-grid select {
+	width: 100%;
+}
+
+.etwa-signature-row-check {
+	flex-direction: row !important;
+	align-items: center;
+	gap: 8px !important;
+}
+
+.etwa-signature-row-actions {
+	margin-top: 8px;
+}

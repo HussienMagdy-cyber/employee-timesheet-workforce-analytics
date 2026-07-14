@@ -132,6 +132,10 @@ final class HrTimesheetEditService {
 
 		$this->timesheet_repo->update( $timesheet_id, $update );
 
+		if ( 'draft' === $status || 'rejected' === $status ) {
+			( new \ETWA\Services\TimesheetService() )->clear_draft_visibility( $timesheet_id );
+		}
+
 		$context = $this->build_context( $editor_id, $timesheet->user_id, $reason, 'status' );
 		$this->audit->log(
 			'hr_edit',

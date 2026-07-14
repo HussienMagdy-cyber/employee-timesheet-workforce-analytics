@@ -217,9 +217,7 @@ final class RequestExportService {
 
 			__( 'Date', 'etwa' ),
 
-			__( 'Start Time', 'etwa' ),
-
-			__( 'End Time', 'etwa' ),
+			__( 'Time', 'etwa' ),
 
 			__( 'Permission Type', 'etwa' ),
 
@@ -317,13 +315,11 @@ final class RequestExportService {
 
 			$request->work_date ?? $request->request_date,
 
-			$request->start_time ? DateHelper::format_time( $request->start_time ) : '',
-
-			$request->end_time ? DateHelper::format_time( $request->end_time ) : '',
+			RequestHelper::permission_duration_label( $request->permission_type, $request->start_time, $request->end_time, $extra ),
 
 			RequestHelper::permission_type_label( $request->permission_type ),
 
-			$request->reason,
+			RequestHelper::permission_reason_display( $request, $extra ),
 
 			$request->notes,
 

@@ -60,6 +60,18 @@ final class RequestController extends RestController {
 
 		register_rest_route(
 			self::NAMESPACE,
+			'/requests/permission-reasons',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'permission_reasons' ),
+					'permission_callback' => array( $this, 'can_access' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/requests/holiday-work-types',
 			array(
 				array(
@@ -256,6 +268,10 @@ final class RequestController extends RestController {
 
 	public function permission_types() {
 		return $this->success( array( 'items' => $this->service->permission_types() ) );
+	}
+
+	public function permission_reasons() {
+		return $this->success( array( 'items' => $this->service->permission_reasons() ) );
 	}
 
 	public function holiday_work_types() {

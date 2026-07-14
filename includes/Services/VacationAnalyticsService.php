@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace ETWA\Services;
 
+use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\VacationHelper;
 use ETWA\Repositories\LeaveTypeRepository;
 use ETWA\Repositories\VacationRecordRepository;
@@ -128,7 +129,8 @@ final class VacationAnalyticsService {
 		$month_labels = array();
 		$month_values = array();
 		for ( $m = 1; $m <= 12; $m++ ) {
-			$month_labels[] = wp_date( 'M', mktime( 0, 0, 0, $m, 1, $year ) );
+			$month_dt = DateHelper::parse_local_datetime( sprintf( '%04d-%02d-01', $year, $m ), '00:00' );
+			$month_labels[] = $month_dt ? wp_date( 'M', $month_dt->getTimestamp() ) : (string) $m;
 			$found          = 0.0;
 			foreach ( $usage_by_month as $row ) {
 				if ( (int) $row->month_num === $m ) {

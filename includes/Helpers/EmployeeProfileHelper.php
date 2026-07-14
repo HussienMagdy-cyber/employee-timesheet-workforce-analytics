@@ -15,9 +15,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class EmployeeProfileHelper {
 
-	public const META_JOIN_DATE = 'etwa_join_date';
-	public const META_JOB_TITLE = 'etwa_job_title';
-	public const META_BIRTHDAY  = 'etwa_birthday';
+	public const META_JOIN_DATE         = 'etwa_join_date';
+	public const META_JOB_TITLE         = 'etwa_job_title';
+	public const META_PHONE             = 'etwa_phone';
+	public const META_BIRTHDAY          = 'etwa_birthday';
+	public const META_EMPLOYMENT_STATUS = 'etwa_employment_status';
+
+	public const STATUS_ACTIVE   = 'active';
+	public const STATUS_INACTIVE = 'inactive';
 
 	/** @return string[] ETWA roles HR/Owner may assign (priority order). */
 	public static function assignable_role_slugs(): array {
@@ -47,6 +52,14 @@ final class EmployeeProfileHelper {
 	public static function can_manage_employees( ?int $user_id = null ): bool {
 		$user_id = $user_id ?? get_current_user_id();
 		return $user_id > 0 && user_can( $user_id, RoleManager::CAP_VIEW_ALL );
+	}
+
+	public static function can_edit_own_profile( int $viewer_id, int $profile_user_id ): bool {
+		if ( $viewer_id <= 0 || $viewer_id !== $profile_user_id ) {
+			return false;
+		}
+
+		return self::is_managed_user( $profile_user_id ) || user_can( $profile_user_id, 'manage_options' );
 	}
 
 	public static function sanitize_optional_date( mixed $value ): ?string {
@@ -89,8 +102,28 @@ final class EmployeeProfileHelper {
 		return $role;
 	}
 
+	public static function get_employment_status( int $user_id ): string {
+		$status = (string) get_user_meta( $user_id, self::META_EMPLOYMENT_STATUS, true );
+		return self::STATUS_INACTIVE === $status ? self::STATUS_INACTIVE : self::STATUS_ACTIVE;
+	}
+
+	public static function is_active( int $user_id ): bool {
+		return self::STATUS_ACTIVE === self::get_employment_status( $user_id );
+	}
+
+	public static function set_employment_status( int $user_id, string $status ): void {
+		$status = self::STATUS_INACTIVE === $status ? self::STATUS_INACTIVE : self::STATUS_ACTIVE;
+		update_user_meta( $user_id, self::META_EMPLOYMENT_STATUS, $status );
+	}
+
+	public static function employment_status_label( string $status ): string {
+		return self::STATUS_INACTIVE === $status
+			? __( 'Inactive', 'etwa' )
+			: __( 'Active', 'etwa' );
+	}
+
 	public static function role_label_for_user( \WP_User $user ): string {
-		return self::role_label_for_slug( self::primary_role_slug( $user ) );
+		return BrandHelper::workforce_display_label();
 	}
 
 	public static function primary_role_slug( \WP_User $user ): string {
@@ -135,12 +168,7 @@ final class EmployeeProfileHelper {
 			return null;
 		}
 
-		$ts = strtotime( $date );
-		if ( ! $ts ) {
-			return $date;
-		}
-
-		return wp_date( get_option( 'date_format' ), $ts );
+		return DateHelper::format_date( $date );
 	}
 
 	public static function format_tenure( ?string $join_date ): string {
@@ -203,14 +231,22 @@ final class EmployeeProfileHelper {
 	public static function read_meta( int $user_id ): array {
 		return array(
 			'job_title' => (string) get_user_meta( $user_id, self::META_JOB_TITLE, true ),
+			'phone'     => (string) get_user_meta( $user_id, self::META_PHONE, true ),
 			'join_date' => (string) get_user_meta( $user_id, self::META_JOIN_DATE, true ),
 			'birthday'  => (string) get_user_meta( $user_id, self::META_BIRTHDAY, true ),
 		);
 	}
 
-	public static function save_meta( int $user_id, string $job_title, string $join_date, ?string $birthday ): void {
+	public static function save_meta(
+		int $user_id,
+		string $job_title,
+		string $join_date,
+		?string $birthday,
+		string $phone = ''
+	): void {
 		update_user_meta( $user_id, self::META_JOB_TITLE, sanitize_text_field( $job_title ) );
 		update_user_meta( $user_id, self::META_JOIN_DATE, $join_date );
+		update_user_meta( $user_id, self::META_PHONE, sanitize_text_field( $phone ) );
 
 		if ( $birthday ) {
 			update_user_meta( $user_id, self::META_BIRTHDAY, $birthday );
@@ -226,12 +262,15 @@ final class EmployeeProfileHelper {
 			return new \WP_Error( 'not_found', __( 'Employee not found.', 'etwa' ), array( 'status' => 404 ) );
 		}
 
-		$meta       = self::read_meta( $user_id );
-		$dept       = DepartmentHelper::get_employee_department( $user_id );
-		$can_edit   = self::can_manage_employees( $viewer_id );
-		$can_cost   = EmployeeCostHelper::can_view_labor_cost( $viewer_id );
+		$meta         = self::read_meta( $user_id );
+		$dept         = DepartmentHelper::get_employee_department( $user_id );
+		$can_manage   = self::can_manage_employees( $viewer_id );
+		$can_edit_own = self::can_edit_own_profile( $viewer_id, $user_id );
+		$can_cost     = EmployeeCostHelper::can_view_labor_cost( $viewer_id );
 		$join_date  = $meta['join_date'] ?: null;
 		$birthday   = $meta['birthday'] ?: null;
+
+		$employment_status = self::get_employment_status( $user_id );
 
 		$payload = array(
 			'id'                  => $user_id,
@@ -239,7 +278,11 @@ final class EmployeeProfileHelper {
 			'email'               => $user->user_email,
 			'role'                => self::primary_role_slug( $user ),
 			'role_label'          => self::role_label_for_user( $user ),
+			'employment_status'   => $employment_status,
+			'is_active'           => self::STATUS_ACTIVE === $employment_status,
+			'employment_label'    => self::employment_status_label( $employment_status ),
 			'job_title'           => $meta['job_title'],
+			'phone'               => $meta['phone'],
 			'join_date'           => $join_date,
 			'join_date_formatted' => self::format_date( $join_date ),
 			'tenure'              => self::format_tenure( $join_date ),
@@ -248,7 +291,9 @@ final class EmployeeProfileHelper {
 			'department_id'       => $dept?->id,
 			'department_name'     => $dept?->name ?? '',
 			'initials'            => self::get_initials( $user->display_name ),
-			'can_edit'            => $can_edit,
+			'can_edit'            => $can_manage || $can_edit_own,
+			'can_edit_full'       => $can_manage,
+			'can_edit_own'        => $can_edit_own && ! $can_manage,
 			'can_view_labor_cost' => $can_cost,
 		);
 
@@ -260,6 +305,10 @@ final class EmployeeProfileHelper {
 	}
 
 	public static function role_label_for_slug( string $slug ): string {
+		return BrandHelper::workforce_display_label();
+	}
+
+	public static function admin_role_label_for_slug( string $slug ): string {
 		return match ( $slug ) {
 			'etwa_owner'           => __( 'Owner', 'etwa' ),
 			'etwa_hr_manager'      => __( 'HR Manager', 'etwa' ),
@@ -274,7 +323,7 @@ final class EmployeeProfileHelper {
 		foreach ( self::assignable_role_slugs() as $slug ) {
 			$roles[] = array(
 				'slug'  => $slug,
-				'label' => self::role_label_for_slug( $slug ),
+				'label' => self::admin_role_label_for_slug( $slug ),
 			);
 		}
 
@@ -308,7 +357,7 @@ final class EmployeeProfileHelper {
 				'<option value="%1$s"%2$s>%3$s</option>',
 				esc_attr( $slug ),
 				selected( $selected, $slug, false ),
-				esc_html( self::role_label_for_slug( $slug ) )
+				esc_html( self::admin_role_label_for_slug( $slug ) )
 			);
 		}
 

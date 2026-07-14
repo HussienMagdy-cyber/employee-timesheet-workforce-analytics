@@ -152,9 +152,9 @@ if ( ! in_array( $initial_tab, array( 'vacation', 'wfh', 'permission', 'holiday_
 							<th class="etwa-col-select" aria-label="<?php esc_attr_e( 'Select', 'etwa' ); ?>"></th>
 							<th><?php esc_html_e( 'Employee', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Date', 'etwa' ); ?></th>
-							<th><?php esc_html_e( 'From', 'etwa' ); ?></th>
-							<th><?php esc_html_e( 'To', 'etwa' ); ?></th>
+							<th><?php esc_html_e( 'Time', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Permission Type', 'etwa' ); ?></th>
+							<th><?php esc_html_e( 'Reason', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Status', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Actions', 'etwa' ); ?></th>
 						</tr>

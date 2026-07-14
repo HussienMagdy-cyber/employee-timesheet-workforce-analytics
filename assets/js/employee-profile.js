@@ -57,6 +57,7 @@
 		const rows = [
 			[i18n.email || 'Email', profile.email || ''],
 			[i18n.jobTitle || 'Job title', profile.job_title || notSetLabel()],
+			[i18n.phone || 'Phone number', profile.phone || notSetLabel()],
 			[i18n.department || 'Department', profile.department_name || notSetLabel()],
 			[i18n.joinDate || 'Join date', profile.join_date_formatted || notSetLabel()],
 			[i18n.birthday || 'Birthday', profile.birthday_formatted || notSetLabel()],
@@ -65,7 +66,7 @@
 		return rows
 			.map(
 				([label, value]) =>
-					`<div class="etwa-profile-detail-row"><dt>${label}</dt><dd>${value}</dd></div>`
+					`<dt>${label}</dt><dd>${value}</dd>`
 			)
 			.join('');
 	}
@@ -79,8 +80,43 @@
 			profile.role || 'etwa_employee'
 		);
 		$('#etwa-profile-edit-job-title').val(profile.job_title || '');
+		$('#etwa-profile-edit-phone').val(profile.phone || '');
 		$('#etwa-profile-edit-join-date').val(profile.join_date || '');
 		$('#etwa-profile-edit-birthday').val(profile.birthday || '');
+	}
+
+	function applyEditMode(profile) {
+		const fullEdit = !!profile.can_edit_full;
+		$('.etwa-profile-field-hr').toggle(fullEdit);
+		$('#etwa-profile-reset-btn, #etwa-profile-deactivate-btn, #etwa-profile-reactivate-btn').toggle(fullEdit);
+		$('#etwa-profile-edit-title').text(
+			fullEdit ? (cfg().i18n?.editEmployee || 'Edit Employee') : (cfg().i18n?.editProfile || 'Edit Profile')
+		);
+		$('#etwa-profile-edit-role, #etwa-profile-edit-job-title, #etwa-profile-edit-join-date').prop('required', fullEdit);
+	}
+
+	function profileUpdatePath(profile) {
+		if (profile.can_edit_full) {
+			return `employees/${profile.id}/profile`;
+		}
+		return 'employees/me/profile';
+	}
+
+	function buildUpdatePayload(profile) {
+		const payload = {
+			display_name: $('#etwa-profile-edit-name').val().trim(),
+			email: $('#etwa-profile-edit-email').val().trim(),
+			phone: $('#etwa-profile-edit-phone').val().trim(),
+			birthday: $('#etwa-profile-edit-birthday').val() || null,
+		};
+
+		if (profile.can_edit_full) {
+			payload.role = $('#etwa-profile-edit-role').val();
+			payload.job_title = $('#etwa-profile-edit-job-title').val().trim();
+			payload.join_date = $('#etwa-profile-edit-join-date').val();
+		}
+
+		return payload;
 	}
 
 	function showViewPanel() {
@@ -130,6 +166,17 @@
 				if (profile.can_edit) {
 					$actions.removeAttr('hidden');
 					fillEditForm(profile);
+					applyEditMode(profile);
+					if (profile.can_edit_full && profile.is_active) {
+						$('#etwa-profile-deactivate-btn').removeAttr('hidden');
+						$('#etwa-profile-reactivate-btn').attr('hidden', 'hidden');
+					} else if (profile.can_edit_full) {
+						$('#etwa-profile-deactivate-btn').attr('hidden', 'hidden');
+						$('#etwa-profile-reactivate-btn').removeAttr('hidden');
+					} else {
+						$('#etwa-profile-deactivate-btn').attr('hidden', 'hidden');
+						$('#etwa-profile-reactivate-btn').attr('hidden', 'hidden');
+					}
 				} else {
 					$actions.attr('hidden', 'hidden');
 				}
@@ -140,7 +187,7 @@
 			function loadProfile(id) {
 				$app.removeAttr('hidden');
 				$('#etwa-profile-details').html(
-					`<div class="etwa-skeleton" style="height:120px"></div>`
+					'<dd class="etwa-profile-loading"><div class="etwa-skeleton" style="height:120px"></div></dd>'
 				);
 
 				return api(profilePath(id))
@@ -163,6 +210,7 @@
 				.on('click', function () {
 					if (!currentProfile) return;
 					fillEditForm(currentProfile);
+					applyEditMode(currentProfile);
 					showEditPanel();
 				});
 
@@ -187,24 +235,54 @@
 						.finally(() => ui().setButtonLoading($btn[0], false));
 				});
 
+			function setEmploymentStatus(status) {
+				if (!resolvedUserId) return Promise.resolve();
+				const isDeactivate = status === 'inactive';
+				const msg = isDeactivate
+					? cfg().i18n?.confirmDeactivate || 'Deactivate this employee? They will lose portal access.'
+					: cfg().i18n?.confirmReactivate || 'Reactivate this employee?';
+				return ui()
+					.confirm(msg, isDeactivate ? cfg().i18n?.deactivate || 'Deactivate' : cfg().i18n?.reactivate || 'Reactivate')
+					.then((ok) => {
+						if (!ok) return;
+						return api(`employees/${resolvedUserId}/status`, {
+							method: 'PUT',
+							body: JSON.stringify({ status }),
+						}).then((res) => {
+							if (!res.success) throw new Error(res.message);
+							renderProfile(res.data || {});
+							ui().success(
+								isDeactivate
+									? cfg().i18n?.employeeDeactivated || 'Employee deactivated.'
+									: cfg().i18n?.employeeReactivated || 'Employee reactivated.'
+							);
+						});
+					});
+			}
+
+			$('#etwa-profile-deactivate-btn')
+				.off('click')
+				.on('click', function () {
+					setEmploymentStatus('inactive').catch((err) => ui().error(err.message));
+				});
+
+			$('#etwa-profile-reactivate-btn')
+				.off('click')
+				.on('click', function () {
+					setEmploymentStatus('active').catch((err) => ui().error(err.message));
+				});
+
 			$('#etwa-profile-edit-form')
 				.off('submit')
 				.on('submit', function (e) {
 					e.preventDefault();
-					if (!resolvedUserId) return;
+					if (!currentProfile) return;
 
 					const $btn = $(this).find('button[type="submit"]');
-					const payload = {
-						display_name: $('#etwa-profile-edit-name').val().trim(),
-						email: $('#etwa-profile-edit-email').val().trim(),
-						role: $('#etwa-profile-edit-role').val(),
-						job_title: $('#etwa-profile-edit-job-title').val().trim(),
-						join_date: $('#etwa-profile-edit-join-date').val(),
-						birthday: $('#etwa-profile-edit-birthday').val() || null,
-					};
+					const payload = buildUpdatePayload(currentProfile);
 
 					ui().setButtonLoading($btn[0], true, cfg().i18n?.saving);
-					api(`employees/${resolvedUserId}/profile`, {
+					api(profileUpdatePath(currentProfile), {
 						method: 'PUT',
 						body: JSON.stringify(payload),
 					})

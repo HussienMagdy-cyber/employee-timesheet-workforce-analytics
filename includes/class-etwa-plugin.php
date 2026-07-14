@@ -11,6 +11,7 @@ namespace ETWA;
 
 use ETWA\Admin\AdminMenu;
 use ETWA\Admin\AjaxHandler;
+use ETWA\Admin\EmailSettingsManager;
 use ETWA\Assets\AssetRegistry;
 use ETWA\Cron\CronJobs;
 use ETWA\Frontend\Auth;
@@ -53,6 +54,7 @@ final class Plugin {
 		new Shortcodes();
 		new Auth();
 		new AjaxHandler();
+		new EmailSettingsManager();
 
 		if ( is_admin() ) {
 			new AdminMenu();
@@ -67,6 +69,7 @@ final class Plugin {
 		RoleManager::register_roles_and_caps();
 		Schema::maybe_upgrade();
 		\ETWA\Helpers\AuthHelper::ensure_pages();
+		\ETWA\Repositories\EmailSettingsRepository::seed_defaults();
 
 		if ( false === get_transient( 'etwa_break_client_ok' ) ) {
 			( new ClientRepository() )->ensure_system_clients();

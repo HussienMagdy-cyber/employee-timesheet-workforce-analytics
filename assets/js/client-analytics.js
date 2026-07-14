@@ -52,6 +52,7 @@
 
 		const colors = chartColors();
 		const labels = trend.map((t) => t.period);
+		const regular = trend.map((t) => t.regular_hours ?? 0);
 		const hours = trend.map((t) => t.total_hours);
 		const ot = trend.map((t) => t.overtime_hours);
 
@@ -61,7 +62,15 @@
 				labels,
 				datasets: [
 					{
-						label: cfg.i18n?.totalHours || 'Total Hours',
+						label: cfg.i18n?.regularHours || 'Regular Hours',
+						data: regular,
+						borderColor: colors.muted,
+						backgroundColor: colors.muted + '22',
+						fill: true,
+						tension: 0.35,
+					},
+					{
+						label: cfg.i18n?.totalHours || 'Combined Hours',
 						data: hours,
 						borderColor: colors.primary,
 						backgroundColor: colors.primary + '33',

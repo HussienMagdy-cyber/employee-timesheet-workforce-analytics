@@ -12,6 +12,7 @@ namespace ETWA\REST;
 use ETWA\Helpers\CalendarHelper;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\DepartmentHelper;
+use ETWA\Helpers\TimesheetDraftHelper;
 use ETWA\Helpers\UserDisplayNames;
 use ETWA\Helpers\RoleManager;
 use ETWA\Services\TimesheetService;
@@ -81,6 +82,18 @@ final class TimesheetController extends RestController {
 
 		register_rest_route(
 			self::NAMESPACE,
+			'/timesheets/(?P<id>\d+)/save-draft',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'save_draft' ),
+					'permission_callback' => array( $this, 'can_edit_own' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/timesheets/copy-previous',
 			array(
 				array(
@@ -114,32 +127,53 @@ final class TimesheetController extends RestController {
 
 	public function get_my_timesheet( WP_REST_Request $request ) {
 		$date = $this->get_string_param( $request, 'date' );
-		return $this->success( $this->build_dashboard_payload( get_current_user_id(), $date ?: null ) );
+		return $this->success( $this->build_dashboard_payload( get_current_user_id(), $date ?: null, get_current_user_id() ) );
 	}
 
 	public function get_user_timesheet( WP_REST_Request $request ) {
-		$user_id = $this->get_int_param( $request, 'user_id' );
-		$date    = $this->get_string_param( $request, 'date' );
+		$user_id   = $this->get_int_param( $request, 'user_id' );
+		$date      = $this->get_string_param( $request, 'date' );
+		$viewer_id = get_current_user_id();
 
-		if ( ! RoleManager::user_can_view_timesheet( get_current_user_id(), $user_id ) ) {
+		if ( ! RoleManager::user_can_view_timesheet( $viewer_id, $user_id ) ) {
 			return $this->error(
 				new \WP_Error( 'forbidden', __( 'Cannot view this timesheet.', 'etwa' ), array( 'status' => 403 ) )
 			);
 		}
 
-		return $this->success( $this->build_dashboard_payload( $user_id, $date ?: null ) );
+		$payload = $this->build_dashboard_payload( $user_id, $date ?: null, $viewer_id );
+		if ( is_wp_error( $payload ) ) {
+			return $this->error( $payload );
+		}
+
+		return $this->success( $payload );
 	}
 
-	/** @return array<string,mixed> */
-	private function build_dashboard_payload( int $user_id, ?string $date ): array {
-		$data           = $this->service->get_dashboard_data( $user_id, $date );
+	/** @return array<string,mixed>|\WP_Error */
+	private function build_dashboard_payload( int $user_id, ?string $date, ?int $viewer_id = null ): array|\WP_Error {
+		$viewer_id = $viewer_id ?? $user_id;
+		$data      = $this->service->get_dashboard_data( $user_id, $date, $viewer_id );
+		if ( is_wp_error( $data ) ) {
+			return $data;
+		}
+
 		$week           = $date ? DateHelper::get_work_week_for_date( $date ) : DateHelper::get_current_work_week();
 		$calendar_dates = CalendarHelper::get_calendar_dates( $week['period_start'] );
 		$day_meta       = CalendarHelper::build_day_meta( $calendar_dates );
+		$timesheet      = $data['timesheet'];
+		$entries        = $data['entries'];
+		$sync_state     = TimesheetDraftHelper::draft_sync_state( $timesheet, $entries );
 
 		return array(
-			'timesheet'      => $data['timesheet']->to_array(),
-			'entries'        => array_map( fn( $e ) => $e->to_api_array(), $data['entries'] ),
+			'timesheet'      => array_merge(
+				$timesheet->to_array(),
+				array(
+					'draft_sync_state'  => $sync_state,
+					'draft_sync_label'  => TimesheetDraftHelper::draft_sync_label( $sync_state ),
+					'has_unsaved_changes' => TimesheetDraftHelper::has_unsaved_changes( $timesheet, $entries ),
+				)
+			),
+			'entries'        => array_map( fn( $e ) => $e->to_api_array(), $entries ),
 			'week'           => $week,
 			'work_dates'     => $calendar_dates,
 			'calendar_dates' => $calendar_dates,
@@ -210,6 +244,7 @@ final class TimesheetController extends RestController {
 		}
 
 		$page  = max( 1, $this->get_int_param( $request, 'page', 1 ) );
+		$filters['hide_unshared_drafts'] = true;
 		$items = $repo->find_by_filters( array_filter( $filters ), $page, 20 );
 
 		$names    = UserDisplayNames::map( array_map( fn( $ts ) => $ts->user_id, $items ) );
@@ -232,6 +267,11 @@ final class TimesheetController extends RestController {
 
 	public function submit( WP_REST_Request $request ) {
 		$result = $this->service->submit( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result->to_array() );
+	}
+
+	public function save_draft( WP_REST_Request $request ) {
+		$result = $this->service->save_draft( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
 		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result->to_array() );
 	}
 

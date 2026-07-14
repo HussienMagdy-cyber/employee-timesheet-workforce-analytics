@@ -39,6 +39,55 @@
 		}
 	}
 
+	function loadTabBadges() {
+		return Promise.all([
+			api('requests/pending-counts'),
+			api('vacations/requests?status=pending&per_page=1'),
+		])
+			.then(([countsRes, vacPendingRes]) => {
+				if (countsRes.success) {
+					const c = countsRes.data || {};
+					updateBadge('#etwa-wfh-tab-badge', c.wfh || 0);
+					updateBadge('#etwa-permission-tab-badge', c.permission || 0);
+					updateBadge('#etwa-holiday-work-tab-badge', c.holiday_work || 0);
+				}
+				if (vacPendingRes.success) {
+					updateBadge('#etwa-vacation-tab-badge', vacPendingRes.data?.total || 0);
+				}
+			})
+			.catch(() => {});
+	}
+
+	function refreshNavBadges() {
+		if (!cfg.root || !cfg.nonce) return;
+		fetch(cfg.root + 'portal/nav-badges', {
+			credentials: 'same-origin',
+			headers: { 'X-WP-Nonce': cfg.nonce },
+		})
+			.then((response) => response.json())
+			.then((payload) => {
+				if (!payload || !payload.success) return;
+				const badges = payload.data || {};
+				document.querySelectorAll('[data-nav-badge]').forEach((el) => {
+					const key = el.getAttribute('data-nav-badge');
+					const count = badges[key] || 0;
+					if (count > 0) {
+						el.textContent = String(count);
+						el.removeAttribute('hidden');
+					} else {
+						el.setAttribute('hidden', 'hidden');
+						el.textContent = '';
+					}
+				});
+			})
+			.catch(() => {});
+	}
+
+	function refreshAllBadges() {
+		loadTabBadges();
+		refreshNavBadges();
+	}
+
 	function agingBadge(r) {
 		if (r.status !== 'pending' || !r.is_aging) return '';
 		return `<span class="etwa-aging-badge" title="${cfg.i18n?.agingHint || 'Pending over 48 hours'}">${cfg.i18n?.aging || '>48h'}</span>`;
@@ -81,11 +130,16 @@
 		);
 	}
 
-	function submitReview(id, status, source, slot, notes) {
+	function submitReview(id, status, source, slot, notes, days) {
 		const path = source === 'vacation' ? `vacations/requests/${id}/review` : `requests/${id}/review`;
 		const body = { status, notes: notes || '' };
 		if (slot) body.approval_slot = slot;
+		if (days != null && days > 0) body.days = days;
 		return api(path, { method: 'PUT', body: JSON.stringify(body) });
+	}
+
+	function vacationHrNeedsDays(source, slot) {
+		return source === 'vacation' && (slot === 'hr' || (!slot && cfg.canManageVacation));
 	}
 
 	function reloadActiveTab() {
@@ -123,19 +177,29 @@
 						);
 					}
 					reloadActiveTab();
+					refreshAllBadges();
 					updateBulkToolbar();
 				})
 				.catch((err) => ui.error(err.message));
 		};
 
 		if (status === 'rejected') {
-			ui.promptReason(cfg.i18n?.rejectReasonRequired || 'Rejection reason (required)').then((notes) => {
-				if (!notes || !String(notes).trim()) {
-					ui.error(cfg.i18n?.rejectReasonRequired || 'Rejection reason is required.');
-					return;
-				}
-				run(String(notes).trim());
+			ui.confirm(cfg.i18n?.confirmRejectRequest || 'Reject selected requests?', cfg.i18n?.reject || 'Reject').then((ok) => {
+				if (!ok) return;
+				ui.promptReason(cfg.i18n?.rejectReasonOptional || 'Rejection reason (optional)', { optional: true }).then((notes) => {
+					if (notes === null) return;
+					run(String(notes).trim());
+				});
 			});
+			return;
+		}
+
+		const tab = getActiveTab();
+		if (tab === 'vacation' && cfg.canManageVacation) {
+			ui.error(
+				cfg.i18n?.vacationBulkHrDays ||
+					'Approve vacation requests individually so you can enter the days to deduct.'
+			);
 			return;
 		}
 
@@ -165,7 +229,13 @@
 			buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-source="${source}" data-slot="department">${cfg.i18n?.approveAsDepartment || 'Approve (Department)'}</button>`);
 		}
 		if (r.can_approve_as_hr) {
-			buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-source="${source}" data-slot="hr">${cfg.i18n?.approveAsHr || 'Approve (HR)'}</button>`);
+			const dayAttrs =
+				source === 'vacation'
+					? ` data-needs-days="1" data-start="${r.start_date || ''}" data-end="${r.end_date || ''}"`
+					: '';
+			buttons.push(
+				`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-source="${source}" data-slot="hr"${dayAttrs}>${cfg.i18n?.approveAsHr || 'Approve (HR)'}</button>`
+			);
 		}
 		if (r.can_reject) {
 			buttons.push(`<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-sm etwa-reject-request" data-id="${r.id}" data-source="${source}">${cfg.i18n?.reject || 'Reject'}</button>`);
@@ -223,8 +293,6 @@
 				if (!res.success) throw new Error(res.message);
 				const data = res.data || {};
 				const items = data.items || [];
-				const pending = items.filter((r) => r.status === 'pending').length;
-				updateBadge('#etwa-vacation-tab-badge', pending);
 
 				if (!items.length) {
 					$('#etwa-vac-req-body').html(
@@ -261,7 +329,7 @@
 			.catch((err) => ui.error(err.message));
 	}
 
-	function loadGenericRequests(type, page, prefix, bodySelector, paginationSelector, pageSetter, loader, badgeSelector) {
+	function loadGenericRequests(type, page, prefix, bodySelector, paginationSelector, pageSetter, loader) {
 		const colSpan = type === 'wfh' ? 7 : 8;
 		const params = buildParams(page, prefix);
 		params.set('request_type', type);
@@ -272,8 +340,6 @@
 				if (!res.success) throw new Error(res.message);
 				const data = res.data || {};
 				const items = data.items || [];
-				const pending = items.filter((r) => r.status === 'pending').length;
-				updateBadge(badgeSelector, pending);
 
 				if (!items.length) {
 					$(bodySelector).html(
@@ -324,9 +390,9 @@
 							${rowCheckbox(r, 'generic')}
 							<td>${r.employee_name || ''}</td>
 							<td>${r.work_date || r.request_date || ''}</td>
-							<td>${r.time_range || ''}</td>
+							<td>${r.time_range || r.duration_label || ''}</td>
 							<td>${r.permission_type_label || ''}</td>
-							<td>${r.reason || ''}</td>
+							<td>${r.reason_label || r.reason || ''}</td>
 							<td>${requestStatusHtml(r)}</td>
 							<td class="etwa-actions-cell">${reviewActions(r, 'generic')}</td>
 						</tr>`
@@ -351,8 +417,7 @@
 			(p) => {
 				wfhPage = p;
 			},
-			loadWfhRequests,
-			'#etwa-wfh-tab-badge'
+			loadWfhRequests
 		);
 	}
 
@@ -366,8 +431,7 @@
 			(p) => {
 				permPage = p;
 			},
-			loadPermissionRequests,
-			'#etwa-permission-tab-badge'
+			loadPermissionRequests
 		);
 	}
 
@@ -381,12 +445,11 @@
 			(p) => {
 				holidayPage = p;
 			},
-			loadHolidayWorkRequests,
-			'#etwa-holiday-work-tab-badge'
+			loadHolidayWorkRequests
 		);
 	}
 
-	function reviewRequest(id, status, source, slot) {
+	function reviewRequest(id, status, source, slot, meta = {}) {
 		let msg = '';
 		if (status === 'approved') {
 			if (slot === 'hr') msg = cfg.i18n?.confirmApproveHr || 'Record your HR approval?';
@@ -397,8 +460,11 @@
 			msg = cfg.i18n?.confirmRejectRequest || 'Reject this request?';
 		}
 
-		const perform = (notes) => {
-			submitReview(id, status, source, slot, notes)
+		const needsDays =
+			meta.needsDays != null ? !!meta.needsDays : vacationHrNeedsDays(source, slot);
+
+		const perform = (notes, days) => {
+			submitReview(id, status, source, slot, notes, days)
 				.then((res) => {
 					if (!res.success) throw new Error(res.message);
 					const data = res.data || {};
@@ -411,10 +477,8 @@
 								: cfg.i18n?.requestRejected || 'Request rejected.'
 						);
 					}
-					loadVacationRequests();
-					loadWfhRequests();
-					loadPermissionRequests();
-					loadHolidayWorkRequests();
+					reloadActiveTab();
+					refreshAllBadges();
 					$('#etwa-request-detail-modal').attr('hidden', 'hidden');
 					updateBulkToolbar();
 				})
@@ -424,13 +488,22 @@
 		if (status === 'rejected') {
 			ui.confirm(msg, cfg.i18n?.reject || 'Reject').then((ok) => {
 				if (!ok) return;
-				ui.promptReason(cfg.i18n?.rejectReasonRequired || 'Rejection reason (required)').then((notes) => {
-					if (!notes || !String(notes).trim()) {
-						ui.error(cfg.i18n?.rejectReasonRequired || 'Rejection reason is required.');
-						return;
-					}
+				ui.promptReason(cfg.i18n?.rejectReasonOptional || 'Rejection reason (optional)', { optional: true }).then((notes) => {
+					if (notes === null) return;
 					perform(String(notes).trim());
 				});
+			});
+			return;
+		}
+
+		if (needsDays) {
+			ui.promptDaysToDeduct({
+				startDate: meta.startDate || '',
+				endDate: meta.endDate || '',
+				api,
+			}).then((days) => {
+				if (days == null) return;
+				perform('', days);
 			});
 			return;
 		}
@@ -456,7 +529,6 @@
 						<dt>${cfg.i18n?.employee || 'Employee'}</dt><dd>${r.employee_name || ''}</dd>
 						<dt>${cfg.i18n?.submittedDate || 'Submitted Date'}</dt><dd>${r.created_at_label || ui.formatDateTime12(r.created_at) || ''}${r.is_aging ? ` <span class="etwa-aging-badge">${cfg.i18n?.aging || '>48h'}</span>` : ''}</dd>
 						<dt>${cfg.i18n?.status || 'Status'}</dt><dd>${r.status_label || r.status || ''}</dd>
-						<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason || ''}</dd>
 						${ui.requestReviewDetailRows(r)}
 				`;
 
@@ -480,12 +552,17 @@
 						<dt>${cfg.i18n?.client || 'Client'}</dt><dd>${r.client_name || ''}</dd>
 						<dt>${cfg.i18n?.task || 'Task'}</dt><dd>${r.task || ''}</dd>
 					`;
-				} else {
+				} else if (r.request_type === 'permission') {
 					details += `
 						<dt>${cfg.i18n?.date || 'Date'}</dt><dd>${r.work_date || r.request_date || ''}</dd>
-						<dt>${cfg.i18n?.time || 'Time'}</dt><dd>${r.time_range || ''}</dd>
+						<dt>${cfg.i18n?.time || 'Time'}</dt><dd>${r.time_range || r.duration_label || ''}</dd>
 						<dt>${cfg.i18n?.permissionType || 'Permission Type'}</dt><dd>${r.permission_type_label || ''}</dd>
+						<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason_label || r.reason || ''}</dd>
 					`;
+				}
+
+				if (r.request_type !== 'permission' && source !== 'vacation') {
+					details += `<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason || ''}</dd>`;
 				}
 
 				details += '</dl>';
@@ -555,24 +632,13 @@
 	}
 
 	$(function () {
-		Promise.all([
-			api('vacations/employees'),
-			api('requests/pending-counts'),
-			api('vacations/requests?status=pending&per_page=1'),
-		])
-			.then(([empRes, countsRes, vacPendingRes]) => {
+		refreshAllBadges();
+
+		api('vacations/employees')
+			.then((empRes) => {
 				if (empRes.success) {
 					employees = empRes.data || [];
 					populateEmployees();
-				}
-				if (countsRes.success) {
-					const c = countsRes.data || {};
-					updateBadge('#etwa-wfh-tab-badge', c.wfh || 0);
-					updateBadge('#etwa-permission-tab-badge', c.permission || 0);
-					updateBadge('#etwa-holiday-work-tab-badge', c.holiday_work || 0);
-				}
-				if (vacPendingRes.success) {
-					updateBadge('#etwa-vacation-tab-badge', vacPendingRes.data?.total || 0);
 				}
 			})
 			.catch(() => {});
@@ -626,7 +692,12 @@
 		$('#etwa-holiday-req-export').on('click', () => exportRequests('holiday_work'));
 
 		app.on('click', '.etwa-approve-request', function () {
-			reviewRequest($(this).data('id'), 'approved', $(this).data('source'), $(this).data('slot') || '');
+			const $btn = $(this);
+			reviewRequest($btn.data('id'), 'approved', $btn.data('source'), $btn.data('slot') || '', {
+				needsDays: $btn.attr('data-needs-days') === '1',
+				startDate: $btn.attr('data-start') || '',
+				endDate: $btn.attr('data-end') || '',
+			});
 		});
 
 		app.on('click', '.etwa-reject-request', function () {

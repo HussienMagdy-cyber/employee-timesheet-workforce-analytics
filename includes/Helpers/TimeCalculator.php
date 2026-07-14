@@ -31,8 +31,16 @@ final class TimeCalculator {
 	public function calculate( string $entry_date, string $start_time, string $end_time ): array {
 		$interval = (int) $this->settings->get( 'time_interval_minutes', 30 );
 
-		$start = new \DateTimeImmutable( "{$entry_date} {$start_time}" );
-		$end   = new \DateTimeImmutable( "{$entry_date} {$end_time}" );
+		$start = DateHelper::parse_local_datetime( $entry_date, $start_time );
+		$end   = DateHelper::parse_local_datetime( $entry_date, $end_time );
+
+		if ( ! $start || ! $end ) {
+			return array(
+				'duration_minutes' => 0,
+				'regular_hours'    => 0.0,
+				'overtime_hours'   => 0.0,
+			);
+		}
 
 		if ( $end <= $start ) {
 			return array(
@@ -61,24 +69,78 @@ final class TimeCalculator {
 	}
 
 	/**
-	 * Generate 30-minute time slot options between configured bounds.
+	 * Generate time slot options for the full day (00:00 through last interval before midnight).
 	 *
 	 * @return string[]
 	 */
 	public function get_time_slots(): array {
-		$interval = (int) $this->settings->get( 'time_interval_minutes', 30 );
-		$start    = $this->settings->get( 'work_day_start', '10:00' );
-		$end      = (string) $this->settings->get( 'time_slot_end', '22:00' );
+		$interval = max( 1, (int) $this->settings->get( 'time_interval_minutes', 30 ) );
 
-		$slots   = array();
-		$cursor  = new \DateTimeImmutable( "today {$start}" );
-		$limit   = new \DateTimeImmutable( "today {$end}" );
+		$slots  = array();
+		$timezone = wp_timezone();
+		$cursor   = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i', current_time( 'Y-m-d' ) . ' 00:00', $timezone );
+		$limit    = $cursor ? $cursor->modify( '+1 day' ) : null;
 
-		while ( $cursor <= $limit ) {
+		if ( ! $cursor || ! $limit ) {
+			return array();
+		}
+
+		while ( $cursor < $limit ) {
 			$slots[] = $cursor->format( 'H:i' );
 			$cursor  = $cursor->modify( "+{$interval} minutes" );
 		}
+
 		return $slots;
+	}
+
+	/** @return array{start:string,end:string} */
+	public function get_default_entry_times(): array {
+		$interval = max( 1, (int) $this->settings->get( 'time_interval_minutes', 30 ) );
+		$start    = $this->snap_to_slot( (string) $this->settings->get( 'work_day_start', '09:00' ) );
+		$end_dt = DateHelper::parse_wall_time( $start );
+
+		if ( ! $end_dt ) {
+			$end_dt = DateHelper::parse_wall_time( '09:00' );
+		}
+
+		if ( ! $end_dt ) {
+			return array(
+				'start' => $start,
+				'end'   => $start,
+			);
+		}
+
+		$end = $this->snap_to_slot( $end_dt->modify( "+{$interval} minutes" )->format( 'H:i' ) );
+
+		return array(
+			'start' => $start,
+			'end'   => $end,
+		);
+	}
+
+	private function snap_to_slot( string $time ): string {
+		$time  = $this->normalize_slot_time( $time );
+		$slots = $this->get_time_slots();
+
+		if ( in_array( $time, $slots, true ) ) {
+			return $time;
+		}
+
+		foreach ( $slots as $slot ) {
+			if ( $slot >= $time ) {
+				return $slot;
+			}
+		}
+
+		return $slots[0] ?? '00:00';
+	}
+
+	private function normalize_slot_time( string $time ): string {
+		if ( preg_match( '/^\d{2}:\d{2}/', $time ) ) {
+			return substr( $time, 0, 5 );
+		}
+
+		return '00:00';
 	}
 
 	/** @return array<int,array{value:string,label:string}> */

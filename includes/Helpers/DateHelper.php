@@ -95,22 +95,75 @@ final class DateHelper {
 		return 'g:i A';
 	}
 
+	/**
+	 * Parse a wall-clock time (HH:MM) in the site timezone without UTC conversion.
+	 */
+	public static function parse_wall_time( string $time ): ?\DateTimeImmutable {
+		$time = substr( trim( $time ), 0, 5 );
+		if ( ! preg_match( '/^\d{2}:\d{2}$/', $time ) ) {
+			return null;
+		}
+
+		$dt = \DateTimeImmutable::createFromFormat( 'H:i', $time, wp_timezone() );
+		return $dt ?: null;
+	}
+
+	/**
+	 * Parse a site-local date plus wall-clock time (no UTC conversion).
+	 */
+	public static function parse_local_datetime( string $date, string $time ): ?\DateTimeImmutable {
+		$date = trim( $date );
+		$time = trim( $time );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+			return null;
+		}
+
+		$timezone = wp_timezone();
+		if ( preg_match( '/^\d{2}:\d{2}:\d{2}$/', $time ) ) {
+			$dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', "{$date} {$time}", $timezone );
+			return $dt ?: null;
+		}
+
+		if ( preg_match( '/^\d{2}:\d{2}$/', $time ) ) {
+			$dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i', "{$date} {$time}", $timezone );
+			return $dt ?: null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Format a site-local date (Y-m-d) using the WordPress date format.
+	 */
+	public static function format_date( ?string $date ): string {
+		if ( ! $date ) {
+			return '';
+		}
+
+		$date = trim( $date );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+			return $date;
+		}
+
+		$dt = \DateTimeImmutable::createFromFormat( 'Y-m-d', $date, wp_timezone() );
+		if ( ! $dt ) {
+			return $date;
+		}
+
+		return wp_date( get_option( 'date_format' ), $dt->getTimestamp() );
+	}
+
 	public static function format_time( ?string $time ): string {
 		if ( ! $time ) {
 			return '';
 		}
 
-		$time = substr( $time, 0, 5 );
-		if ( ! preg_match( '/^\d{2}:\d{2}$/', $time ) ) {
-			return $time;
+		$dt = self::parse_wall_time( $time );
+		if ( ! $dt ) {
+			return substr( $time, 0, 5 );
 		}
 
-		$ts = strtotime( "today {$time}" );
-		if ( ! $ts ) {
-			return $time;
-		}
-
-		return wp_date( self::time_format(), $ts );
+		return $dt->format( self::time_format() );
 	}
 
 	public static function format_time_range( ?string $start, ?string $end ): string {
@@ -129,11 +182,41 @@ final class DateHelper {
 	}
 
 	public static function format_datetime( string $datetime ): string {
-		$ts = strtotime( $datetime );
-		if ( ! $ts ) {
+		$ts = self::mysql_to_timestamp( $datetime );
+		if ( null === $ts ) {
 			return $datetime;
 		}
 
 		return wp_date( get_option( 'date_format' ) . ' ' . self::time_format(), $ts );
+	}
+
+	/**
+	 * Parse a MySQL datetime saved with current_time( 'mysql' ) as site-local time.
+	 */
+	public static function mysql_to_timestamp( string $datetime ): ?int {
+		$datetime = trim( $datetime );
+		if ( '' === $datetime ) {
+			return null;
+		}
+
+		$timezone   = wp_timezone();
+		$normalized = preg_replace( '/\.\d+$/', '', $datetime );
+		if ( ! is_string( $normalized ) || '' === $normalized ) {
+			$normalized = $datetime;
+		}
+
+		$dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $normalized, $timezone );
+		if ( ! $dt ) {
+			$dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i', $normalized, $timezone );
+		}
+		if ( ! $dt ) {
+			try {
+				$dt = new \DateTimeImmutable( $normalized, $timezone );
+			} catch ( \Exception $e ) {
+				return null;
+			}
+		}
+
+		return $dt->getTimestamp();
 	}
 }

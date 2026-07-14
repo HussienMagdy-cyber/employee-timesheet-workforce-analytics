@@ -12,6 +12,7 @@ namespace ETWA\Services;
 use ETWA\Helpers\ApprovalWorkflowHelper;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\DepartmentHelper;
+use ETWA\Helpers\EmployeeProfileHelper;
 use ETWA\Helpers\RequestHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Helpers\UserDisplayNames;
@@ -63,12 +64,12 @@ final class DepartmentAnalyticsService {
 		$employees = array();
 		foreach ( $employee_ids as $uid ) {
 			$user = get_userdata( $uid );
-			if ( $user ) {
+			if ( $user && EmployeeProfileHelper::is_active( $uid ) ) {
 				$employees[] = array(
 					'id'           => $uid,
 					'display_name' => $user->display_name,
 					'email'        => $user->user_email,
-					'roles'        => implode( ', ', $user->roles ),
+					'roles'        => EmployeeProfileHelper::role_label_for_user( $user ),
 				);
 			}
 		}
@@ -272,11 +273,12 @@ final class DepartmentAnalyticsService {
 		$week      = DateHelper::get_current_work_week();
 		$rows      = array();
 		$labels    = array(
-			'draft'     => __( 'Draft', 'etwa' ),
-			'submitted' => __( 'Submitted', 'etwa' ),
-			'approved'  => __( 'Approved', 'etwa' ),
-			'rejected'  => __( 'Rejected', 'etwa' ),
-			'missing'   => __( 'Not started', 'etwa' ),
+			'draft'       => __( 'Draft', 'etwa' ),
+			'submitted'   => __( 'Submitted', 'etwa' ),
+			'approved'    => __( 'Approved', 'etwa' ),
+			'rejected'    => __( 'Rejected', 'etwa' ),
+			'missing'     => __( 'Not started', 'etwa' ),
+			'in_progress' => __( 'In progress', 'etwa' ),
 		);
 		$names     = UserDisplayNames::map( $employee_ids );
 		$timesheets = $this->timesheets->find_by_users_period(
@@ -288,6 +290,9 @@ final class DepartmentAnalyticsService {
 		foreach ( $employee_ids as $uid ) {
 			$ts     = $timesheets[ $uid ] ?? null;
 			$status = $ts ? $ts->status : 'missing';
+			if ( $ts && 'draft' === $status && ! \ETWA\Helpers\TimesheetDraftHelper::is_visible_to_reviewers( $ts ) ) {
+				$status = 'in_progress';
+			}
 			$rows[] = array(
 				'user_id'        => $uid,
 				'display_name'   => UserDisplayNames::get( $names, $uid ),
@@ -323,8 +328,8 @@ final class DepartmentAnalyticsService {
 		if ( '' === $created_at ) {
 			return false;
 		}
-		$created = strtotime( $created_at );
-		if ( ! $created ) {
+		$created = DateHelper::mysql_to_timestamp( $created_at );
+		if ( null === $created ) {
 			return false;
 		}
 		return ( time() - $created ) >= ( 48 * HOUR_IN_SECONDS );

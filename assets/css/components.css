@@ -156,6 +156,36 @@
 	color: #b91c1c !important;
 }
 
+.etwa-status-in_progress,
+.etwa-status-missing {
+	background: #f3f4f6 !important;
+	color: #4b5563 !important;
+}
+
+.etwa-draft-sync-status {
+	display: inline-flex !important;
+	align-items: center !important;
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	padding: 6px 10px !important;
+	border-radius: 999px !important;
+}
+
+.etwa-draft-sync-status.is-saved {
+	background: var(--etwa-success-muted) !important;
+	color: #047857 !important;
+}
+
+.etwa-draft-sync-status.is-unsaved,
+.etwa-draft-sync-status.is-never_saved {
+	background: var(--etwa-warning-muted) !important;
+	color: #b45309 !important;
+}
+
+.etwa-kpi-draft-sync .etwa-kpi-label {
+	display: block;
+}
+
 .etwa-status-locked {
 	background: var(--etwa-border-subtle) !important;
 	color: var(--etwa-muted) !important;
@@ -810,8 +840,17 @@
 	padding: 0.2rem 0.55rem !important;
 	font-size: var(--etwa-text-xs) !important;
 	border-radius: 999px !important;
-	background: var(--etwa-bg-muted, rgba(0, 0, 0, 0.06)) !important;
-	color: var(--etwa-text-muted) !important;
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-dark .etwa-profile-role-badge {
+	background: rgba(99, 102, 241, 0.2) !important;
+	color: #c7d2fe !important;
+}
+
+.etwa-dark .etwa-portal-avatar.etwa-profile-avatar {
+	color: #c7d2fe !important;
 }
 
 .etwa-profile-actions {
@@ -822,33 +861,45 @@
 
 .etwa-profile-details {
 	display: grid !important;
-	gap: 0.75rem !important;
+	grid-template-columns: minmax(7rem, 10rem) 1fr !important;
+	gap: 0.35rem 0.75rem !important;
 	margin: 0 !important;
 }
 
-.etwa-profile-detail-row {
-	display: grid !important;
-	grid-template-columns: minmax(8rem, 11rem) 1fr !important;
-	gap: 0.75rem !important;
-	padding: 0.65rem 0 !important;
-	border-bottom: 1px solid var(--etwa-border) !important;
-}
-
-.etwa-profile-detail-row:last-child {
-	border-bottom: 0 !important;
-}
-
-.etwa-profile-detail-row dt {
+.etwa-profile-details dt {
 	margin: 0 !important;
+	padding: 0.65rem 0 0 !important;
 	font-size: var(--etwa-text-sm) !important;
-	color: var(--etwa-text-muted) !important;
+	color: var(--etwa-muted) !important;
 	font-weight: 500 !important;
 }
 
-.etwa-profile-detail-row dd {
+.etwa-profile-details dd {
 	margin: 0 !important;
+	padding: 0 0 0.65rem !important;
 	font-size: var(--etwa-text-sm) !important;
 	color: var(--etwa-text) !important;
+	word-break: break-word !important;
+	overflow-wrap: anywhere !important;
+	border-bottom: 1px solid var(--etwa-border) !important;
+}
+
+.etwa-profile-details dd:last-of-type {
+	border-bottom: 0 !important;
+	padding-bottom: 0 !important;
+}
+
+.etwa-profile-details dt:last-of-type {
+	padding-bottom: 0 !important;
+}
+
+.etwa-employee-profile-shell {
+	max-width: 100% !important;
+	min-width: 0 !important;
+}
+
+.etwa-employee-profile-shell .etwa-profile-field-hr {
+	display: none;
 }
 
 .etwa-modal-note {
@@ -878,6 +929,76 @@
 	cursor: pointer !important;
 }
 
+.etwa-profile-details .etwa-profile-loading {
+	grid-column: 1 / -1 !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+}
+
 .etwa-profile-toolbar {
 	margin-bottom: 0.75rem !important;
+}
+
+@media (max-width: 782px) {
+	.etwa-profile-header {
+		align-items: flex-start !important;
+	}
+
+	.etwa-profile-heading {
+		flex: 1 1 100% !important;
+		width: 100% !important;
+	}
+
+	.etwa-profile-actions {
+		width: 100% !important;
+	}
+
+	.etwa-profile-actions .etwa-btn {
+		flex: 1 1 calc(50% - 0.25rem) !important;
+		justify-content: center !important;
+		text-align: center !important;
+	}
+
+	.etwa-profile-details {
+		grid-template-columns: 1fr !important;
+		gap: 0 !important;
+	}
+
+	.etwa-profile-details dt {
+		padding: 0.75rem 0 0.15rem !important;
+	}
+
+	.etwa-profile-details dd {
+		padding: 0 0 0.75rem !important;
+	}
+
+	.etwa-profile-edit-panel .etwa-modal-actions {
+		flex-direction: column-reverse !important;
+		align-items: stretch !important;
+	}
+
+	.etwa-profile-edit-panel .etwa-modal-actions .etwa-btn {
+		width: 100% !important;
+	}
+}
+
+@media (max-width: 480px) {
+	.etwa-profile-header {
+		flex-direction: column !important;
+	}
+
+	.etwa-profile-actions {
+		flex-direction: column !important;
+	}
+
+	.etwa-profile-actions .etwa-btn {
+		flex: 1 1 auto !important;
+		width: 100% !important;
+	}
+
+	.etwa-in-portal .etwa-profile-view,
+	.etwa-in-portal .etwa-profile-edit-panel {
+		padding: var(--etwa-space-4) !important;
+	}
 }

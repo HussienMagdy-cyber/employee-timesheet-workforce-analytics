@@ -69,11 +69,13 @@ if ( ! in_array( $initial_tab, array( 'vacation', 'wfh', 'permission', 'holiday_
 		<div class="etwa-panel">
 			<h2><?php esc_html_e( 'Permission Request', 'etwa' ); ?></h2>
 			<form id="etwa-permission-request-form" class="etwa-form-grid" data-request-type="permission">
-				<label><?php esc_html_e( 'Date', 'etwa' ); ?><input type="date" name="request_date" class="etwa-input" required /></label>
+				<label><?php esc_html_e( 'Request Date', 'etwa' ); ?><input type="date" name="request_date" class="etwa-input" required /></label>
 				<label><?php esc_html_e( 'Permission Type', 'etwa' ); ?><select name="permission_type" id="etwa-permission-type" class="etwa-input" required></select></label>
-				<label><?php esc_html_e( 'Start Time', 'etwa' ); ?><input type="time" name="start_time" class="etwa-input" required /></label>
-				<label><?php esc_html_e( 'End Time', 'etwa' ); ?><input type="time" name="end_time" class="etwa-input" required /></label>
-				<label class="etwa-span-2"><?php esc_html_e( 'Reason', 'etwa' ); ?><textarea name="reason" class="etwa-input" rows="2" required></textarea></label>
+				<label><?php esc_html_e( 'Reason', 'etwa' ); ?><select name="permission_reason" id="etwa-permission-reason" class="etwa-input" required></select></label>
+				<label class="etwa-span-2 etwa-permission-specify-reason" id="etwa-permission-specify-wrap" hidden>
+					<?php esc_html_e( 'Specify Reason', 'etwa' ); ?>
+					<textarea name="specify_reason" id="etwa-permission-specify-reason" class="etwa-input" rows="2"></textarea>
+				</label>
 				<label class="etwa-span-2"><?php esc_html_e( 'Notes', 'etwa' ); ?> <span class="etwa-muted">(<?php esc_html_e( 'optional', 'etwa' ); ?>)</span><textarea name="notes" class="etwa-input" rows="2"></textarea></label>
 				<div class="etwa-span-2"><button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Submit Request', 'etwa' ); ?></button></div>
 			</form>

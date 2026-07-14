@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace ETWA\Models;
 
 use ETWA\Helpers\DateHelper;
+use ETWA\Helpers\EntryTypeHelper;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -30,6 +31,7 @@ final class Entry {
 		public readonly int $duration_minutes,
 		public readonly float $regular_hours,
 		public readonly float $overtime_hours,
+		public readonly string $entry_type,
 		public readonly ?string $created_from,
 		public readonly string $created_at,
 		public readonly string $updated_at,
@@ -52,6 +54,7 @@ final class Entry {
 			(int) $r['duration_minutes'],
 			(float) $r['regular_hours'],
 			(float) $r['overtime_hours'],
+			self::normalize_entry_type( (string) ( $r['entry_type'] ?? EntryTypeHelper::REGULAR ) ),
 			isset( $r['created_from'] ) ? (string) $r['created_from'] : null,
 			(string) $r['created_at'],
 			(string) $r['updated_at'],
@@ -75,6 +78,8 @@ final class Entry {
 			'duration_minutes' => $this->duration_minutes,
 			'regular_hours'    => $this->regular_hours,
 			'overtime_hours'   => $this->overtime_hours,
+			'entry_type'       => $this->entry_type,
+			'entry_type_label' => EntryTypeHelper::label( $this->entry_type ),
 			'created_from'     => $this->created_from,
 			'created_at'       => $this->created_at,
 			'updated_at'       => $this->updated_at,
@@ -90,5 +95,10 @@ final class Entry {
 		$data['time_range_label'] = DateHelper::format_time_range( $this->start_time, $this->end_time );
 
 		return $data;
+	}
+
+	private static function normalize_entry_type( string $type ): string {
+		$type = sanitize_key( $type );
+		return in_array( $type, EntryTypeHelper::allowed(), true ) ? $type : EntryTypeHelper::REGULAR;
 	}
 }

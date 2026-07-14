@@ -77,7 +77,7 @@ final class WpDebugLogReader {
 			'path'     => $path,
 			'lines'    => self::tail( $max_lines ),
 			'size'     => $exists ? (int) filesize( $path ) : 0,
-			'modified' => $exists ? gmdate( 'Y-m-d H:i:s', (int) filemtime( $path ) ) . ' UTC' : '',
+			'modified' => $exists ? wp_date( get_option( 'date_format' ) . ' g:i A', (int) filemtime( $path ) ) : '',
 		);
 	}
 

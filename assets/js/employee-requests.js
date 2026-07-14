@@ -10,6 +10,7 @@
 	let permissionPage = 1;
 	let holidayPage = 1;
 	let permissionTypes = {};
+	let permissionReasons = {};
 
 	const api = (path, options = {}) => {
 		options.credentials = 'same-origin';
@@ -96,6 +97,15 @@
 		return r.reason || '';
 	}
 
+	function permissionReasonCell(r) {
+		if (r.status === 'rejected' && (r.rejection_reason || r.notes)) {
+			const label = cfg.i18n?.rejectionReason || 'Rejection reason';
+			const reasonText = r.reason_label || r.reason || '';
+			return `${reasonText}${reasonText ? '<br />' : ''}<strong>${label}:</strong> ${r.rejection_reason || r.notes}`;
+		}
+		return r.reason_label || r.reason || '';
+	}
+
 	function statusCell(r) {
 		return `<span class="etwa-status etwa-status-${r.status}">${r.status_label || r.status}</span>`;
 	}
@@ -163,9 +173,9 @@
 							const approved = r.status === 'approved' ? r.approved_by || '—' : '—';
 							return `<tr class="etwa-request-row" data-id="${r.id}" data-source="generic">
 						<td>${r.work_date || r.request_date || ''}</td>
-						<td>${r.time_range || ''}</td>
+						<td>${r.time_range || r.duration_label || ''}</td>
 						<td>${r.permission_type_label || ''}</td>
-						<td>${reasonCell(r)}</td>
+						<td>${permissionReasonCell(r)}</td>
 						<td>${statusCell(r)}</td>
 						<td>${approved}</td>
 						<td>${cancel}</td>
@@ -233,6 +243,19 @@
 		});
 	}
 
+	function toggleSpecifyReason() {
+		const isOther = $('#etwa-permission-reason').val() === 'other';
+		const $wrap = $('#etwa-permission-specify-wrap');
+		const $field = $('#etwa-permission-specify-reason');
+		if (isOther) {
+			$wrap.removeAttr('hidden');
+			$field.prop('required', true);
+		} else {
+			$wrap.attr('hidden', 'hidden');
+			$field.prop('required', false).val('');
+		}
+	}
+
 	function submitGenericForm(form) {
 		const $form = $(form);
 		const type = $form.data('request-type');
@@ -240,6 +263,9 @@
 		data.request_type = type;
 		if (type === 'permission') {
 			data.work_date = data.request_date;
+			if (data.permission_reason !== 'other') {
+				delete data.specify_reason;
+			}
 		}
 
 		const $btn = $form.find('[type="submit"]');
@@ -250,6 +276,7 @@
 				if (!res.success) throw new Error(res.message);
 				form.reset();
 				setDefaultDates();
+				if (type === 'permission') toggleSpecifyReason();
 				ui.success(cfg.i18n?.requestSubmitted || 'Request submitted for HR review.');
 				if (type === 'wfh') loadWfhRequests();
 				if (type === 'permission') loadPermissionRequests();
@@ -283,8 +310,18 @@
 						<dt>${cfg.i18n?.client || 'Client'}</dt><dd>${r.client_name || ''}</dd>
 						<dt>${cfg.i18n?.task || 'Task'}</dt><dd>${r.task || ''}</dd>
 					`;
+				} else if (r.request_type === 'permission') {
+					extraDetails = `
+						<dt>${cfg.i18n?.date || 'Date'}</dt><dd>${r.work_date || r.request_date || ''}</dd>
+						<dt>${cfg.i18n?.time || 'Time'}</dt><dd>${r.time_range || r.duration_label || ''}</dd>
+						<dt>${cfg.i18n?.permissionType || 'Permission Type'}</dt><dd>${r.permission_type_label || ''}</dd>
+						<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason_label || r.reason || ''}</dd>
+					`;
 				}
-				const reasonRow = `<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason || ''}</dd>`;
+				const reasonRow =
+					r.request_type === 'permission'
+						? ''
+						: `<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason || ''}</dd>`;
 				$('#etwa-request-detail-body').html(`
 					<dl class="etwa-detail-list">
 						<dt>${cfg.i18n?.requestType || 'Request Type'}</dt><dd>${r.request_type_label || ''}</dd>
@@ -309,17 +346,31 @@
 		setDefaultDates();
 		loadGenericNotifications();
 
-		api('requests/permission-types')
-			.then((res) => {
-				if (!res.success) throw new Error(res.message);
-				permissionTypes = res.data?.items || {};
+		Promise.all([
+			api('requests/permission-types'),
+			api('requests/permission-reasons'),
+		])
+			.then(([typesRes, reasonsRes]) => {
+				if (!typesRes.success) throw new Error(typesRes.message);
+				permissionTypes = typesRes.data?.items || {};
 				$('#etwa-permission-type').html(
 					Object.entries(permissionTypes)
 						.map(([slug, label]) => `<option value="${slug}">${label}</option>`)
 						.join('')
 				);
+				if (reasonsRes.success) {
+					permissionReasons = reasonsRes.data?.items || {};
+					$('#etwa-permission-reason').html(
+						Object.entries(permissionReasons)
+							.map(([slug, label]) => `<option value="${slug}">${label}</option>`)
+							.join('')
+					);
+					toggleSpecifyReason();
+				}
 			})
 			.catch((err) => ui.error(err.message));
+
+		$('#etwa-permission-reason').on('change', toggleSpecifyReason);
 
 		Promise.all([
 			api('requests/holiday-work-types'),

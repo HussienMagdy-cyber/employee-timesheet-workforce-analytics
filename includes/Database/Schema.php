@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Schema {
 
-	public const VERSION = '1.8.0';
+	public const VERSION = '1.17.0';
 
 	public static function create_tables(): void {
 		global $wpdb;
@@ -60,6 +60,7 @@ final class Schema {
 			duration_minutes int(11) NOT NULL DEFAULT 0,
 			regular_hours decimal(8,2) NOT NULL DEFAULT 0.00,
 			overtime_hours decimal(8,2) NOT NULL DEFAULT 0.00,
+			entry_type varchar(20) NOT NULL DEFAULT 'regular',
 			created_from varchar(100) DEFAULT NULL,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
@@ -405,6 +406,43 @@ final class Schema {
 			self::upgrade_hierarchical_approval_v18();
 		}
 
+		if ( version_compare( (string) $installed, '1.9.0', '<' ) ) {
+			self::upgrade_timesheet_draft_visibility_v19();
+		}
+
+		if ( version_compare( (string) $installed, '1.10.0', '<' ) ) {
+			EntryTimeOffsetMigration::maybe_run();
+		}
+
+		if ( version_compare( (string) $installed, '1.11.0', '<' ) ) {
+			self::upgrade_entries_v1110();
+			self::upgrade_moderation_client_label();
+		}
+
+		if ( version_compare( (string) $installed, '1.12.0', '<' ) ) {
+			self::upgrade_ot_cost_multiplier_v1120();
+		}
+
+		if ( version_compare( (string) $installed, '1.13.0', '<' ) ) {
+			self::upgrade_entry_type_flow_v1130();
+		}
+
+		if ( version_compare( (string) $installed, '1.14.0', '<' ) ) {
+			self::upgrade_reclassify_after_hours_v1140();
+		}
+
+		if ( version_compare( (string) $installed, '1.15.0', '<' ) ) {
+			self::upgrade_normalize_entry_hours_v1150();
+		}
+
+		if ( version_compare( (string) $installed, '1.16.0', '<' ) ) {
+			self::upgrade_fix_after_hours_regular_v1160();
+		}
+
+		if ( version_compare( (string) $installed, '1.17.0', '<' ) ) {
+			self::upgrade_compensation_regular_hours_v1170();
+		}
+
 		update_option( 'etwa_db_version', self::VERSION );
 	}
 
@@ -482,6 +520,459 @@ final class Schema {
 		self::add_column_if_missing( $table, 'created_from', 'varchar(100) DEFAULT NULL' );
 	}
 
+	public static function upgrade_entries_v1110(): void {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_entries';
+
+		self::add_column_if_missing( $table, 'entry_type', "varchar(20) NOT NULL DEFAULT 'regular'" );
+	}
+
+	public static function upgrade_ot_cost_multiplier_v1120(): void {
+		( new \ETWA\Repositories\SettingsRepository() )->set( 'overtime_cost_multiplier', 1 );
+	}
+
+	public static function upgrade_entry_type_flow_v1130(): void {
+		global $wpdb;
+
+		$entries = $wpdb->prefix . 'etwa_entries';
+		$clients = $wpdb->prefix . 'etwa_clients';
+		$break   = \ETWA\Repositories\ClientRepository::BREAK_CODE;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration update.
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$entries} e
+				INNER JOIN {$clients} c ON c.id = e.client_id
+				SET e.entry_type = %s
+				WHERE e.entry_type = %s AND e.overtime_hours > 0 AND UPPER(c.code) <> %s",
+				\ETWA\Helpers\EntryTypeHelper::OVERTIME,
+				\ETWA\Helpers\EntryTypeHelper::REGULAR,
+				$break
+			)
+		);
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT e.id, e.duration_minutes, e.entry_type, e.regular_hours, e.overtime_hours
+				FROM {$entries} e
+				INNER JOIN {$clients} c ON c.id = e.client_id
+				WHERE e.entry_type IN (%s, %s) AND UPPER(c.code) <> %s",
+				\ETWA\Helpers\EntryTypeHelper::OVERTIME,
+				\ETWA\Helpers\EntryTypeHelper::COMPENSATION,
+				$break
+			)
+		);
+
+		foreach ( $rows ?: array() as $row ) {
+			$duration_hours = round( max( 0, (int) $row->duration_minutes ) / 60, 2 );
+			$update         = array();
+
+			if ( \ETWA\Helpers\EntryTypeHelper::OVERTIME === $row->entry_type ) {
+				if ( (float) $row->overtime_hours <= 0 && $duration_hours > 0 ) {
+					$update['regular_hours']  = 0.0;
+					$update['overtime_hours'] = $duration_hours;
+				}
+			}
+
+			if ( \ETWA\Helpers\EntryTypeHelper::COMPENSATION === $row->entry_type ) {
+				$update['regular_hours']  = $duration_hours;
+				$update['overtime_hours'] = 0.0;
+			}
+
+			if ( $update ) {
+				$wpdb->update( $entries, $update, array( 'id' => (int) $row->id ) );
+			}
+		}
+
+		self::upgrade_draft_snapshots_entry_type_v1130();
+
+		$overtime_ids = $wpdb->get_col(
+			"SELECT id FROM {$entries} WHERE overtime_hours > 0"
+		);
+		$overtime_service = new \ETWA\Services\OvertimeService();
+		foreach ( $overtime_ids ?: array() as $entry_id ) {
+			$overtime_service->sync_from_entry( (int) $entry_id );
+		}
+
+		\ETWA\Services\ClientAnalyticsService::flush_cache();
+		\ETWA\Services\AnalyticsService::flush_dashboard_cache();
+	}
+
+	private static function upgrade_draft_snapshots_entry_type_v1130(): void {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_timesheets';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration select.
+		$rows = $wpdb->get_results(
+			"SELECT id, draft_snapshot FROM {$table}
+			WHERE draft_snapshot IS NOT NULL AND draft_snapshot <> ''"
+		);
+
+		foreach ( $rows ?: array() as $row ) {
+			$decoded = json_decode( (string) $row->draft_snapshot, true );
+			if ( ! is_array( $decoded ) ) {
+				continue;
+			}
+
+			$changed = false;
+			foreach ( $decoded as $index => $entry ) {
+				if ( ! is_array( $entry ) ) {
+					continue;
+				}
+
+				if ( ! empty( $entry['entry_type'] ) && \ETWA\Helpers\EntryTypeHelper::REGULAR !== $entry['entry_type'] ) {
+					continue;
+				}
+
+				if ( (float) ( $entry['overtime_hours'] ?? 0 ) > 0 ) {
+					$decoded[ $index ]['entry_type'] = \ETWA\Helpers\EntryTypeHelper::OVERTIME;
+					$changed                        = true;
+					continue;
+				}
+
+				if ( empty( $entry['entry_type'] ) ) {
+					$decoded[ $index ]['entry_type'] = \ETWA\Helpers\EntryTypeHelper::REGULAR;
+					$changed                        = true;
+				}
+			}
+
+			if ( $changed ) {
+				$wpdb->update(
+					$table,
+					array( 'draft_snapshot' => wp_json_encode( $decoded ) ),
+					array( 'id' => (int) $row->id )
+				);
+			}
+		}
+	}
+
+	public static function upgrade_reclassify_after_hours_v1140(): void {
+		global $wpdb;
+
+		$entries  = $wpdb->prefix . 'etwa_entries';
+		$clients  = $wpdb->prefix . 'etwa_clients';
+		$break    = \ETWA\Repositories\ClientRepository::BREAK_CODE;
+		$work_end = \ETWA\Helpers\EntryTypeHelper::work_day_end();
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration update.
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$entries} e
+				INNER JOIN {$clients} c ON c.id = e.client_id
+				SET e.entry_type = %s,
+					e.overtime_hours = e.regular_hours,
+					e.regular_hours = 0
+				WHERE e.entry_type = %s
+					AND e.regular_hours > 0
+					AND e.start_time >= %s
+					AND UPPER(c.code) <> %s",
+				\ETWA\Helpers\EntryTypeHelper::OVERTIME,
+				\ETWA\Helpers\EntryTypeHelper::REGULAR,
+				$work_end,
+				$break
+			)
+		);
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT e.id, e.duration_minutes, e.entry_type, e.regular_hours, e.overtime_hours
+				FROM {$entries} e
+				INNER JOIN {$clients} c ON c.id = e.client_id
+				WHERE e.entry_type = %s AND e.overtime_hours > 0 AND UPPER(c.code) <> %s",
+				\ETWA\Helpers\EntryTypeHelper::OVERTIME,
+				$break
+			)
+		);
+
+		foreach ( $rows ?: array() as $row ) {
+			if ( (float) $row->regular_hours <= 0 ) {
+				continue;
+			}
+
+			$duration_hours = round( max( 0, (int) $row->duration_minutes ) / 60, 2 );
+			$overtime_hours = $duration_hours > 0 ? $duration_hours : (float) $row->overtime_hours;
+
+			$wpdb->update(
+				$entries,
+				array(
+					'regular_hours'  => 0.0,
+					'overtime_hours' => $overtime_hours,
+				),
+				array( 'id' => (int) $row->id )
+			);
+		}
+
+		$timesheet_ids = $wpdb->get_col(
+			"SELECT DISTINCT timesheet_id FROM {$entries} WHERE overtime_hours > 0"
+		);
+		foreach ( $timesheet_ids ?: array() as $timesheet_id ) {
+			$sums = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT COALESCE(SUM(regular_hours),0) AS regular, COALESCE(SUM(overtime_hours),0) AS overtime
+					FROM {$entries} WHERE timesheet_id = %d",
+					(int) $timesheet_id
+				)
+			);
+			if ( $sums ) {
+				$wpdb->update(
+					$wpdb->prefix . 'etwa_timesheets',
+					array(
+						'total_regular_hours'  => (float) $sums->regular,
+						'total_overtime_hours' => (float) $sums->overtime,
+					),
+					array( 'id' => (int) $timesheet_id )
+				);
+			}
+		}
+
+		$overtime_service = new \ETWA\Services\OvertimeService();
+		$overtime_ids     = $wpdb->get_col( "SELECT id FROM {$entries} WHERE overtime_hours > 0" );
+		foreach ( $overtime_ids ?: array() as $entry_id ) {
+			$overtime_service->sync_from_entry( (int) $entry_id );
+		}
+
+		\ETWA\Services\ClientAnalyticsService::flush_cache();
+		\ETWA\Services\AnalyticsService::flush_dashboard_cache();
+	}
+
+	public static function upgrade_normalize_entry_hours_v1150(): void {
+		global $wpdb;
+
+		$entries     = $wpdb->prefix . 'etwa_entries';
+		$clients     = $wpdb->prefix . 'etwa_clients';
+		$timesheets  = $wpdb->prefix . 'etwa_timesheets';
+		$break       = \ETWA\Repositories\ClientRepository::BREAK_CODE;
+		$calculator  = new \ETWA\Helpers\TimeCalculator();
+		$client_repo = new \ETWA\Repositories\ClientRepository();
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration select.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT e.id, e.timesheet_id, e.entry_date, e.start_time, e.end_time, e.client_id,
+					e.entry_type, e.duration_minutes, e.regular_hours, e.overtime_hours
+				FROM {$entries} e
+				INNER JOIN {$clients} c ON c.id = e.client_id
+				WHERE UPPER(c.code) <> %s",
+				$break
+			)
+		);
+
+		$timesheet_ids = array();
+		foreach ( $rows ?: array() as $row ) {
+			$entry_type = (string) $row->entry_type;
+			if ( \ETWA\Helpers\EntryTypeHelper::REGULAR === $entry_type && (float) $row->overtime_hours > 0 ) {
+				$entry_type = \ETWA\Helpers\EntryTypeHelper::OVERTIME;
+			}
+
+			$client     = $client_repo->find( (int) $row->client_id );
+			$is_break   = $client_repo->is_break_client( (int) $row->client_id, $client );
+			$normalized = \ETWA\Helpers\EntryTypeHelper::normalize_stored_hours(
+				$entry_type,
+				(string) $row->entry_date,
+				(string) $row->start_time,
+				(string) $row->end_time,
+				$is_break,
+				$calculator
+			);
+
+			$needs_update = (int) $row->duration_minutes !== $normalized['duration_minutes']
+				|| abs( (float) $row->regular_hours - $normalized['regular_hours'] ) > 0.001
+				|| abs( (float) $row->overtime_hours - $normalized['overtime_hours'] ) > 0.001
+				|| (string) $row->entry_type !== $normalized['entry_type'];
+
+			if ( ! $needs_update ) {
+				continue;
+			}
+
+			$wpdb->update(
+				$entries,
+				array(
+					'duration_minutes' => $normalized['duration_minutes'],
+					'regular_hours'    => $normalized['regular_hours'],
+					'overtime_hours'   => $normalized['overtime_hours'],
+					'entry_type'       => $normalized['entry_type'],
+				),
+				array( 'id' => (int) $row->id )
+			);
+
+			$timesheet_ids[ (int) $row->timesheet_id ] = true;
+		}
+
+		self::upgrade_draft_snapshots_normalize_hours_v1150();
+
+		foreach ( array_keys( $timesheet_ids ) as $timesheet_id ) {
+			$sums = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT COALESCE(SUM(regular_hours),0) AS regular, COALESCE(SUM(overtime_hours),0) AS overtime
+					FROM {$entries} WHERE timesheet_id = %d",
+					(int) $timesheet_id
+				)
+			);
+			if ( ! $sums ) {
+				continue;
+			}
+
+			$wpdb->update(
+				$timesheets,
+				array(
+					'total_regular_hours'  => (float) $sums->regular,
+					'total_overtime_hours' => (float) $sums->overtime,
+				),
+				array( 'id' => (int) $timesheet_id )
+			);
+		}
+
+		$overtime_service = new \ETWA\Services\OvertimeService();
+		$overtime_ids     = $wpdb->get_col( "SELECT id FROM {$entries} WHERE overtime_hours > 0" );
+		foreach ( $overtime_ids ?: array() as $entry_id ) {
+			$overtime_service->sync_from_entry( (int) $entry_id );
+		}
+
+		\ETWA\Services\ClientAnalyticsService::flush_cache();
+		\ETWA\Services\AnalyticsService::flush_dashboard_cache();
+	}
+
+	private static function upgrade_draft_snapshots_normalize_hours_v1150(): void {
+		global $wpdb;
+
+		$table       = $wpdb->prefix . 'etwa_timesheets';
+		$calculator  = new \ETWA\Helpers\TimeCalculator();
+		$client_repo = new \ETWA\Repositories\ClientRepository();
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration select.
+		$rows = $wpdb->get_results(
+			"SELECT id, draft_snapshot FROM {$table}
+			WHERE draft_snapshot IS NOT NULL AND draft_snapshot <> ''"
+		);
+
+		foreach ( $rows ?: array() as $row ) {
+			$decoded = json_decode( (string) $row->draft_snapshot, true );
+			if ( ! is_array( $decoded ) ) {
+				continue;
+			}
+
+			$changed = false;
+			foreach ( $decoded as $index => $entry ) {
+				if ( ! is_array( $entry ) ) {
+					continue;
+				}
+
+				$entry_type = (string) ( $entry['entry_type'] ?? \ETWA\Helpers\EntryTypeHelper::REGULAR );
+				if ( \ETWA\Helpers\EntryTypeHelper::REGULAR === $entry_type && (float) ( $entry['overtime_hours'] ?? 0 ) > 0 ) {
+					$entry_type = \ETWA\Helpers\EntryTypeHelper::OVERTIME;
+				}
+
+				$client_id  = (int) ( $entry['client_id'] ?? 0 );
+				$client     = $client_repo->find( $client_id );
+				$is_break   = $client_repo->is_break_client( $client_id, $client );
+				$normalized = \ETWA\Helpers\EntryTypeHelper::normalize_stored_hours(
+					$entry_type,
+					(string) ( $entry['entry_date'] ?? '' ),
+					(string) ( $entry['start_time'] ?? '' ),
+					(string) ( $entry['end_time'] ?? '' ),
+					$is_break,
+					$calculator
+				);
+
+				$decoded[ $index ]['duration_minutes'] = $normalized['duration_minutes'];
+				$decoded[ $index ]['regular_hours']    = $normalized['regular_hours'];
+				$decoded[ $index ]['overtime_hours']   = $normalized['overtime_hours'];
+				$decoded[ $index ]['entry_type']       = $normalized['entry_type'];
+				$changed                               = true;
+			}
+
+			if ( $changed ) {
+				$wpdb->update(
+					$table,
+					array( 'draft_snapshot' => wp_json_encode( $decoded ) ),
+					array( 'id' => (int) $row->id )
+				);
+			}
+		}
+	}
+
+	public static function upgrade_fix_after_hours_regular_v1160(): void {
+		self::upgrade_normalize_entry_hours_v1150();
+	}
+
+	public static function upgrade_compensation_regular_hours_v1170(): void {
+		global $wpdb;
+
+		$entries    = $wpdb->prefix . 'etwa_entries';
+		$timesheets = $wpdb->prefix . 'etwa_timesheets';
+		$comp_type  = \ETWA\Helpers\EntryTypeHelper::COMPENSATION;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration select.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, timesheet_id, duration_minutes, regular_hours
+				FROM {$entries}
+				WHERE entry_type = %s AND duration_minutes > 0",
+				$comp_type
+			)
+		);
+
+		$timesheet_ids = array();
+		foreach ( $rows ?: array() as $row ) {
+			$hours = round( max( 0, (int) $row->duration_minutes ) / 60, 2 );
+			if ( abs( (float) $row->regular_hours - $hours ) < 0.001 ) {
+				continue;
+			}
+
+			$wpdb->update(
+				$entries,
+				array(
+					'regular_hours'  => $hours,
+					'overtime_hours' => 0.0,
+				),
+				array( 'id' => (int) $row->id )
+			);
+
+			$timesheet_ids[ (int) $row->timesheet_id ] = true;
+		}
+
+		self::upgrade_draft_snapshots_normalize_hours_v1150();
+
+		foreach ( array_keys( $timesheet_ids ) as $timesheet_id ) {
+			$sums = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT COALESCE(SUM(regular_hours),0) AS regular, COALESCE(SUM(overtime_hours),0) AS overtime
+					FROM {$entries} WHERE timesheet_id = %d",
+					(int) $timesheet_id
+				)
+			);
+			if ( ! $sums ) {
+				continue;
+			}
+
+			$wpdb->update(
+				$timesheets,
+				array(
+					'total_regular_hours'  => (float) $sums->regular,
+					'total_overtime_hours' => (float) $sums->overtime,
+				),
+				array( 'id' => (int) $timesheet_id )
+			);
+		}
+
+		\ETWA\Services\ClientAnalyticsService::flush_cache();
+		\ETWA\Services\AnalyticsService::flush_dashboard_cache();
+	}
+
+	public static function upgrade_moderation_client_label(): void {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_clients';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration update.
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} SET name = %s WHERE code = %s",
+				__( 'Moderation', 'etwa' ),
+				\ETWA\Repositories\ClientRepository::ALL_CLIENTS_CODE
+			)
+		);
+	}
+
 	public static function upgrade_hierarchical_approval_v18(): void {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -512,6 +1003,14 @@ final class Schema {
 				"UPDATE {$table} SET workflow_status = 'pending_hr' WHERE status = 'pending'"
 			);
 		}
+	}
+
+	public static function upgrade_timesheet_draft_visibility_v19(): void {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_timesheets';
+
+		self::add_column_if_missing( $table, 'draft_saved_at', 'datetime DEFAULT NULL' );
+		self::add_column_if_missing( $table, 'draft_snapshot', 'longtext DEFAULT NULL' );
 	}
 
 	private static function add_column_if_missing( string $table, string $column, string $definition ): void {

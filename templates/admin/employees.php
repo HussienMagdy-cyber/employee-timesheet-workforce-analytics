@@ -44,6 +44,10 @@ $can_view_labor_cost = EmployeeCostHelper::can_view_labor_cost( $viewer_id );
 					<span class="screen-reader-text"><?php esc_html_e( 'Search employees', 'etwa' ); ?></span>
 					<input type="search" id="etwa-employees-search" placeholder="<?php esc_attr_e( 'Search by name or email…', 'etwa' ); ?>" autocomplete="off" />
 				</label>
+				<label class="etwa-checkbox-row">
+					<input type="checkbox" id="etwa-employees-show-inactive" />
+					<?php esc_html_e( 'Show inactive employees', 'etwa' ); ?>
+				</label>
 				<p class="etwa-muted etwa-employees-count" id="etwa-employees-count" aria-live="polite"></p>
 			</div>
 
@@ -52,7 +56,7 @@ $can_view_labor_cost = EmployeeCostHelper::can_view_labor_cost( $viewer_id );
 					<thead>
 						<tr>
 							<th><?php esc_html_e( 'Employee', 'etwa' ); ?></th>
-							<th><?php esc_html_e( 'Role', 'etwa' ); ?></th>
+							<th><?php esc_html_e( 'Status', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Department', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Email', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Actions', 'etwa' ); ?></th>
@@ -86,7 +90,7 @@ $can_view_labor_cost = EmployeeCostHelper::can_view_labor_cost( $viewer_id );
 				<input type="email" id="etwa-employee-email" required autocomplete="email" />
 			</label>
 			<label class="etwa-span-2">
-				<?php esc_html_e( 'Role', 'etwa' ); ?>
+				<?php esc_html_e( 'Access level', 'etwa' ); ?>
 				<select id="etwa-employee-role" class="etwa-input" required>
 					<?php echo EmployeeProfileHelper::role_options_html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				</select>
@@ -124,7 +128,7 @@ $can_view_labor_cost = EmployeeCostHelper::can_view_labor_cost( $viewer_id );
 		<p class="etwa-muted etwa-modal-note" id="etwa-employee-edit-name"></p>
 		<form id="etwa-employee-edit-form" class="etwa-form-grid">
 			<label class="etwa-span-2">
-				<?php esc_html_e( 'Role', 'etwa' ); ?>
+				<?php esc_html_e( 'Access level', 'etwa' ); ?>
 				<select id="etwa-employee-edit-role" class="etwa-input" required>
 					<?php echo EmployeeProfileHelper::role_options_html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				</select>

@@ -30,6 +30,8 @@ final class Timesheet {
 		public readonly bool $is_locked,
 		public readonly string $created_at,
 		public readonly string $updated_at,
+		public readonly ?string $draft_saved_at = null,
+		public readonly ?string $draft_snapshot = null,
 	) {}
 
 	/** @param object|array<string,mixed> $row */
@@ -50,6 +52,8 @@ final class Timesheet {
 			(bool) ( $r['is_locked'] ?? false ),
 			(string) $r['created_at'],
 			(string) $r['updated_at'],
+			$r['draft_saved_at'] ?? null,
+			isset( $r['draft_snapshot'] ) ? (string) $r['draft_snapshot'] : null,
 		);
 	}
 
@@ -70,6 +74,7 @@ final class Timesheet {
 			'is_locked'            => $this->is_locked,
 			'created_at'           => $this->created_at,
 			'updated_at'           => $this->updated_at,
+			'draft_saved_at'       => $this->draft_saved_at,
 		);
 	}
 }

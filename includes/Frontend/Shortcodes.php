@@ -46,7 +46,7 @@ final class Shortcodes {
 
 	public function render_portal( $atts = array() ): string {
 		if ( ! is_user_logged_in() ) {
-			return $this->login_message();
+			AuthHelper::redirect_to_login();
 		}
 
 		$user_id   = get_current_user_id();
@@ -181,14 +181,15 @@ final class Shortcodes {
 		$review_user      = ! empty( $_GET['review_user'] ) ? (int) $_GET['review_user'] : 0;
 
 		if ( $review_user > 0 ) {
-			$ref = $this->get_week_reference_date();
+			$ref = $this->get_week_reference_date( true );
 			if ( $ref ) {
 				$employee_weeks_url = HrReviewLinks::employee_weeks_url( $hr_base_url, $review_user );
-				$view               = TimesheetViewData::prepare_hr_review( $review_user, get_current_user_id(), $ref, 'frontend', $employee_weeks_url );
-				if ( ! $view ) {
-					echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				$result             = TimesheetViewData::prepare_hr_review_result( $review_user, get_current_user_id(), $ref, 'frontend', $employee_weeks_url );
+				if ( ! $result['ok'] ) {
+					$this->render_hr_review_notice( $result, $employee_weeks_url );
 					return;
 				}
+				$view                = $result['view'];
 				$view['portal_base'] = $portal_url ?: $hr_base_url;
 				include ETWA_PLUGIN_DIR . 'templates/partials/hr-week-review.php';
 				return;
@@ -200,10 +201,11 @@ final class Shortcodes {
 				return;
 			}
 
-			$employee          = $data['employee'];
-			$week_rows         = $data['rows'];
-			$current_week      = $data['current_week'];
-			$hr_dashboard_url  = $hr_dashboard_url;
+			$employee         = $data['employee'];
+			$week_rows        = $data['rows'];
+			$current_week     = $data['current_week'];
+			$hr_base_url      = $hr_base_url;
+			$hr_dashboard_url = $hr_dashboard_url;
 			include ETWA_PLUGIN_DIR . 'templates/partials/hr-employee-weeks.php';
 			return;
 		}
@@ -286,14 +288,15 @@ final class Shortcodes {
 		$review_user = ! empty( $_GET['review_user'] ) ? (int) $_GET['review_user'] : 0;
 
 		if ( $review_user > 0 ) {
-			$ref = $this->get_week_reference_date();
+			$ref = $this->get_week_reference_date( true );
 			if ( $ref ) {
 				$employee_weeks_url = HrReviewLinks::employee_weeks_url( $dept_base_url, $review_user );
-				$view               = TimesheetViewData::prepare_hr_review( $review_user, get_current_user_id(), $ref, 'frontend', $employee_weeks_url, 'dept-dashboard' );
-				if ( ! $view ) {
-					echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				$result             = TimesheetViewData::prepare_hr_review_result( $review_user, get_current_user_id(), $ref, 'frontend', $employee_weeks_url, 'dept-dashboard' );
+				if ( ! $result['ok'] ) {
+					$this->render_hr_review_notice( $result, $employee_weeks_url, true );
 					return;
 				}
+				$view                = $result['view'];
 				$view['portal_base'] = $dept_base_url;
 				include ETWA_PLUGIN_DIR . 'templates/partials/hr-week-review.php';
 				return;
@@ -387,7 +390,7 @@ final class Shortcodes {
 
 	public function render_timesheet( $atts = array() ): string {
 		if ( ! is_user_logged_in() ) {
-			return $this->login_message();
+			AuthHelper::redirect_to_login();
 		}
 		if ( ! current_user_can( RoleManager::CAP_VIEW_OWN ) ) {
 			return $this->denied_message();
@@ -402,7 +405,10 @@ final class Shortcodes {
 	}
 
 	public function render_hr( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_VIEW_ALL ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_VIEW_ALL ) ) {
 			return $this->denied_message();
 		}
 
@@ -418,7 +424,10 @@ final class Shortcodes {
 	}
 
 	public function render_analytics( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_ADV_ANALYTICS ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_ADV_ANALYTICS ) ) {
 			return $this->denied_message();
 		}
 
@@ -431,7 +440,10 @@ final class Shortcodes {
 	}
 
 	public function render_clients( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_MANAGE_SETTINGS ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_MANAGE_SETTINGS ) ) {
 			return $this->denied_message();
 		}
 
@@ -444,7 +456,10 @@ final class Shortcodes {
 	}
 
 	public function render_holidays( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_VIEW_ALL ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_VIEW_ALL ) ) {
 			return $this->denied_message();
 		}
 
@@ -457,7 +472,10 @@ final class Shortcodes {
 	}
 
 	public function render_vacations( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_MANAGE_VACATION ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_MANAGE_VACATION ) ) {
 			return $this->denied_message();
 		}
 
@@ -470,7 +488,10 @@ final class Shortcodes {
 	}
 
 	public function render_requests( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_VIEW_OWN_VACATION ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_VIEW_OWN_VACATION ) ) {
 			return $this->denied_message();
 		}
 
@@ -484,7 +505,10 @@ final class Shortcodes {
 	}
 
 	public function render_requests_hr( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_MANAGE_VACATION ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_MANAGE_VACATION ) ) {
 			return $this->denied_message();
 		}
 
@@ -497,7 +521,10 @@ final class Shortcodes {
 	}
 
 	public function render_my_vacation( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_VIEW_OWN_VACATION ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_VIEW_OWN_VACATION ) ) {
 			return $this->denied_message();
 		}
 
@@ -510,7 +537,10 @@ final class Shortcodes {
 	}
 
 	public function render_client_analytics( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! current_user_can( RoleManager::CAP_ANALYTICS ) ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_ANALYTICS ) ) {
 			return $this->denied_message();
 		}
 
@@ -523,7 +553,10 @@ final class Shortcodes {
 	}
 
 	public function render_employees( $atts = array() ): string {
-		if ( ! is_user_logged_in() || ! EmployeeCostHelper::can_view_labor_cost() ) {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! EmployeeCostHelper::can_view_labor_cost() ) {
 			return $this->denied_message();
 		}
 
@@ -535,19 +568,24 @@ final class Shortcodes {
 		return (string) ob_get_clean();
 	}
 
-	private function get_week_reference_date(): ?string {
+	private function get_week_reference_date( bool $hr_review = false ): ?string {
 		if ( ! empty( $_GET['etwa_week'] ) ) {
 			return sanitize_text_field( wp_unslash( (string) $_GET['etwa_week'] ) );
 		}
-		if ( ! empty( $_GET['date'] ) ) {
+		if ( ! $hr_review && ! empty( $_GET['date'] ) ) {
 			return sanitize_text_field( wp_unslash( (string) $_GET['date'] ) );
 		}
 		return null;
 	}
 
-	private function login_message(): string {
-		$login_url = AuthHelper::login_url( get_permalink() ?: home_url( '/' ) );
-		return '<div class="etwa-portal-message"><p>' . esc_html__( 'Please log in to access your timesheet.', 'etwa' ) . ' <a href="' . esc_url( $login_url ) . '">' . esc_html__( 'Log in', 'etwa' ) . '</a></p></div>';
+	/** @param array{ok:false,code:string,message:string} $result */
+	private function render_hr_review_notice( array $result, string $back_url, bool $dept_review = false ): void {
+		$code       = $result['code'] ?? 'forbidden';
+		$type       = 'draft_not_shared' === $code ? 'info' : 'error';
+		$message    = $result['message'] ?? __( 'You do not have permission to view this page.', 'etwa' );
+		$back_label = __( 'Employee weeks', 'etwa' );
+
+		include ETWA_PLUGIN_DIR . 'templates/partials/hr-review-notice.php';
 	}
 
 	private function denied_message(): string {

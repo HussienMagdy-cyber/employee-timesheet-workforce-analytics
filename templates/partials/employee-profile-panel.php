@@ -33,6 +33,8 @@ $context = $context ?? 'frontend';
 			<div class="etwa-profile-actions" id="etwa-profile-actions" hidden>
 				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-profile-edit-btn"><?php esc_html_e( 'Edit', 'etwa' ); ?></button>
 				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-profile-reset-btn"><?php esc_html_e( 'Send password reset', 'etwa' ); ?></button>
+				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-profile-deactivate-btn" hidden><?php esc_html_e( 'Deactivate', 'etwa' ); ?></button>
+				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-profile-reactivate-btn" hidden><?php esc_html_e( 'Reactivate', 'etwa' ); ?></button>
 			</div>
 		</div>
 
@@ -40,7 +42,7 @@ $context = $context ?? 'frontend';
 	</div>
 
 	<div class="etwa-panel etwa-profile-edit-panel" id="etwa-profile-edit-panel" hidden>
-		<h3><?php esc_html_e( 'Edit Employee', 'etwa' ); ?></h3>
+		<h3 id="etwa-profile-edit-title"><?php esc_html_e( 'Edit Profile', 'etwa' ); ?></h3>
 		<form id="etwa-profile-edit-form" class="etwa-form-grid">
 			<label class="etwa-span-2">
 				<?php esc_html_e( 'Full name', 'etwa' ); ?>
@@ -50,19 +52,23 @@ $context = $context ?? 'frontend';
 				<?php esc_html_e( 'Email', 'etwa' ); ?>
 				<input type="email" id="etwa-profile-edit-email" required />
 			</label>
-			<label class="etwa-span-2">
-				<?php esc_html_e( 'Role', 'etwa' ); ?>
-				<select id="etwa-profile-edit-role" class="etwa-input" required>
+			<label class="etwa-span-2 etwa-profile-field-hr">
+				<?php esc_html_e( 'Access level', 'etwa' ); ?>
+				<select id="etwa-profile-edit-role" class="etwa-input">
 					<?php echo EmployeeProfileHelper::role_options_html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				</select>
 			</label>
-			<label class="etwa-span-2">
+			<label class="etwa-span-2 etwa-profile-field-hr">
 				<?php esc_html_e( 'Job title', 'etwa' ); ?>
-				<input type="text" id="etwa-profile-edit-job-title" required />
+				<input type="text" id="etwa-profile-edit-job-title" />
 			</label>
-			<label>
+			<label class="etwa-span-2">
+				<?php esc_html_e( 'Phone number', 'etwa' ); ?>
+				<input type="tel" id="etwa-profile-edit-phone" />
+			</label>
+			<label class="etwa-profile-field-hr">
 				<?php esc_html_e( 'Join date', 'etwa' ); ?>
-				<input type="date" id="etwa-profile-edit-join-date" required />
+				<input type="date" id="etwa-profile-edit-join-date" />
 			</label>
 			<label>
 				<?php esc_html_e( 'Birthday', 'etwa' ); ?>

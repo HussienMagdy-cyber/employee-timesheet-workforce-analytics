@@ -62,7 +62,6 @@ $counts          = $counts ?? array(
 						<tr>
 							<th><?php esc_html_e( 'Employee', 'etwa' ); ?></th>
 							<th><?php esc_html_e( 'Email', 'etwa' ); ?></th>
-							<th><?php esc_html_e( 'Role', 'etwa' ); ?></th>
 							<th></th>
 						</tr>
 					</thead>
@@ -71,10 +70,9 @@ $counts          = $counts ?? array(
 							<tr>
 								<td><strong><?php echo esc_html( $employee->display_name ); ?></strong></td>
 								<td><?php echo esc_html( $employee->user_email ); ?></td>
-								<td><?php echo esc_html( implode( ', ', $employee->roles ) ); ?></td>
 								<td class="etwa-hr-row-actions">
 									<a class="etwa-btn etwa-btn-primary etwa-btn-small" href="<?php echo esc_url( HrReviewLinks::employee_weeks_url( $review_base_url, (int) $employee->ID ) ); ?>">
-										<?php esc_html_e( 'View weeks', 'etwa' ); ?>
+										<?php esc_html_e( 'View', 'etwa' ); ?>
 									</a>
 								</td>
 							</tr>

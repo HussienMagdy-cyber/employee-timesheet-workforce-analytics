@@ -11,8 +11,11 @@ namespace ETWA\Services;
 
 use ETWA\Helpers\CalendarHelper;
 use ETWA\Helpers\DateHelper;
+use ETWA\Helpers\EmployeeProfileHelper;
+use ETWA\Helpers\EntryTypeHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Helpers\TimeCalculator;
+use ETWA\Helpers\TimesheetDraftHelper;
 use ETWA\Models\Entry;
 use ETWA\Models\Timesheet;
 use ETWA\Repositories\AuditLogRepository;
@@ -67,12 +70,75 @@ final class TimesheetService {
 	}
 
 	/** @return array{timesheet:Timesheet,entries:Entry[]} */
-	public function get_dashboard_data( int $user_id, ?string $reference_date = null ): array {
+	public function get_dashboard_data( int $user_id, ?string $reference_date = null, ?int $viewer_id = null ): array|WP_Error {
 		$timesheet = $this->get_or_create_for_week( $user_id, $reference_date );
+		$viewer_id = $viewer_id ?? $user_id;
 		$entries   = $this->entries->find_by_timesheet( (int) $timesheet->id );
+
+		if ( $viewer_id !== $user_id && TimesheetDraftHelper::uses_draft_snapshot( $timesheet ) ) {
+			$entries = TimesheetDraftHelper::is_visible_to_reviewers( $timesheet )
+				? TimesheetDraftHelper::decode_snapshot( $timesheet )
+				: array();
+		}
+
 		return array(
-			'timesheet' => $timesheet,
+			'timesheet' => $this->with_display_totals( $timesheet, $entries, $viewer_id !== $user_id ),
 			'entries'   => $entries,
+		);
+	}
+
+	public function save_draft( int $user_id, int $timesheet_id ): Timesheet|WP_Error {
+		if ( ! user_can( $user_id, RoleManager::CAP_EDIT_OWN ) ) {
+			return new WP_Error( 'forbidden', __( 'Cannot save draft timesheets.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$timesheet = $this->timesheets->find( $timesheet_id );
+		if ( ! $timesheet || $timesheet->user_id !== $user_id ) {
+			return new WP_Error( 'forbidden', __( 'Cannot save this timesheet draft.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		if ( ! TimesheetDraftHelper::uses_draft_snapshot( $timesheet ) ) {
+			return new WP_Error( 'invalid_state', __( 'Only draft or rejected timesheets can be saved as draft.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		if ( ! RoleManager::user_can_edit_timesheet( $user_id, $timesheet->user_id, $timesheet->status, $timesheet->is_locked ) ) {
+			return new WP_Error( 'locked', __( 'Timesheet is locked.', 'etwa' ), array( 'status' => 423 ) );
+		}
+
+		$entries  = $this->entries->find_by_timesheet( $timesheet_id );
+		$snapshot = TimesheetDraftHelper::encode_snapshot( $entries );
+
+		$this->timesheets->update(
+			$timesheet_id,
+			array(
+				'draft_saved_at' => current_time( 'mysql' ),
+				'draft_snapshot' => $snapshot,
+			)
+		);
+
+		$this->audit->log(
+			'save_draft',
+			'timesheet',
+			$timesheet_id,
+			$timesheet->to_array(),
+			array(
+				'draft_saved_at' => current_time( 'mysql' ),
+				'entry_count'    => count( $entries ),
+			)
+		);
+
+		AnalyticsService::flush_dashboard_cache();
+
+		return $this->timesheets->find( $timesheet_id );
+	}
+
+	public function clear_draft_visibility( int $timesheet_id ): void {
+		$this->timesheets->update(
+			$timesheet_id,
+			array(
+				'draft_saved_at' => null,
+				'draft_snapshot' => null,
+			)
 		);
 	}
 
@@ -105,13 +171,12 @@ final class TimesheetService {
 			(string) ( $data['task'] ?? '' ),
 			$entry_id,
 			false,
-			(string) ( $data['notes'] ?? '' )
+			(string) ( $data['notes'] ?? '' ),
+			(string) ( $data['entry_type'] ?? EntryTypeHelper::REGULAR )
 		);
 		if ( is_wp_error( $validation ) ) {
 			return $validation;
 		}
-
-		$calc = $this->calculator->calculate( $entry_date, $start_time, $end_time );
 
 		$client   = $this->clients->find( $client_id );
 		$is_break = $this->clients->is_break_client( $client_id, $client );
@@ -120,8 +185,23 @@ final class TimesheetService {
 			$task = __( 'Break', 'etwa' );
 		}
 
-		$regular_hours  = $is_break ? 0.0 : $calc['regular_hours'];
-		$overtime_hours = 0.0;
+		$entry_type = EntryTypeHelper::resolve_entry_type(
+			$start_time,
+			(string) ( $data['entry_type'] ?? EntryTypeHelper::REGULAR ),
+			$is_break
+		);
+		if ( is_wp_error( $entry_type ) ) {
+			return $entry_type;
+		}
+
+		$normalized = EntryTypeHelper::normalize_stored_hours(
+			$entry_type,
+			$entry_date,
+			$start_time,
+			$end_time,
+			$is_break,
+			$this->calculator
+		);
 
 		$payload = array(
 			'timesheet_id'     => (int) $data['timesheet_id'],
@@ -132,9 +212,10 @@ final class TimesheetService {
 			'client_id'        => $client_id,
 			'task'             => $task,
 			'notes'            => sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) ),
-			'duration_minutes' => $calc['duration_minutes'],
-			'regular_hours'    => $regular_hours,
-			'overtime_hours'   => $overtime_hours,
+			'duration_minutes' => $normalized['duration_minutes'],
+			'regular_hours'    => $normalized['regular_hours'],
+			'overtime_hours'   => $normalized['overtime_hours'],
+			'entry_type'       => $normalized['entry_type'],
 		);
 
 		if ( ! empty( $data['created_from'] ) ) {
@@ -162,8 +243,10 @@ final class TimesheetService {
 
 		if ( $is_break ) {
 			$this->overtime->delete_by_entry( $id );
+		} else {
+			( new OvertimeService() )->sync_from_entry( $id );
 		}
-		$this->recalculate_totals( (int) $timesheet->id, false );
+		$this->recalculate_totals( (int) $timesheet->id, true );
 
 		return $this->entries->find( $id );
 	}
@@ -215,7 +298,8 @@ final class TimesheetService {
 			'notes'            => sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) ),
 			'duration_minutes' => $calc['duration_minutes'],
 			'regular_hours'    => $is_break ? 0.0 : $calc['regular_hours'],
-			'overtime_hours'   => $is_break ? 0.0 : $calc['overtime_hours'],
+			'overtime_hours'   => 0.0,
+			'entry_type'       => EntryTypeHelper::REGULAR,
 			'created_from'     => self::CREATED_FROM_HOLIDAY_REQUEST,
 		);
 
@@ -266,12 +350,34 @@ final class TimesheetService {
 			return new WP_Error( 'forbidden', __( 'Cannot submit timesheets.', 'etwa' ), array( 'status' => 403 ) );
 		}
 
+		if ( ! EmployeeProfileHelper::is_active( $user_id ) ) {
+			return new WP_Error( 'inactive', __( 'Your account is inactive. You cannot submit timesheets.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
 		$timesheet = $this->timesheets->find( $timesheet_id );
 		if ( ! $timesheet || $timesheet->user_id !== $user_id ) {
 			return new WP_Error( 'forbidden', __( 'Cannot submit this timesheet.', 'etwa' ), array( 'status' => 403 ) );
 		}
 		if ( 'approved' === $timesheet->status || $timesheet->is_locked ) {
 			return new WP_Error( 'locked', __( 'Timesheet is locked.', 'etwa' ), array( 'status' => 423 ) );
+		}
+
+		$entries = $this->entries->find_by_timesheet( $timesheet_id );
+		if ( empty( $entries ) && null === $timesheet->draft_saved_at ) {
+			return new WP_Error( 'empty', __( 'Cannot submit an empty timesheet.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		if ( null === $timesheet->draft_saved_at || '' === trim( (string) $timesheet->draft_snapshot ) ) {
+			return new WP_Error(
+				'draft_not_saved',
+				__( 'Save your draft before submitting the timesheet.', 'etwa' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$restored = $this->restore_entries_from_snapshot( $timesheet );
+		if ( is_wp_error( $restored ) ) {
+			return $restored;
 		}
 
 		$entries = $this->entries->find_by_timesheet( $timesheet_id );
@@ -391,7 +497,8 @@ final class TimesheetService {
 				$entry->task,
 				null,
 				false,
-				(string) ( $entry->notes ?? '' )
+				(string) ( $entry->notes ?? '' ),
+				$entry->entry_type
 			);
 			if ( is_wp_error( $validation ) ) {
 				return $validation;
@@ -416,6 +523,9 @@ final class TimesheetService {
 				$task = __( 'Break', 'etwa' );
 			}
 
+			$entry_type = $entry->entry_type;
+			$hours      = EntryTypeHelper::split_hours( $entry_type, (float) $calc['regular_hours'], $is_break );
+
 			$payloads[] = array(
 				'timesheet_id'     => (int) $timesheet->id,
 				'user_id'          => $timesheet->user_id,
@@ -426,8 +536,9 @@ final class TimesheetService {
 				'task'             => $task,
 				'notes'            => sanitize_textarea_field( (string) $entry->notes ),
 				'duration_minutes' => $calc['duration_minutes'],
-				'regular_hours'    => $is_break ? 0.0 : $calc['regular_hours'],
-				'overtime_hours'   => $is_break ? 0.0 : $calc['overtime_hours'],
+				'regular_hours'    => $hours['regular'],
+				'overtime_hours'   => $hours['overtime'],
+				'entry_type'       => $entry_type,
 			);
 
 			$day_slots[ $new_date ][] = array(
@@ -469,13 +580,105 @@ final class TimesheetService {
 		$this->timesheets->update(
 			$timesheet_id,
 			array(
-				'total_regular_hours'  => $sums['regular'] + $sums['overtime'],
-				'total_overtime_hours' => 0,
+				'total_regular_hours'  => $sums['regular'],
+				'total_overtime_hours' => $sums['overtime'],
 			)
 		);
 		if ( $flush_cache ) {
 			AnalyticsService::flush_dashboard_cache();
+			ClientAnalyticsService::flush_cache();
 		}
+	}
+
+	/** @param Entry[] $entries */
+	private function with_display_totals( Timesheet $timesheet, array $entries, bool $reviewer_view ): Timesheet {
+		if ( ! $reviewer_view || ! TimesheetDraftHelper::uses_draft_snapshot( $timesheet ) ) {
+			return $timesheet;
+		}
+
+		$regular  = 0.0;
+		$overtime = 0.0;
+		foreach ( $entries as $entry ) {
+			$regular  += $entry->regular_hours;
+			$overtime += $entry->overtime_hours;
+		}
+
+		return Timesheet::from_row(
+			array_merge(
+				$timesheet->to_array(),
+				array(
+					'draft_snapshot'       => $timesheet->draft_snapshot,
+					'total_regular_hours'  => $regular + $overtime,
+					'total_overtime_hours' => 0,
+				)
+			)
+		);
+	}
+
+	private function restore_entries_from_snapshot( Timesheet $timesheet ): bool|WP_Error {
+		$snapshot_entries = TimesheetDraftHelper::decode_snapshot( $timesheet );
+		if ( ! $snapshot_entries ) {
+			return new WP_Error( 'empty_draft', __( 'Saved draft is empty.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		$live_entries = $this->entries->find_by_timesheet( (int) $timesheet->id );
+		foreach ( $live_entries as $entry ) {
+			$this->overtime->delete_by_entry( (int) $entry->id );
+		}
+
+		$this->entries->delete_by_timesheet( (int) $timesheet->id );
+
+		$payloads = array();
+		foreach ( $snapshot_entries as $entry ) {
+			$entry_type = $entry->entry_type;
+			if ( EntryTypeHelper::REGULAR === $entry_type && $entry->overtime_hours > 0 ) {
+				$entry_type = EntryTypeHelper::OVERTIME;
+			}
+
+			$entry_date = $entry->entry_date;
+			$start_time = $this->normalize_time( $entry->start_time );
+			$end_time   = $this->normalize_time( $entry->end_time );
+			$client     = $this->clients->find( $entry->client_id );
+			$is_break   = $this->clients->is_break_client( $entry->client_id, $client );
+			$normalized = EntryTypeHelper::normalize_stored_hours(
+				$entry_type,
+				$entry_date,
+				$start_time,
+				$end_time,
+				$is_break,
+				$this->calculator
+			);
+
+			$payloads[] = array(
+				'timesheet_id'     => (int) $timesheet->id,
+				'user_id'          => $timesheet->user_id,
+				'entry_date'       => $entry_date,
+				'start_time'       => $start_time,
+				'end_time'         => $end_time,
+				'client_id'        => $entry->client_id,
+				'task'             => $entry->task,
+				'notes'            => (string) ( $entry->notes ?? '' ),
+				'duration_minutes' => $normalized['duration_minutes'],
+				'regular_hours'    => $normalized['regular_hours'],
+				'overtime_hours'   => $normalized['overtime_hours'],
+				'entry_type'       => $normalized['entry_type'],
+				'created_from'     => $entry->created_from,
+			);
+		}
+
+		$ids = $this->entries->create_many( $payloads );
+		if ( ! $ids ) {
+			return new WP_Error( 'restore_failed', __( 'Could not restore the saved draft for submission.', 'etwa' ), array( 'status' => 500 ) );
+		}
+
+		$overtime_service = new OvertimeService();
+		foreach ( $ids as $entry_id ) {
+			$overtime_service->sync_from_entry( (int) $entry_id );
+		}
+
+		$this->recalculate_totals( (int) $timesheet->id, true );
+
+		return true;
 	}
 
 	private function normalize_time( string $time ): string {
@@ -498,12 +701,11 @@ final class TimesheetService {
 		string $task,
 		?int $entry_id = null,
 		bool $skip_calendar_check = false,
-		string $notes = ''
+		string $notes = '',
+		string $entry_type = EntryTypeHelper::REGULAR
 	): bool|WP_Error {
-		$calendar  = CalendarHelper::get_calendar_dates( $timesheet->period_start );
-		$cal_start = $calendar[0];
-		$cal_end   = $calendar[6];
-		if ( $entry_date < $cal_start || $entry_date > $cal_end ) {
+		$calendar = CalendarHelper::get_calendar_dates( $timesheet->period_start );
+		if ( ! in_array( $entry_date, $calendar, true ) ) {
 			return new WP_Error(
 				'invalid_date',
 				__( 'Entry date must fall within the timesheet work week.', 'etwa' ),
@@ -531,9 +733,9 @@ final class TimesheetService {
 			);
 		}
 
-		$start_ts = strtotime( "{$entry_date} {$start_time}" );
-		$end_ts   = strtotime( "{$entry_date} {$end_time}" );
-		if ( ! $start_ts || ! $end_ts || $end_ts <= $start_ts ) {
+		$start_dt = DateHelper::parse_local_datetime( $entry_date, $start_time );
+		$end_dt   = DateHelper::parse_local_datetime( $entry_date, $end_time );
+		if ( ! $start_dt || ! $end_dt || $end_dt <= $start_dt ) {
 			return new WP_Error(
 				'invalid_time',
 				__( 'End time must be after start time.', 'etwa' ),
@@ -564,9 +766,16 @@ final class TimesheetService {
 		if ( $is_all_clients && '' === trim( $notes ) ) {
 			return new WP_Error(
 				'missing_notes',
-				__( 'Please describe the work performed in detail in Notes because this entry applies to all clients.', 'etwa' ),
+				__( 'Please describe the work performed in detail in Notes because this entry applies to Moderation.', 'etwa' ),
 				array( 'status' => 400 )
 			);
+		}
+
+		if ( ! $is_break && EntryTypeHelper::is_after_work_hours( $start_time ) ) {
+			$resolved = EntryTypeHelper::resolve_entry_type( $start_time, $entry_type, false );
+			if ( is_wp_error( $resolved ) ) {
+				return $resolved;
+			}
 		}
 
 		if ( $this->entries->has_overlap( (int) $timesheet->id, $entry_date, $start_time, $end_time, $entry_id ) ) {

@@ -243,6 +243,14 @@
 		const employees = (data.employee_utilization || []).slice(0, 12);
 		const utilEl = document.getElementById('etwa-chart-utilization');
 		if (utilEl && employees.length) {
+			const isHorizontal = employees.length > 6;
+			const utilWrap = utilEl.closest('.etwa-chart-canvas-wrap');
+			if (isHorizontal && utilWrap) {
+				const chartHeight = Math.max(260, employees.length * 28);
+				utilWrap.style.minHeight = `${chartHeight}px`;
+				utilEl.style.maxHeight = `${chartHeight}px`;
+			}
+
 			chartInstances.push(
 				new Chart(utilEl, {
 					type: 'bar',
@@ -262,18 +270,34 @@
 					},
 					options: {
 						...chartDefaults(),
-						indexAxis: employees.length > 6 ? 'y' : 'x',
-						scales: {
-							x: {
-								grid: { display: employees.length <= 6, color: CHART_COLORS.grid },
-								ticks: { color: CHART_COLORS.text, font: { size: 10 }, maxRotation: 45 },
-							},
-							y: {
-								grid: { color: CHART_COLORS.grid },
-								ticks: { color: CHART_COLORS.text },
-								beginAtZero: true,
-							},
-						},
+						indexAxis: isHorizontal ? 'y' : 'x',
+						scales: isHorizontal
+							? {
+									x: {
+										grid: { color: CHART_COLORS.grid },
+										ticks: { color: CHART_COLORS.text, font: { size: 10 } },
+										beginAtZero: true,
+									},
+									y: {
+										grid: { display: false },
+										ticks: {
+											autoSkip: false,
+											color: CHART_COLORS.text,
+											font: { size: 10 },
+										},
+									},
+								}
+							: {
+									x: {
+										grid: { display: true, color: CHART_COLORS.grid },
+										ticks: { color: CHART_COLORS.text, font: { size: 10 }, maxRotation: 45 },
+									},
+									y: {
+										grid: { color: CHART_COLORS.grid },
+										ticks: { color: CHART_COLORS.text },
+										beginAtZero: true,
+									},
+								},
 					},
 				})
 			);

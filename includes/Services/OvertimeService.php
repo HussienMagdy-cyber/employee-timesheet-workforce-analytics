@@ -147,6 +147,10 @@ final class OvertimeService {
 		$this->timesheets->update( $timesheet_id, $update );
 		$this->audit->log( "timesheet_{$status}", 'timesheet', $timesheet_id, $timesheet->to_array(), $update );
 
+		if ( 'rejected' === $status ) {
+			( new \ETWA\Services\TimesheetService() )->clear_draft_visibility( $timesheet_id );
+		}
+
 		do_action( 'etwa_timesheet_reviewed', $timesheet_id, $status, $reviewer_id );
 
 		AnalyticsService::flush_dashboard_cache();

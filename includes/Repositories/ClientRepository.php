@@ -147,13 +147,14 @@ final class ClientRepository {
 			),
 			array(
 				'code'       => self::ALL_CLIENTS_CODE,
-				'name'       => __( 'All Clients', 'etwa' ),
+				'name'       => __( 'Moderation', 'etwa' ),
 				'department' => 'General',
 			),
 		);
 
 		foreach ( $system as $row ) {
-			if ( ! $this->find_by_code( $row['code'] ) ) {
+			$existing = $this->find_by_code( $row['code'] );
+			if ( ! $existing ) {
 				$this->create(
 					array(
 						'name'       => $row['name'],
@@ -162,6 +163,11 @@ final class ClientRepository {
 						'is_active'  => 1,
 					)
 				);
+				continue;
+			}
+
+			if ( self::ALL_CLIENTS_CODE === strtoupper( $existing->code ) && $existing->name !== $row['name'] ) {
+				$this->update( (int) $existing->id, array( 'name' => $row['name'] ) );
 			}
 		}
 	}

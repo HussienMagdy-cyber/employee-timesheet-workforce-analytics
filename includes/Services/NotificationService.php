@@ -20,6 +20,7 @@ final class NotificationService {
 
 	public function __construct(
 		private SettingsRepository $settings = new SettingsRepository(),
+		private MailService $mail = new MailService(),
 	) {
 		add_action( 'etwa_timesheet_submitted', array( $this, 'on_timesheet_submitted' ), 10, 2 );
 		add_action( 'etwa_timesheet_reviewed', array( $this, 'on_timesheet_reviewed' ), 10, 3 );
@@ -39,14 +40,21 @@ final class NotificationService {
 		$user = get_userdata( $user_id );
 		$hr   = (string) $this->settings->get( 'hr_email', get_option( 'admin_email' ) );
 
-		wp_mail(
-			$hr,
-			__( 'Timesheet Submitted for Review', 'etwa' ),
-			sprintf(
-				/* translators: 1: employee name, 2: timesheet id */
-				__( '%1$s submitted timesheet #%2$d for approval.', 'etwa' ),
-				$user ? $user->display_name : $user_id,
-				$timesheet_id
+		$this->mail->send(
+			array(
+				'to'               => $hr,
+				'subject'          => __( 'Timesheet Submitted for Review', 'etwa' ),
+				'content'          => sprintf(
+					/* translators: 1: employee name, 2: timesheet id */
+					__( '%1$s submitted timesheet #%2$d for approval.', 'etwa' ),
+					$user ? $user->display_name : (string) $user_id,
+					$timesheet_id
+				),
+				'sender_user_id'   => $user_id,
+				'recipient_user_id'=> null,
+				'placeholders'     => array(
+					'employee_name' => $user ? $user->display_name : (string) $user_id,
+				),
 			)
 		);
 	}
@@ -67,15 +75,23 @@ final class NotificationService {
 				? __( 'Your Timesheet Was Approved', 'etwa' )
 				: __( 'Your Timesheet Needs Changes', 'etwa' );
 
-			wp_mail(
-				$user->user_email,
-				$subject,
-				sprintf(
-					/* translators: 1: week start, 2: week end, 3: status */
-					__( 'Your timesheet for %1$s – %2$s has been %3$s.', 'etwa' ),
-					$timesheet->period_start,
-					$timesheet->period_end,
-					$status
+			$this->mail->send(
+				array(
+					'to'               => $user->user_email,
+					'subject'          => $subject,
+					'content'          => sprintf(
+						/* translators: 1: week start, 2: week end, 3: status */
+						__( 'Your timesheet for %1$s – %2$s has been %3$s.', 'etwa' ),
+						$timesheet->period_start,
+						$timesheet->period_end,
+						$status
+					),
+					'sender_user_id'   => $reviewer_id,
+					'recipient_user_id'=> (int) $user->ID,
+					'placeholders'     => array(
+						'request_type'   => __( 'Timesheet', 'etwa' ),
+						'request_status' => $status,
+					),
 				)
 			);
 		}
@@ -91,16 +107,24 @@ final class NotificationService {
 
 		$user = get_userdata( $record->user_id );
 		if ( $user && $user->user_email && in_array( $status, array( 'approved', 'rejected' ), true ) ) {
-			wp_mail(
-				$user->user_email,
-				'approved' === $status
-					? __( 'Your Overtime Was Approved', 'etwa' )
-					: __( 'Your Overtime Was Rejected', 'etwa' ),
-				sprintf(
-					/* translators: 1: date, 2: status */
-					__( 'Your overtime entry on %1$s has been %2$s.', 'etwa' ),
-					$record->entry_date,
-					$status
+			$this->mail->send(
+				array(
+					'to'               => $user->user_email,
+					'subject'          => 'approved' === $status
+						? __( 'Your Overtime Was Approved', 'etwa' )
+						: __( 'Your Overtime Was Rejected', 'etwa' ),
+					'content'          => sprintf(
+						/* translators: 1: date, 2: status */
+						__( 'Your overtime entry on %1$s has been %2$s.', 'etwa' ),
+						$record->entry_date,
+						$status
+					),
+					'sender_user_id'   => $reviewer_id,
+					'recipient_user_id'=> (int) $user->ID,
+					'placeholders'     => array(
+						'request_type'   => __( 'Overtime', 'etwa' ),
+						'request_status' => $status,
+					),
 				)
 			);
 		}
@@ -115,17 +139,25 @@ final class NotificationService {
 			return;
 		}
 
-		wp_mail(
-			$user->user_email,
-			__( 'Leave Approved', 'etwa' ),
-			sprintf(
-				/* translators: 1: leave type, 2: start, 3: end, 4: days, 5: remaining */
-				__( '%1$s approved: %2$s – %3$s (%4$s days). Remaining balance: %5$s days.', 'etwa' ),
-				(string) ( $notification['leave_type_name'] ?? '' ),
-				(string) ( $notification['start_date'] ?? '' ),
-				(string) ( $notification['end_date'] ?? '' ),
-				(string) ( $notification['days'] ?? '' ),
-				(string) ( $notification['remaining'] ?? '' )
+		$this->mail->send(
+			array(
+				'to'               => $user->user_email,
+				'subject'          => __( 'Leave Approved', 'etwa' ),
+				'content'          => sprintf(
+					/* translators: 1: leave type, 2: start, 3: end, 4: days, 5: remaining */
+					__( '%1$s approved: %2$s – %3$s (%4$s days). Remaining balance: %5$s days.', 'etwa' ),
+					(string) ( $notification['leave_type_name'] ?? '' ),
+					(string) ( $notification['start_date'] ?? '' ),
+					(string) ( $notification['end_date'] ?? '' ),
+					(string) ( $notification['days'] ?? '' ),
+					(string) ( $notification['remaining'] ?? '' )
+				),
+				'sender_user_id'   => $this->reviewer_sender_id( $notification ),
+				'recipient_user_id'=> $user_id,
+				'placeholders'     => array(
+					'request_type'   => (string) ( $notification['leave_type_name'] ?? __( 'Leave', 'etwa' ) ),
+					'request_status' => __( 'Approved', 'etwa' ),
+				),
 			)
 		);
 
@@ -134,22 +166,31 @@ final class NotificationService {
 
 	/** @param array<string,mixed>|null $payload */
 	public function on_vacation_requested( int $request_id, int $user_id, ?array $payload ): void {
-		$user = get_userdata( $user_id );
+		$user    = get_userdata( $user_id );
 		$head_id = DepartmentHelper::get_department_head_id( $user_id );
 
 		if ( $head_id ) {
 			$head = get_userdata( $head_id );
 			if ( $head && $head->user_email ) {
-				wp_mail(
-					$head->user_email,
-					__( 'Vacation Request — Department Approval Required', 'etwa' ),
-					sprintf(
-						/* translators: 1: employee name, 2: start date, 3: end date, 4: days */
-						__( '%1$s submitted a vacation request: %2$s – %3$s (%4$s days). Please review as Department Head.', 'etwa' ),
-						$user ? $user->display_name : (string) $user_id,
-						(string) ( $payload['start_date'] ?? '' ),
-						(string) ( $payload['end_date'] ?? '' ),
-						(string) ( $payload['days'] ?? '' )
+				$this->mail->send(
+					array(
+						'to'               => $head->user_email,
+						'subject'          => __( 'Vacation Request — Department Approval Required', 'etwa' ),
+						'content'          => sprintf(
+							/* translators: 1: employee name, 2: start date, 3: end date, 4: days */
+							__( '%1$s submitted a vacation request: %2$s – %3$s (%4$s days). Please review as Department Head.', 'etwa' ),
+							$user ? $user->display_name : (string) $user_id,
+							(string) ( $payload['start_date'] ?? '' ),
+							(string) ( $payload['end_date'] ?? '' ),
+							(string) ( $payload['days'] ?? '' )
+						),
+						'sender_user_id'   => $user_id,
+						'recipient_user_id'=> $head_id,
+						'placeholders'     => array(
+							'request_type'   => __( 'Vacation Request', 'etwa' ),
+							'request_status' => __( 'Pending Department Approval', 'etwa' ),
+							'approval_link'  => admin_url( 'admin.php?page=etwa-vacations' ),
+						),
 					)
 				);
 				do_action( 'etwa_notification', 'vacation_requested_dept', compact( 'request_id', 'user_id', 'payload', 'head_id' ) );
@@ -164,16 +205,25 @@ final class NotificationService {
 	private function notify_hr_vacation_request( ?\WP_User $user, int $user_id, ?array $payload, int $request_id ): void {
 		$hr = (string) $this->settings->get( 'hr_email', get_option( 'admin_email' ) );
 
-		wp_mail(
-			$hr,
-			__( 'Vacation Request Submitted', 'etwa' ),
-			sprintf(
-				/* translators: 1: employee name, 2: start date, 3: end date, 4: days */
-				__( '%1$s submitted a vacation request: %2$s – %3$s (%4$s days). Please review in Vacations → Requests.', 'etwa' ),
-				$user ? $user->display_name : (string) $user_id,
-				(string) ( $payload['start_date'] ?? '' ),
-				(string) ( $payload['end_date'] ?? '' ),
-				(string) ( $payload['days'] ?? '' )
+		$this->mail->send(
+			array(
+				'to'             => $hr,
+				'subject'        => __( 'Vacation Request Submitted', 'etwa' ),
+				'content'        => sprintf(
+					/* translators: 1: employee name, 2: start date, 3: end date, 4: days */
+					__( '%1$s submitted a vacation request: %2$s – %3$s (%4$s days). Please review in Vacations → Requests.', 'etwa' ),
+					$user ? $user->display_name : (string) $user_id,
+					(string) ( $payload['start_date'] ?? '' ),
+					(string) ( $payload['end_date'] ?? '' ),
+					(string) ( $payload['days'] ?? '' )
+				),
+				'sender_user_id' => $user_id,
+				'placeholders'   => array(
+					'employee_name'  => $user ? $user->display_name : (string) $user_id,
+					'request_type'   => __( 'Vacation Request', 'etwa' ),
+					'request_status' => __( 'Pending HR Approval', 'etwa' ),
+					'approval_link'  => admin_url( 'admin.php?page=etwa-vacations' ),
+				),
 			)
 		);
 
@@ -185,15 +235,24 @@ final class NotificationService {
 		$user = get_userdata( $user_id );
 		$hr   = (string) $this->settings->get( 'hr_email', get_option( 'admin_email' ) );
 
-		wp_mail(
-			$hr,
-			__( 'Vacation Request — HR Approval Required', 'etwa' ),
-			sprintf(
-				/* translators: 1: employee name, 2: start date, 3: end date */
-				__( 'Department Head approved %1$s\'s vacation request (%2$s – %3$s). Please review in Vacations → Requests.', 'etwa' ),
-				$user ? $user->display_name : (string) $user_id,
-				(string) ( $payload['start_date'] ?? '' ),
-				(string) ( $payload['end_date'] ?? '' )
+		$this->mail->send(
+			array(
+				'to'             => $hr,
+				'subject'        => __( 'Vacation Request — HR Approval Required', 'etwa' ),
+				'content'        => sprintf(
+					/* translators: 1: employee name, 2: start date, 3: end date */
+					__( 'Department Head approved %1$s\'s vacation request (%2$s – %3$s). Please review in Vacations → Requests.', 'etwa' ),
+					$user ? $user->display_name : (string) $user_id,
+					(string) ( $payload['start_date'] ?? '' ),
+					(string) ( $payload['end_date'] ?? '' )
+				),
+				'sender_user_id' => get_current_user_id() ?: null,
+				'placeholders'   => array(
+					'employee_name'  => $user ? $user->display_name : (string) $user_id,
+					'request_type'   => __( 'Vacation Request', 'etwa' ),
+					'request_status' => __( 'Pending HR Approval', 'etwa' ),
+					'approval_link'  => admin_url( 'admin.php?page=etwa-vacations' ),
+				),
 			)
 		);
 
@@ -229,10 +288,18 @@ final class NotificationService {
 			);
 		}
 
-		wp_mail(
-			$user->user_email,
-			__( 'Leave Request Rejected', 'etwa' ),
-			$body
+		$this->mail->send(
+			array(
+				'to'               => $user->user_email,
+				'subject'          => __( 'Leave Request Rejected', 'etwa' ),
+				'content'          => $body,
+				'sender_user_id'   => $this->reviewer_sender_id( $notification ),
+				'recipient_user_id'=> $user_id,
+				'placeholders'     => array(
+					'request_type'   => (string) ( $notification['leave_type_name'] ?? __( 'Leave', 'etwa' ) ),
+					'request_status' => __( 'Rejected', 'etwa' ),
+				),
+			)
 		);
 
 		do_action( 'etwa_notification', 'vacation_rejected', compact( 'request_id', 'user_id', 'notification' ) );
@@ -261,10 +328,19 @@ final class NotificationService {
 		if ( $head_id ) {
 			$head = get_userdata( $head_id );
 			if ( $head && $head->user_email ) {
-				wp_mail(
-					$head->user_email,
-					$subject . ' — ' . __( 'Department Approval Required', 'etwa' ),
-					$body . ' ' . __( 'Please review as Department Head.', 'etwa' )
+				$this->mail->send(
+					array(
+						'to'               => $head->user_email,
+						'subject'          => $subject . ' — ' . __( 'Department Approval Required', 'etwa' ),
+						'content'          => $body . ' ' . __( 'Please review as Department Head.', 'etwa' ),
+						'sender_user_id'   => $user_id,
+						'recipient_user_id'=> $head_id,
+						'placeholders'     => array(
+							'request_type'   => $type,
+							'request_status' => __( 'Pending Department Approval', 'etwa' ),
+							'approval_link'  => admin_url( 'admin.php?page=etwa-requests' ),
+						),
+					)
 				);
 				do_action( 'etwa_notification', 'request_submitted_dept', compact( 'request_id', 'user_id', 'payload', 'head_id' ) );
 				return;
@@ -272,7 +348,20 @@ final class NotificationService {
 		}
 
 		$hr = (string) $this->settings->get( 'hr_email', get_option( 'admin_email' ) );
-		wp_mail( $hr, $subject, $body . ' ' . __( 'Please review in Requests.', 'etwa' ) );
+		$this->mail->send(
+			array(
+				'to'             => $hr,
+				'subject'        => $subject,
+				'content'        => $body . ' ' . __( 'Please review in Requests.', 'etwa' ),
+				'sender_user_id' => $user_id,
+				'placeholders'   => array(
+					'employee_name'  => $user ? $user->display_name : (string) $user_id,
+					'request_type'   => $type,
+					'request_status' => __( 'Pending HR Approval', 'etwa' ),
+					'approval_link'  => admin_url( 'admin.php?page=etwa-requests' ),
+				),
+			)
+		);
 
 		do_action( 'etwa_notification', 'request_submitted', compact( 'request_id', 'user_id', 'payload' ) );
 	}
@@ -283,15 +372,24 @@ final class NotificationService {
 		$hr   = (string) $this->settings->get( 'hr_email', get_option( 'admin_email' ) );
 		$type = (string) ( $payload['request_type_label'] ?? $payload['request_type'] ?? '' );
 
-		wp_mail(
-			$hr,
-			__( 'Request — HR Approval Required', 'etwa' ),
-			sprintf(
-				/* translators: 1: request type, 2: employee name, 3: work date */
-				__( 'Department Head approved %1$s request from %2$s for %3$s. Please review in Requests.', 'etwa' ),
-				$type,
-				$user ? $user->display_name : (string) $user_id,
-				(string) ( $payload['work_date'] ?? $payload['request_date'] ?? '' )
+		$this->mail->send(
+			array(
+				'to'             => $hr,
+				'subject'        => __( 'Request — HR Approval Required', 'etwa' ),
+				'content'        => sprintf(
+					/* translators: 1: request type, 2: employee name, 3: work date */
+					__( 'Department Head approved %1$s request from %2$s for %3$s. Please review in Requests.', 'etwa' ),
+					$type,
+					$user ? $user->display_name : (string) $user_id,
+					(string) ( $payload['work_date'] ?? $payload['request_date'] ?? '' )
+				),
+				'sender_user_id' => get_current_user_id() ?: null,
+				'placeholders'   => array(
+					'employee_name'  => $user ? $user->display_name : (string) $user_id,
+					'request_type'   => $type,
+					'request_status' => __( 'Pending HR Approval', 'etwa' ),
+					'approval_link'  => admin_url( 'admin.php?page=etwa-requests' ),
+				),
 			)
 		);
 
@@ -311,15 +409,23 @@ final class NotificationService {
 			default        => __( 'Request Approved', 'etwa' ),
 		};
 
-		wp_mail(
-			$user->user_email,
-			$subject,
-			sprintf(
-				/* translators: 1: request type, 2: work date, 3: approver */
-				__( 'Your %1$s request for %2$s was approved by %3$s.', 'etwa' ),
-				(string) ( $notification['request_type_label'] ?? '' ),
-				(string) ( $notification['work_date'] ?? '' ),
-				(string) ( $notification['approved_by'] ?? '' )
+		$this->mail->send(
+			array(
+				'to'               => $user->user_email,
+				'subject'          => $subject,
+				'content'          => sprintf(
+					/* translators: 1: request type, 2: work date, 3: approver */
+					__( 'Your %1$s request for %2$s was approved by %3$s.', 'etwa' ),
+					(string) ( $notification['request_type_label'] ?? '' ),
+					(string) ( $notification['work_date'] ?? '' ),
+					(string) ( $notification['approved_by'] ?? '' )
+				),
+				'sender_user_id'   => $this->reviewer_sender_id( $notification ),
+				'recipient_user_id'=> $user_id,
+				'placeholders'     => array(
+					'request_type'   => (string) ( $notification['request_type_label'] ?? '' ),
+					'request_status' => __( 'Approved', 'etwa' ),
+				),
 			)
 		);
 
@@ -354,12 +460,39 @@ final class NotificationService {
 			);
 		}
 
-		wp_mail(
-			$user->user_email,
-			$subject,
-			$body
+		$this->mail->send(
+			array(
+				'to'               => $user->user_email,
+				'subject'          => $subject,
+				'content'          => $body,
+				'sender_user_id'   => $this->reviewer_sender_id( $notification ),
+				'recipient_user_id'=> $user_id,
+				'placeholders'     => array(
+					'request_type'   => (string) ( $notification['request_type_label'] ?? '' ),
+					'request_status' => __( 'Rejected', 'etwa' ),
+				),
+			)
 		);
 
 		do_action( 'etwa_notification', 'request_rejected', compact( 'request_id', 'user_id', 'notification' ) );
+	}
+
+	/** @param array<string,mixed> $notification */
+	private function reviewer_sender_id( array $notification ): ?int {
+		if ( ! empty( $notification['reviewed_by'] ) ) {
+			return absint( $notification['reviewed_by'] );
+		}
+		if ( ! empty( $notification['hr_approved_by'] ) ) {
+			return absint( $notification['hr_approved_by'] );
+		}
+		if ( ! empty( $notification['dept_approved_by'] ) ) {
+			return absint( $notification['dept_approved_by'] );
+		}
+		if ( ! empty( $notification['created_by'] ) ) {
+			return absint( $notification['created_by'] );
+		}
+
+		$current = get_current_user_id();
+		return $current > 0 ? $current : null;
 	}
 }

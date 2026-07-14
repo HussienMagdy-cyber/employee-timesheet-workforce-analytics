@@ -49,12 +49,11 @@ $requests_url = $in_portal && $portal_url
 					<tr>
 						<th><?php esc_html_e( 'Employee', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'Email', 'etwa' ); ?></th>
-						<th><?php esc_html_e( 'Role', 'etwa' ); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody id="etwa-dept-employees-body">
-					<tr><td colspan="4" class="etwa-empty-cell"><?php esc_html_e( 'Loading…', 'etwa' ); ?></td></tr>
+					<tr><td colspan="3" class="etwa-empty-cell"><?php esc_html_e( 'Loading…', 'etwa' ); ?></td></tr>
 				</tbody>
 			</table>
 		</div>

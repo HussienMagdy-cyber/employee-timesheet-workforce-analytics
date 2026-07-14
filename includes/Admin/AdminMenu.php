@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace ETWA\Admin;
 
+use ETWA\Admin\Pages\EmailSettingsPage;
 use ETWA\Admin\Pages\AuditLogsPage;
 use ETWA\Admin\Pages\ClientAnalyticsPage;
 use ETWA\Admin\Pages\DepartmentDashboardPage;
@@ -149,6 +150,15 @@ final class AdminMenu {
 
 		add_submenu_page(
 			'etwa-dashboard',
+			__( 'Email Settings', 'etwa' ),
+			__( 'Email Settings', 'etwa' ),
+			RoleManager::CAP_MANAGE_SETTINGS,
+			'etwa-email-settings',
+			array( new EmailSettingsPage(), 'render' )
+		);
+
+		add_submenu_page(
+			'etwa-dashboard',
 			__( 'Audit Logs', 'etwa' ),
 			__( 'Audit Logs', 'etwa' ),
 			RoleManager::CAP_VIEW_ALL,
@@ -208,6 +218,8 @@ final class AdminMenu {
 			$script = 'client-analytics';
 		} elseif ( str_contains( $hook, 'etwa-analytics' ) ) {
 			$script = 'owner-analytics';
+		} elseif ( str_contains( $hook, 'etwa-email-settings' ) ) {
+			$script = 'email-settings';
 		} elseif ( str_contains( $hook, 'etwa-settings' ) || str_contains( $hook, 'etwa-logs' ) ) {
 			$script = 'admin';
 		} elseif ( str_contains( $hook, 'etwa-dashboard' ) ) {

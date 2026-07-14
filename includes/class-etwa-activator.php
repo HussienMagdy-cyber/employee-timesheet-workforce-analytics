@@ -12,6 +12,7 @@ namespace ETWA;
 use ETWA\Database\Schema;
 use ETWA\Helpers\AuthHelper;
 use ETWA\Helpers\RoleManager;
+use ETWA\Repositories\EmailSettingsRepository;
 use ETWA\Repositories\SettingsRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -37,6 +38,7 @@ final class Activator {
 		RoleManager::register_roles_and_caps();
 		AuthHelper::ensure_pages();
 		self::seed_defaults();
+		EmailSettingsRepository::seed_defaults();
 		self::schedule_cron();
 
 		update_option( 'etwa_db_version', Schema::VERSION );
@@ -56,7 +58,7 @@ final class Activator {
 			'min_overtime_minutes'  => 30,
 			'overtime_round_minutes'=> 30,
 			'available_hours_week'  => 40,
-			'overtime_cost_multiplier' => 1.5,
+			'overtime_cost_multiplier' => 1,
 			'hr_email'              => get_option( 'admin_email' ),
 			'owner_email'           => get_option( 'admin_email' ),
 			'email_cc_owner'        => '1',

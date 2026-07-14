@@ -27,4 +27,8 @@ final class BrandHelper {
 		/* translators: %s: role name, e.g. Employee, HR Manager, Owner */
 		return sprintf( __( '%1$s %2$s', 'etwa' ), self::name(), $role );
 	}
+
+	public static function workforce_display_label(): string {
+		return __( 'WorkForce', 'etwa' );
+	}
 }

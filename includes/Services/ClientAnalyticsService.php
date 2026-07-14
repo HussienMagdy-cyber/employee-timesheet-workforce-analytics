@@ -11,6 +11,7 @@ namespace ETWA\Services;
 
 use ETWA\Helpers\DateRangeHelper;
 use ETWA\Helpers\EmployeeCostHelper;
+use ETWA\Helpers\EntryTypeHelper;
 use ETWA\Helpers\UserDisplayNames;
 use ETWA\Repositories\ClientRepository;
 use ETWA\Repositories\SettingsRepository;
@@ -166,10 +167,12 @@ final class ClientAnalyticsService {
 					COALESCE(SUM(regular_hours + overtime_hours), 0) AS total_hours,
 					COALESCE(SUM(regular_hours), 0) AS regular_hours,
 					COALESCE(SUM(overtime_hours), 0) AS overtime_hours,
+					COALESCE(SUM(CASE WHEN entry_type = %s THEN duration_minutes ELSE 0 END), 0) AS compensation_minutes,
 					COUNT(DISTINCT user_id) AS employee_count,
 					MAX(entry_date) AS last_activity
 				FROM {$entries}
 				WHERE client_id = %d AND entry_date BETWEEN %s AND %s",
+				EntryTypeHelper::COMPENSATION,
 				$client_id,
 				$date_from,
 				$date_to
@@ -181,11 +184,13 @@ final class ClientAnalyticsService {
 				"SELECT user_id,
 					SUM(regular_hours) AS regular_hours,
 					SUM(overtime_hours) AS overtime_hours,
-					SUM(regular_hours + overtime_hours) AS total_hours
+					SUM(regular_hours + overtime_hours) AS total_hours,
+					SUM(CASE WHEN entry_type = %s THEN duration_minutes ELSE 0 END) AS compensation_minutes
 				FROM {$entries}
 				WHERE client_id = %d AND entry_date BETWEEN %s AND %s
 				GROUP BY user_id
 				ORDER BY total_hours DESC",
+				EntryTypeHelper::COMPENSATION,
 				$client_id,
 				$date_from,
 				$date_to
@@ -198,26 +203,40 @@ final class ClientAnalyticsService {
 		$rates        = $include_cost ? EmployeeCostHelper::get_rates_batch_internal( $user_ids ) : array();
 		$employees = array();
 		$total_labor = 0.0;
+		$total_ot_cost = 0.0;
 		foreach ( $employee_rows ?: array() as $row ) {
 			$user_id = (int) $row->user_id;
+			$comp_hours = EntryTypeHelper::compensation_hours_from_minutes( (int) ( $row->compensation_minutes ?? 0 ) );
 			$emp     = array(
-				'user_id'        => $user_id,
-				'display_name'   => UserDisplayNames::get( $names, $user_id ) ?: __( 'Unknown', 'etwa' ),
-				'total_hours'    => round( (float) $row->total_hours, 2 ),
-				'regular_hours'  => round( (float) $row->regular_hours, 2 ),
-				'overtime_hours' => round( (float) $row->overtime_hours, 2 ),
+				'user_id'             => $user_id,
+				'display_name'        => UserDisplayNames::get( $names, $user_id ) ?: __( 'Unknown', 'etwa' ),
+				'total_hours'         => round( (float) $row->total_hours, 2 ),
+				'regular_hours'       => round( (float) $row->regular_hours, 2 ),
+				'overtime_hours'      => round( (float) $row->overtime_hours, 2 ),
+				'compensation_hours'  => $comp_hours,
+				'combined_hours'      => round( (float) $row->regular_hours + (float) $row->overtime_hours, 2 ),
 			);
 			if ( $include_cost ) {
+				$rate = $rates[ $user_id ] ?? 0.0;
 				$cost = LaborCostCalculator::from_hours(
 					(float) $row->regular_hours,
 					(float) $row->overtime_hours,
-					$rates[ $user_id ] ?? 0.0
+					$rate
 				);
-				$emp['labor_cost_egp'] = $cost;
-				$total_labor          += $cost;
+				$ot_cost = LaborCostCalculator::overtime_cost_only( (float) $row->overtime_hours, $rate );
+				$emp['labor_cost_egp']   = $cost;
+				$emp['overtime_cost_egp'] = $ot_cost;
+				$total_labor            += $cost;
+				$total_ot_cost          += $ot_cost;
 			}
 			$employees[] = $emp;
 		}
+
+		$regular_hours  = round( (float) ( $summary->regular_hours ?? 0 ), 2 );
+		$overtime_hours = round( (float) ( $summary->overtime_hours ?? 0 ), 2 );
+		$comp_hours     = EntryTypeHelper::compensation_hours_from_minutes( (int) ( $summary->compensation_minutes ?? 0 ) );
+		$combined_hours = round( $regular_hours + $overtime_hours, 2 );
+		$ot_pct         = $combined_hours > 0 ? round( ( $overtime_hours / $combined_hours ) * 100, 1 ) : 0.0;
 
 		$trend = $this->hours_trend( $client_id, $date_from, $date_to );
 		$recent = $this->recent_timesheets( $client_id, $date_from, $date_to, 10 );
@@ -225,12 +244,16 @@ final class ClientAnalyticsService {
 		$data = array(
 			'client'     => $client->to_array(),
 			'summary'    => array(
-				'total_hours'     => round( (float) ( $summary->total_hours ?? 0 ), 2 ),
-				'regular_hours'   => round( (float) ( $summary->regular_hours ?? 0 ), 2 ),
-				'overtime_hours'  => round( (float) ( $summary->overtime_hours ?? 0 ), 2 ),
-				'employee_count'  => (int) ( $summary->employee_count ?? 0 ),
-				'last_activity'   => $summary->last_activity ?? null,
-				'labor_cost_egp'  => $include_cost ? round( $total_labor, 2 ) : null,
+				'total_hours'          => $combined_hours,
+				'regular_hours'        => $regular_hours,
+				'overtime_hours'       => $overtime_hours,
+				'combined_hours'       => $combined_hours,
+				'compensation_hours'   => $comp_hours,
+				'overtime_percentage'  => $ot_pct,
+				'employee_count'       => (int) ( $summary->employee_count ?? 0 ),
+				'last_activity'        => $summary->last_activity ?? null,
+				'labor_cost_egp'       => $include_cost ? round( $total_labor, 2 ) : null,
+				'overtime_cost_egp'    => $include_cost ? round( $total_ot_cost, 2 ) : null,
 			),
 			'employees'  => $employees,
 			'trend'      => $trend,
@@ -296,6 +319,7 @@ final class ClientAnalyticsService {
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT DATE_FORMAT(entry_date, '%%Y-%%m') AS period,
+					SUM(regular_hours) AS regular_hours,
 					SUM(regular_hours + overtime_hours) AS total_hours,
 					SUM(overtime_hours) AS overtime_hours
 				FROM {$table}
@@ -310,9 +334,10 @@ final class ClientAnalyticsService {
 
 		return array_map(
 			fn( $row ) => array(
-				'period'         => $row->period,
-				'total_hours'    => round( (float) $row->total_hours, 2 ),
-				'overtime_hours' => round( (float) $row->overtime_hours, 2 ),
+				'period'          => $row->period,
+				'total_hours'     => round( (float) $row->total_hours, 2 ),
+				'regular_hours'   => round( (float) $row->regular_hours, 2 ),
+				'overtime_hours'  => round( (float) $row->overtime_hours, 2 ),
 			),
 			$rows ?: array()
 		);

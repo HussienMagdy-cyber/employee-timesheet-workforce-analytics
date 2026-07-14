@@ -92,6 +92,60 @@ final class AuthHelper {
 		return self::is_auth_page( 'set-password' );
 	}
 
+	/** @return string[] */
+	public static function protected_shortcodes(): array {
+		return array(
+			'etwa_portal',
+			'etwa_timesheet',
+			'etwa_hr',
+			'etwa_analytics',
+			'etwa_clients',
+			'etwa_employees',
+			'etwa_client_analytics',
+			'etwa_holidays',
+			'etwa_vacations',
+			'etwa_my_vacation',
+			'etwa_requests',
+			'etwa_requests_hr',
+		);
+	}
+
+	public static function is_protected_page(): bool {
+		if ( ! is_singular( 'page' ) ) {
+			return false;
+		}
+
+		if ( self::is_login_page() || self::is_set_password_page() ) {
+			return false;
+		}
+
+		$post = get_queried_object();
+		if ( ! $post instanceof \WP_Post ) {
+			return false;
+		}
+
+		foreach ( self::protected_shortcodes() as $shortcode ) {
+			if ( has_shortcode( $post->post_content, $shortcode ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public static function current_request_url(): string {
+		$path = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( (string) $_SERVER['REQUEST_URI'] ) : '/';
+		$url  = home_url( $path );
+
+		return wp_validate_redirect( $url, home_url( '/' ) ) ?: home_url( '/' );
+	}
+
+	public static function redirect_to_login( ?string $redirect_to = null ): never {
+		$target = self::login_url( $redirect_to ?? self::current_request_url() );
+		wp_safe_redirect( $target );
+		exit;
+	}
+
 	public static function is_auth_page( string $key ): bool {
 		if ( ! is_singular( 'page' ) ) {
 			return false;

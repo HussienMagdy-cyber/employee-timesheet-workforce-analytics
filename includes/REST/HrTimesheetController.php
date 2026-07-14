@@ -139,11 +139,14 @@ final class HrTimesheetController extends RestController {
 	}
 
 	public function time_slots() {
-		$calc = new TimeCalculator();
+		$calc     = new TimeCalculator();
+		$defaults = $calc->get_default_entry_times();
 		return $this->success(
 			array(
-				'slots'        => $calc->get_time_slots(),
-				'slot_options' => $calc->get_time_slot_options(),
+				'slots'          => $calc->get_time_slots(),
+				'slot_options'   => $calc->get_time_slot_options(),
+				'default_start'  => $defaults['start'],
+				'default_end'    => $defaults['end'],
 			)
 		);
 	}
@@ -158,6 +161,7 @@ final class HrTimesheetController extends RestController {
 			'client_id'    => $this->get_int_param( $request, 'client_id' ),
 			'task'         => $this->get_string_param( $request, 'task' ),
 			'notes'        => $this->get_string_param( $request, 'notes' ),
+			'entry_type'   => $this->get_string_param( $request, 'entry_type' ),
 		);
 
 		return $payload;

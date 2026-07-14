@@ -12,6 +12,7 @@ namespace ETWA\Cron;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Services\EmailService;
+use ETWA\Services\MailService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -53,6 +54,8 @@ final class CronJobs {
 			)
 		);
 
+		$mail = new MailService();
+
 		foreach ( $users as $user ) {
 			if ( ! user_can( (int) $user->ID, RoleManager::CAP_SUBMIT ) ) {
 				continue;
@@ -61,14 +64,20 @@ final class CronJobs {
 				continue;
 			}
 
-			wp_mail(
-				$user->user_email,
-				__( 'Timesheet Reminder', 'etwa' ),
-				sprintf(
-					/* translators: 1: period start, 2: period end */
-					__( 'Reminder: please complete your timesheet for %1$s – %2$s.', 'etwa' ),
-					$week['period_start'],
-					$week['period_end']
+			$mail->send(
+				array(
+					'to'               => $user->user_email,
+					'subject'          => __( 'Timesheet Reminder', 'etwa' ),
+					'content'          => sprintf(
+						/* translators: 1: period start, 2: period end */
+						__( 'Reminder: please complete your timesheet for %1$s – %2$s.', 'etwa' ),
+						$week['period_start'],
+						$week['period_end']
+					),
+					'recipient_user_id'=> (int) $user->ID,
+					'placeholders'     => array(
+						'request_type' => __( 'Timesheet Reminder', 'etwa' ),
+					),
 				)
 			);
 		}

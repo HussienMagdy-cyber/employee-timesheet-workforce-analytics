@@ -23,7 +23,12 @@ final class HrDashboardData {
 		$repo = new TimesheetRepository();
 
 		return array(
-			'employees' => get_users( array( 'role__in' => RoleManager::workforce_role_slugs() ) ),
+			'employees' => array_values(
+				array_filter(
+					get_users( array( 'role__in' => RoleManager::workforce_role_slugs() ) ),
+					static fn( \WP_User $user ): bool => EmployeeProfileHelper::is_active( (int) $user->ID )
+				)
+			),
 			'counts'    => array(
 				'pending'  => $repo->count_by_filters( array( 'status' => 'submitted' ) ),
 				'approved' => $repo->count_by_filters( array( 'status' => 'approved' ) ),
