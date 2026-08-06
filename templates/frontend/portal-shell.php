@@ -6,8 +6,10 @@
  * @var string           $current_view
  * @var string           $portal_url
  * @var array<int,array> $nav_items
+ * @var array<int,array{id:string,label:string,icon:string,items:array<int,array>}> $nav_groups
  * @var string           $page_title
  * @var string           $page_subtitle
+ * @var string           $page_detail_title
  *
  * @package ETWA
  */
@@ -26,14 +28,19 @@ $role_label  = PortalNav::role_label_for_user( (int) $user->ID );
 $initials    = strtoupper( mb_substr( $user->display_name, 0, 1 ) );
 $logout_url  = wp_logout_url( add_query_arg( 'etwa_auth', 'logged_out', AuthHelper::login_url() ) );
 $brand_name  = BrandHelper::name();
-$brand_mark  = strtoupper( mb_substr( $brand_name, 0, 1 ) );
+$brand_mark  = BrandHelper::mark_letter();
+$brand_icon  = BrandHelper::icon_url( 64 );
 ?>
 <div class="etwa-portal-layout etwa-app<?php echo ! empty( $dark_mode ) ? ' etwa-dark' : ''; ?>" id="etwa-portal-root" data-ajax-url="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>" data-ajax-nonce="<?php echo esc_attr( wp_create_nonce( 'etwa_ajax' ) ); ?>">
 	<div class="etwa-portal-overlay" id="etwa-portal-overlay" hidden aria-hidden="true"></div>
 
 	<aside class="etwa-portal-sidebar" id="etwa-portal-sidebar" aria-label="<?php esc_attr_e( 'Portal navigation', 'etwa' ); ?>">
 		<div class="etwa-portal-brand">
-			<span class="etwa-portal-brand-mark" aria-hidden="true"><?php echo esc_html( $brand_mark ); ?></span>
+			<?php if ( $brand_icon !== '' ) : ?>
+				<img class="etwa-portal-brand-mark etwa-portal-brand-mark--icon" src="<?php echo esc_url( $brand_icon ); ?>" alt="" width="36" height="36" />
+			<?php else : ?>
+				<span class="etwa-portal-brand-mark" aria-hidden="true"><?php echo esc_html( $brand_mark ); ?></span>
+			<?php endif; ?>
 			<div class="etwa-portal-brand-text">
 				<strong><?php echo esc_html( $brand_name ); ?></strong>
 				<span><?php esc_html_e( 'Workforce', 'etwa' ); ?></span>
@@ -41,18 +48,39 @@ $brand_mark  = strtoupper( mb_substr( $brand_name, 0, 1 ) );
 		</div>
 
 		<nav class="etwa-portal-nav" aria-label="<?php esc_attr_e( 'Main', 'etwa' ); ?>">
-			<ul>
-				<?php foreach ( $nav_items as $item ) : ?>
-					<li>
-						<a
-							class="etwa-portal-nav-link<?php echo $current_view === $item['id'] ? ' is-active' : ''; ?>"
-							href="<?php echo esc_url( PortalNav::view_url( $portal_url, $item['id'] ) ); ?>"
-							<?php echo $current_view === $item['id'] ? 'aria-current="page"' : ''; ?>
+			<ul class="etwa-portal-nav-groups">
+				<?php foreach ( ( $nav_groups ?? array() ) as $group ) : ?>
+					<?php
+					$group_item_ids = array_column( $group['items'], 'id' );
+					$group_active   = in_array( $current_view, $group_item_ids, true );
+					$panel_id       = 'etwa-nav-group-' . sanitize_html_class( $group['id'] );
+					?>
+					<li class="etwa-portal-nav-group<?php echo $group_active ? ' is-open has-active' : ''; ?>">
+						<button
+							type="button"
+							class="etwa-portal-nav-group-toggle"
+							aria-expanded="<?php echo $group_active ? 'true' : 'false'; ?>"
+							aria-controls="<?php echo esc_attr( $panel_id ); ?>"
 						>
-							<span class="dashicons <?php echo esc_attr( $item['icon'] ); ?>" aria-hidden="true"></span>
-							<span class="etwa-portal-nav-label"><?php echo esc_html( $item['label'] ); ?></span>
-							<span class="etwa-badge etwa-portal-nav-badge" data-nav-badge="<?php echo esc_attr( $item['id'] ); ?>" hidden></span>
-						</a>
+							<span class="dashicons <?php echo esc_attr( $group['icon'] ); ?>" aria-hidden="true"></span>
+							<span class="etwa-portal-nav-group-label"><?php echo esc_html( $group['label'] ); ?></span>
+							<span class="dashicons dashicons-arrow-down-alt2 etwa-portal-nav-chevron" aria-hidden="true"></span>
+						</button>
+						<ul class="etwa-portal-nav-group-items" id="<?php echo esc_attr( $panel_id ); ?>"<?php echo $group_active ? '' : ' hidden'; ?>>
+							<?php foreach ( $group['items'] as $item ) : ?>
+								<li>
+									<a
+										class="etwa-portal-nav-link<?php echo $current_view === $item['id'] ? ' is-active' : ''; ?>"
+										href="<?php echo esc_url( PortalNav::view_url( $portal_url, $item['id'] ) ); ?>"
+										<?php echo $current_view === $item['id'] ? 'aria-current="page"' : ''; ?>
+									>
+										<span class="dashicons <?php echo esc_attr( $item['icon'] ); ?>" aria-hidden="true"></span>
+										<span class="etwa-portal-nav-label"><?php echo esc_html( $item['label'] ); ?></span>
+										<span class="etwa-badge etwa-portal-nav-badge" data-nav-badge="<?php echo esc_attr( $item['id'] ); ?>" hidden></span>
+									</a>
+								</li>
+							<?php endforeach; ?>
+						</ul>
 					</li>
 				<?php endforeach; ?>
 			</ul>
@@ -95,6 +123,9 @@ $brand_mark  = strtoupper( mb_substr( $brand_name, 0, 1 ) );
 
 		<div class="etwa-portal-page-head">
 			<h1 class="etwa-portal-page-title"><?php echo esc_html( $page_title ?? '' ); ?></h1>
+			<?php if ( ! empty( $page_detail_title ) ) : ?>
+				<p class="etwa-portal-page-detail-title"><?php echo esc_html( $page_detail_title ); ?></p>
+			<?php endif; ?>
 			<?php if ( ! empty( $page_subtitle ) ) : ?>
 				<p class="etwa-portal-page-subtitle"><?php echo esc_html( $page_subtitle ); ?></p>
 			<?php endif; ?>

@@ -103,6 +103,16 @@ Submit timesheet for approval.
 
 ---
 
+### POST `/timesheets/{id}/save-draft`
+
+Save a draft snapshot of the current week's entries for HR review without submitting. Clears on submit.
+
+**Capability:** `etwa_edit_own_timesheet`
+
+**Response:** Updated timesheet object including `draft_saved_at` and snapshot metadata.
+
+---
+
 ### POST `/timesheets/copy-previous`
 
 Copy entries from the work week **immediately before** a target week into that target week. Entry dates are mapped day-for-day (Sun→Sun, Mon→Mon, etc.) using the same calendar grid as the timesheet UI.
@@ -152,9 +162,14 @@ Create time entry.
   "end_time": "18:00",
   "client_id": 1,
   "task": "Website",
-  "notes": ""
+  "notes": "",
+  "entry_type": "regular"
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| entry_type | `regular` (default), `overtime`, or `compensation`. Required for entries at or after 18:00. |
 
 **Capability:** `etwa_edit_own_timesheet`
 
@@ -242,7 +257,7 @@ Owner analytics (all dashboard data + departments + insights).
 
 ## Export
 
-### POST `/export/excel`
+### POST `/export/excel` (legacy workforce export)
 
 ```json
 { "date_from": "2026-07-01", "date_to": "2026-07-31", "user_id": null }
@@ -256,9 +271,88 @@ Returns file URL with 5 sheets: Raw Timesheet, Client Analytics, Employee Summar
 
 ### POST `/export/email`
 
-Same body as Excel export. Sends TO HR, CC Owner.
+Same body as Excel export. Sends TO HR, CC Owner (when `email_cc_owner` is enabled). Uses branded HTML wrapper via `MailService` with Excel attachment.
 
 **Capability:** `etwa_email_reports`
+
+---
+
+## Reports (centralized)
+
+Role-based Excel reports and the interactive **All Clients Comparison** dashboard. Uses shared date-range presets via `DateRangeHelper`.
+
+**Base capability:** `etwa_export_reports`
+
+| Report type slug | Who can export | Description |
+|------------------|----------------|-------------|
+| `employee_timesheet` | HR / Owner | Entry-level detail for one employee |
+| `client` | HR / Owner (`etwa_view_analytics`) | Client activity and period totals |
+| `client_labor_cost` | Labor-cost viewers + analytics | Employee hours and labor cost by client |
+| `employee_hours_by_client` | HR / Owner | Hours distribution across clients |
+| `all_clients_comparison` | HR / Owner (`etwa_view_analytics`) | Side-by-side client comparison (also available as live UI) |
+
+### GET `/reports/filters`
+
+Dropdown options for report modals: employees, clients (excludes Break), departments, date presets, `can_view_labor_cost`.
+
+**Capability:** `etwa_export_reports`
+
+---
+
+### GET `/reports/all-clients-comparison`
+
+Interactive comparison data for the Reports portal tab.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| preset | string | `this_week`, `this_month`, `last_month`, `last_3_months`, `last_6_months`, `this_year`, `custom` |
+| date_from | string | Y-m-d (required when preset is `custom`) |
+| date_to | string | Y-m-d |
+| department_id | int | Optional department filter |
+| user_id | int | Optional employee filter |
+
+**Response:** Client rows with regular/OT/combined hours, employee counts, labor cost (when permitted), chart-ready aggregates.
+
+**Capability:** `etwa_export_reports` + `etwa_view_analytics`
+
+---
+
+### POST `/reports/export/{type}`
+
+Generate an Excel file for the given report type.
+
+**Body (JSON):**
+
+```json
+{
+  "preset": "this_month",
+  "date_from": "2026-07-01",
+  "date_to": "2026-07-31",
+  "user_id": 5,
+  "client_id": 2,
+  "department_id": 1
+}
+```
+
+| Param | Required for |
+|-------|--------------|
+| user_id | `employee_timesheet` (required), `employee_hours_by_client`, `all_clients_comparison` (optional) |
+| client_id | `client`, `client_labor_cost` (required); optional filter on other types |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "file_path": "/path/to/file.xlsx",
+    "file_url": "https://example.com/wp-content/uploads/...",
+    "filename": "etwa-report-....xlsx"
+  }
+}
+```
+
+**Capability:** Varies by type (see table above). Requires PhpSpreadsheet via Composer.
 
 ---
 
@@ -347,6 +441,25 @@ Create employee and send password setup email.
 ### GET `/employees/me/profile`
 
 Current user's profile.
+
+**Capability:** logged in
+
+---
+
+### PUT `/employees/me/profile`
+
+Employee self-service update.
+
+```json
+{
+  "display_name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": "+20 100 000 0000",
+  "birthday": "1990-05-20"
+}
+```
+
+Employees cannot change role, job title, or join date via this endpoint.
 
 **Capability:** logged in
 
@@ -698,6 +811,36 @@ Mark all vacation notifications as read (clears stored meta).
 
 ---
 
+## Portal
+
+### GET `/portal/nav-badges`
+
+Pending request/review counts for portal sidebar badges.
+
+**Capability:** logged in
+
+---
+
+### GET `/portal/session`
+
+Refresh REST and AJAX nonces for long-lived portal sessions (used by `etwa-api.js`).
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "nonce": "...",
+    "ajaxNonce": "..."
+  }
+}
+```
+
+**Capability:** logged in
+
+---
+
 ## AJAX Actions (admin-ajax.php)
 
 | Action | Description |
@@ -705,6 +848,8 @@ Mark all vacation notifications as read (clears stored meta).
 | `etwa_autosave_entry` | Autosave entry draft |
 | `etwa_save_settings` | Save owner settings |
 | `etwa_toggle_dark_mode` | Toggle user dark mode preference (`etwa_dark_mode` user meta); returns `{ dark_mode: boolean }` |
+| `etwa_email_preview` | Render branded HTML email preview from posted settings (Email Settings page) |
+| `etwa_send_test_email` | Send test branded email to `recipient_email` (Email Settings page) |
 
 ---
 

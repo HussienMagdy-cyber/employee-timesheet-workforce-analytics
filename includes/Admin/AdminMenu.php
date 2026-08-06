@@ -19,6 +19,7 @@ use ETWA\Admin\Pages\EmployeesPage;
 use ETWA\Admin\Pages\HolidaysPage;
 use ETWA\Admin\Pages\HRDashboard;
 use ETWA\Admin\Pages\OwnerAnalytics;
+use ETWA\Admin\Pages\ReportsPage;
 use ETWA\Admin\Pages\RequestsPage;
 use ETWA\Admin\Pages\SettingsPage;
 use ETWA\Admin\Pages\VacationPage;
@@ -132,6 +133,15 @@ final class AdminMenu {
 
 		add_submenu_page(
 			'etwa-dashboard',
+			__( 'Reports & Exports', 'etwa' ),
+			__( 'Reports & Exports', 'etwa' ),
+			RoleManager::CAP_EXPORT,
+			'etwa-reports',
+			array( new ReportsPage(), 'render' )
+		);
+
+		add_submenu_page(
+			'etwa-dashboard',
 			__( 'Owner Analytics', 'etwa' ),
 			__( 'Owner Analytics', 'etwa' ),
 			RoleManager::CAP_ADV_ANALYTICS,
@@ -216,6 +226,8 @@ final class AdminMenu {
 			$script = 'vacation-manager';
 		} elseif ( str_contains( $hook, 'etwa-client-analytics' ) ) {
 			$script = 'client-analytics';
+		} elseif ( str_contains( $hook, 'etwa-reports' ) ) {
+			$script = 'reports-exports';
 		} elseif ( str_contains( $hook, 'etwa-analytics' ) ) {
 			$script = 'owner-analytics';
 		} elseif ( str_contains( $hook, 'etwa-email-settings' ) ) {

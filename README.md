@@ -23,8 +23,13 @@
 - Analytics cache refreshes automatically when entries are saved
 
 ### Email & branding
-- **Settings → Email** — configurable HTML signature, appreciation text, and closing line
-- Signature is appended to outgoing plugin emails (password setup, notifications, etc.)
+- **Settings → Email** — branded HTML wrapper (greeting, body slot, signature footer)
+- Configurable appreciation line, closing text, logo, and signature rows
+- Live preview and test send in admin
+- Applied to workflow notifications (timesheets, leave, requests, reports, reminders)
+- Password setup/reset emails remain **plain text** via WordPress core (separate from branded template)
+
+See [docs/SYSTEM-DOCUMENTATION.md — Email system](docs/SYSTEM-DOCUMENTATION.md#email-system) for full details.
 
 ### UX & naming
 - **All Clients** client renamed to **Moderation** (requires detailed notes on each entry)
@@ -36,11 +41,29 @@
 - Database migrations (`1.13.0`–`1.17.0`) repair legacy OT/comp hour splits and prevent double-counting
 - Hard refresh after upgrade if timesheet JS looks stale (`employee-dashboard.js?ver=1.1.3`)
 
+### Reports & Exports
+- New **Reports & Exports** portal tab and WP admin page for HR/Owner
+- Five Excel report types with shared date-range presets (This Week, This Month, Last 3 Months, etc.)
+- **All Clients Comparison** — live dashboard with charts, department/employee filters, and Excel export
+- Centralized calculations via `ReportingService` (same numbers as exports)
+- Shared frontend utilities: `etwa-api.js` (nonce refresh), `etwa-date-range.js` (export modals)
+
 ---
 
 ## Quick start
 
 ### 1. Install
+
+**Windows + Local WP** (regular PowerShell — `php` is not on PATH):
+
+```powershell
+cd wp-content/plugins/employee-timesheet-workforce-analytics
+powershell -ExecutionPolicy Bypass -File scripts/install-composer-deps.ps1
+```
+
+Or double-click `scripts/install-composer-deps.bat`.
+
+**Local Site Shell** (if `composer` is available there):
 
 ```bash
 cd wp-content/plugins/employee-timesheet-workforce-analytics
@@ -114,7 +137,7 @@ See [Authentication](docs/SYSTEM-DOCUMENTATION.md#authentication) in the system 
 | Client Analytics | — | — | ✓ | ✓ |
 | Owner Analytics | — | — | ✓ | ✓ |
 | Clients & Settings | — | — | — | ✓ |
-| Export / Audit logs | — | — | ✓ | ✓ |
+| Export / Reports / Audit logs | — | — | ✓ | ✓ |
 
 \*Requires assignment as department head on a department.
 
@@ -133,6 +156,7 @@ See [Authentication](docs/SYSTEM-DOCUMENTATION.md#authentication) in the system 
 | Requests | ✓ | ✓ | | |
 | Department Dashboard | | ✓* | | |
 | HR Dashboard | | | ✓ | ✓ |
+| Reports & Exports | | | ✓ | ✓ |
 | Client Analytics | | | ✓ | ✓ |
 | Employees | | | ✓ | ✓ |
 | Departments | | | ✓ | ✓ |
@@ -184,6 +208,7 @@ Use standalone shortcodes if not using the unified portal:
 | `[etwa_requests]` | Employee |
 | `[etwa_requests_hr]` | HR / Dept Head |
 | `[etwa_hr]` | HR / Owner |
+| `[etwa_reports]` | HR / Owner |
 | `[etwa_vacations]` | HR / Owner |
 | `[etwa_employees]` | HR / Owner |
 | `[etwa_analytics]` | Owner |
@@ -217,6 +242,24 @@ Single **annual leave pool** per employee. HR sets entitlement; approved leave (
 **HR:** Portal → **Vacations** → allocations, approvals, calendar, analytics.
 
 Dual approval (department + HR) when enabled in settings.
+
+---
+
+## Reports & Exports (HR / Owner)
+
+Portal → **Reports & Exports** or WP Admin → **Reports & Exports**.
+
+| Report | Description |
+|--------|-------------|
+| Employee Timesheet | Entry-level detail for one employee in a date range |
+| Client Report | All activity for a selected client |
+| Client Labor Cost | Hours and EGP labor cost by employee for a client |
+| Employee Hours by Client | How each employee's hours split across clients |
+| All Clients Comparison | Side-by-side client KPIs with live charts and Excel export |
+
+Date presets: This Week, This Month, Last Month, Last 3/6 Months, This Year, Custom Range.
+
+See [REST API — Reports](docs/REST-API.md#reports-centralized) for endpoint details.
 
 ---
 
@@ -271,6 +314,10 @@ Notable timesheet endpoints:
 |--------|------|---------|
 | POST | `/timesheets/{id}/save-draft` | Employee saves draft snapshot for HR review |
 | POST | `/timesheets/{id}/submit` | Employee submits week for approval |
+| GET | `/reports/filters` | Report dropdown options and date presets |
+| POST | `/reports/export/{type}` | Generate Excel report |
+| GET | `/reports/all-clients-comparison` | Live client comparison data |
+| GET | `/portal/session` | Refresh REST/AJAX nonces |
 
 ---
 
@@ -308,6 +355,7 @@ Patterns: OOP, Service Layer, Repository. Storage: custom MySQL tables + user me
 |------|-----|
 | My Timesheet | Employee |
 | HR Dashboard | HR, Owner |
+| Reports & Exports | HR, Owner |
 | Vacations | HR, Owner |
 | Client Analytics | HR, Owner |
 | Owner Analytics | Owner |

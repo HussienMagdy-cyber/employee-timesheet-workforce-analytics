@@ -72,6 +72,15 @@ body.etwa-auth-page .etwa-auth-page-main {
 	flex-shrink: 0 !important;
 }
 
+.etwa-auth-brand-mark--icon {
+	display: block !important;
+	object-fit: contain !important;
+	background: transparent !important;
+	color: inherit !important;
+	font-weight: inherit !important;
+	font-size: inherit !important;
+}
+
 .etwa-auth-brand-text {
 	display: flex !important;
 	flex-direction: column !important;
@@ -117,7 +126,8 @@ body.etwa-auth-page .etwa-auth-page-main {
 }
 
 .etwa-auth-form input[type='email'],
-.etwa-auth-form input[type='password'] {
+.etwa-auth-form input[type='password'],
+.etwa-auth-password-field input {
 	width: 100% !important;
 	padding: 10px 12px !important;
 	border: 1px solid var(--etwa-border, #cbd5e1) !important;
@@ -126,6 +136,42 @@ body.etwa-auth-page .etwa-auth-page-main {
 	box-sizing: border-box !important;
 	background: #fff !important;
 	color: var(--etwa-text, #0f172a) !important;
+}
+
+.etwa-auth-password-field {
+	position: relative !important;
+	display: block !important;
+}
+
+.etwa-auth-password-field input {
+	padding-right: 4.5rem !important;
+}
+
+.etwa-auth-password-toggle {
+	position: absolute !important;
+	top: 50% !important;
+	right: 8px !important;
+	transform: translateY(-50%) !important;
+	margin: 0 !important;
+	padding: 4px 8px !important;
+	border: 0 !important;
+	border-radius: 6px !important;
+	background: transparent !important;
+	color: var(--etwa-text-muted, #64748b) !important;
+	font-size: 0.8rem !important;
+	font-weight: 600 !important;
+	line-height: 1.2 !important;
+	cursor: pointer !important;
+}
+
+.etwa-auth-password-toggle:hover,
+.etwa-auth-password-toggle:focus-visible {
+	color: var(--etwa-text, #0f172a) !important;
+	outline: none !important;
+}
+
+.etwa-auth-password-toggle:focus-visible {
+	box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.35) !important;
 }
 
 .etwa-auth-form label.etwa-auth-remember {

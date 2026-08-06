@@ -26,7 +26,17 @@ use ETWA\Helpers\AuthHelper;
 	</label>
 	<label>
 		<?php esc_html_e( 'Password', 'etwa' ); ?>
-		<input type="password" id="etwa-login-password" name="password" required autocomplete="current-password" />
+		<span class="etwa-auth-password-field">
+			<input type="password" id="etwa-login-password" name="password" required autocomplete="current-password" />
+			<button
+				type="button"
+				class="etwa-auth-password-toggle"
+				aria-controls="etwa-login-password"
+				aria-pressed="false"
+				data-label-show="<?php echo esc_attr__( 'Show password', 'etwa' ); ?>"
+				data-label-hide="<?php echo esc_attr__( 'Hide password', 'etwa' ); ?>"
+			><?php esc_html_e( 'Show', 'etwa' ); ?></button>
+		</span>
 	</label>
 	<label class="etwa-auth-remember">
 		<input type="checkbox" id="etwa-login-remember" name="remember" value="1" />

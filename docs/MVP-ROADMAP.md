@@ -52,6 +52,55 @@
 
 ---
 
+## Phase 2c — Reports & Exports (Complete in this repo)
+
+**Goal:** Centralized reporting with shared date ranges and Excel exports
+
+- [x] `ReportingService` — unified query/calculation layer for all report types
+- [x] `ReportExportService` — PhpSpreadsheet Excel generation per report
+- [x] Reports REST API (`/reports/filters`, `/reports/export/{type}`, `/reports/all-clients-comparison`)
+- [x] Portal tab + WP admin page **Reports & Exports**
+- [x] Shared JS utilities (`etwa-api.js`, `etwa-date-range.js`, `reports-exports.js`)
+- [x] Five report types: Employee Timesheet, Client, Client Labor Cost, Employee Hours by Client, All Clients Comparison
+- [x] Live All Clients Comparison dashboard with Chart.js, department/employee filters, sortable table
+- [x] Role-gated labor cost and analytics visibility
+
+**Deploy:** Run `composer install`, open Portal → Reports & Exports or WP Admin → Reports & Exports.
+
+---
+
+## Phase 2d — Timesheet entry types & draft workflow (Complete in this repo)
+
+**Goal:** After-hours OT/compensation tracking and HR draft visibility
+
+- [x] `entry_type` column (`regular`, `overtime`, `compensation`) with migrations through schema 1.17.0
+- [x] After-hours entry type picker in employee dashboard
+- [x] Save Draft snapshot (`draft_saved_at`, `draft_snapshot`) for HR review before submit
+- [x] Moderation client rename with required detailed notes
+- [x] Client Analytics Regular / OT / Combined / Compensation KPIs
+- [x] Overtime cost multiplier default 1×
+
+**Deploy:** Activate or re-save plugin to run migrations; hard-refresh timesheet JS after upgrade.
+
+---
+
+## Phase 2e — Branded email notifications (Complete in this repo)
+
+**Goal:** Consistent HTML email wrapper for all workforce notifications
+
+- [x] `MailService` — centralized HTML layout, placeholder replacement, `wp_mail()` delivery
+- [x] `EmailSettingsRepository` — template defaults in `etwa_email_settings` option
+- [x] Email Settings admin page — greeting, body slot, signature rows, logo, live preview, test send
+- [x] `NotificationService` — hook-driven emails for timesheets, overtime, leave, requests
+- [x] Branded report and reminder emails via `EmailService` and `CronJobs`
+- [x] Plain-text password reset kept separate (WordPress `retrieve_password()` + `AuthHelper` filters)
+
+**Deploy:** Configure **Timesheets → Email Settings**; set `hr_email` under **Settings** for HR notifications.
+
+See [SYSTEM-DOCUMENTATION.md — Email system](SYSTEM-DOCUMENTATION.md#email-system).
+
+---
+
 ## Phase 3 — Owner Analytics (Complete in this repo)
 
 **Goal:** Executive visibility
@@ -94,7 +143,7 @@
 - [ ] Bulk entry import from legacy Excel
 - [ ] Mobile-optimized entry form
 - [ ] In-app notification center (not just email)
-- [ ] Previous reports browser with date picker
+- [x] Previous reports browser with date picker (Reports & Exports tab)
 - [ ] Department/team filters on HR dashboard
 - [ ] Additional theme palettes beyond light / OLED dark
 

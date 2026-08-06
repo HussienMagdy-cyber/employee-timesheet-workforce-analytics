@@ -8,21 +8,7 @@
 		return;
 	}
 
-	const api = (path, options = {}) => {
-		options.credentials = 'same-origin';
-		options.headers = Object.assign(
-			{ 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' },
-			options.headers || {}
-		);
-		return fetch(cfg.root + path, options).then(async (response) => {
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok && !data.message) {
-				data.message = cfg.i18n?.error || 'Something went wrong.';
-				data.success = false;
-			}
-			return data;
-		});
-	};
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	let page = 1;
 	let searchTimer = null;
@@ -418,6 +404,29 @@
 		$('#etwa-employees-pagination').on('click', 'button[data-page]', function () {
 			page = parseInt($(this).data('page'), 10) || 1;
 			loadEmployees();
+		});
+
+		$('#etwa-export-timesheet').on('click', function () {
+			if (!cfg.canExport || !window.etwaDateRange) return;
+
+			const preselectedEmployee = getEmployeeIdFromUrl();
+			window.etwaDateRange.loadFilters().then((filters) => {
+				window.etwaDateRange
+					.promptDateRangeExport({
+						title: cfg.i18n?.exportTimesheet || 'Export Timesheet',
+						employee_id: preselectedEmployee || undefined,
+						fields: {
+							employee: { required: true },
+							client: { required: false },
+						},
+						filters,
+					})
+					.then((params) => {
+						if (!params) return;
+						return window.etwaDateRange.exportReport('employee_timesheet', params, document.getElementById('etwa-export-timesheet'));
+					})
+					.catch((err) => ui.error(err.message));
+			});
 		});
 	});
 })(jQuery);

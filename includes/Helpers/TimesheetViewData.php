@@ -32,7 +32,7 @@ final class TimesheetViewData {
 		}
 		$week           = $ref_date ? DateHelper::get_work_week_for_date( $ref_date ) : DateHelper::get_current_work_week();
 		$calendar_dates = CalendarHelper::get_calendar_dates( $week['period_start'] );
-		$day_meta       = CalendarHelper::build_day_meta( $calendar_dates );
+		$day_meta       = CalendarHelper::build_day_meta( $calendar_dates, $user_id );
 
 		$entries_by_day = array();
 		$day_totals     = array();

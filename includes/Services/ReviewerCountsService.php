@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace ETWA\Services;
 
+use ETWA\Frontend\PortalNav;
 use ETWA\Helpers\DepartmentHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Repositories\RequestRepository;
@@ -38,7 +39,19 @@ final class ReviewerCountsService {
 		}
 
 		if ( $this->request_service->can_review( $viewer_id ) ) {
-			$badges['requests-hr'] = $this->reviewer_pending_total( $viewer_id );
+			$counts = $this->request_service->pending_counts( $viewer_id );
+			$vac    = $this->scoped_vacation_pending( $viewer_id );
+
+			$badges[ PortalNav::hr_request_view_id( 'vacation' ) ]     = $vac;
+			$badges[ PortalNav::hr_request_view_id( 'wfh' ) ]          = (int) ( $counts['wfh'] ?? 0 );
+			$badges[ PortalNav::hr_request_view_id( 'permission' ) ]   = (int) ( $counts['permission'] ?? 0 );
+			$badges[ PortalNav::hr_request_view_id( 'holiday_work' ) ] = (int) ( $counts['holiday_work'] ?? 0 );
+
+			// Legacy aggregate key (dept dashboard / older links).
+			$badges['requests-hr'] = $vac
+				+ (int) ( $counts['wfh'] ?? 0 )
+				+ (int) ( $counts['permission'] ?? 0 )
+				+ (int) ( $counts['holiday_work'] ?? 0 );
 		}
 
 		if ( ( new DepartmentService() )->can_view_department_dashboard( $viewer_id ) ) {

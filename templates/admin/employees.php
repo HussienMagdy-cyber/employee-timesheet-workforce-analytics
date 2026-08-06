@@ -28,11 +28,17 @@ $can_view_labor_cost = EmployeeCostHelper::can_view_labor_cost( $viewer_id );
 				<p class="etwa-subtitle"><?php esc_html_e( 'Create employees, view profiles, and manage departments.', 'etwa' ); ?></p>
 			</div>
 			<div class="etwa-hero-actions">
+				<?php if ( current_user_can( \ETWA\Helpers\RoleManager::CAP_EXPORT ) ) : ?>
+					<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-export-timesheet"><?php esc_html_e( 'Export Timesheet', 'etwa' ); ?></button>
+				<?php endif; ?>
 				<button type="button" class="etwa-btn etwa-btn-primary" id="etwa-add-employee"><?php esc_html_e( 'Add Employee', 'etwa' ); ?></button>
 			</div>
 		</div>
 	<?php else : ?>
 		<div class="etwa-toolbar">
+			<?php if ( current_user_can( \ETWA\Helpers\RoleManager::CAP_EXPORT ) ) : ?>
+				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-export-timesheet"><?php esc_html_e( 'Export Timesheet', 'etwa' ); ?></button>
+			<?php endif; ?>
 			<button type="button" class="etwa-btn etwa-btn-primary" id="etwa-add-employee"><?php esc_html_e( 'Add Employee', 'etwa' ); ?></button>
 		</div>
 	<?php endif; ?>

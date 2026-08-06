@@ -4,11 +4,7 @@
 	const cfg = window.etwaApp || {};
 	if (!$('#etwa-dept-dashboard-app').length || !cfg.canViewDeptDashboard) return;
 
-	const api = (path) =>
-		fetch(cfg.root + path, {
-			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': cfg.nonce },
-		}).then((r) => r.json());
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	function reviewBaseUrl() {
 		const baseUrl = new URL(window.location.href);

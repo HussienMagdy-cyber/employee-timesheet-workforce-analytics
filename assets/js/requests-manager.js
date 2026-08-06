@@ -14,21 +14,7 @@
 	let permPage = 1;
 	let holidayPage = 1;
 
-	const api = (path, options = {}) => {
-		options.credentials = 'same-origin';
-		options.headers = Object.assign(
-			{ 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' },
-			options.headers || {}
-		);
-		return fetch(cfg.root + path, options).then(async (response) => {
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok && !data.message) {
-				data.message = cfg.i18n?.error || 'Something went wrong.';
-				data.success = false;
-			}
-			return data;
-		});
-	};
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	function updateBadge(selector, count) {
 		const $badge = $(selector);
@@ -59,12 +45,8 @@
 	}
 
 	function refreshNavBadges() {
-		if (!cfg.root || !cfg.nonce) return;
-		fetch(cfg.root + 'portal/nav-badges', {
-			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': cfg.nonce },
-		})
-			.then((response) => response.json())
+		if (!cfg.root || !window.etwaAPI) return;
+		window.etwaAPI.api('portal/nav-badges')
 			.then((payload) => {
 				if (!payload || !payload.success) return;
 				const badges = payload.data || {};
@@ -103,7 +85,7 @@
 	}
 
 	function getActiveTab() {
-		return app.find('[data-request-tab].is-active').data('request-tab') || 'vacation';
+		return app.data('initial-tab') || app.find('[data-request-tab].is-active').data('request-tab') || 'vacation';
 	}
 
 	function getSelectedItems() {

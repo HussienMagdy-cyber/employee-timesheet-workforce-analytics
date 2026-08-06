@@ -17,11 +17,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use ETWA\Frontend\PortalNav;
+use ETWA\Helpers\RoleManager;
 
 $context     = $context ?? ( is_admin() ? 'admin' : 'frontend' );
 $portal_base = $portal_base ?? '';
 $in_portal   = 'frontend' === $context && $portal_base;
 $filter_url  = $in_portal ? PortalNav::view_url( $portal_base, 'analytics' ) : '';
+$can_export  = current_user_can( RoleManager::CAP_EXPORT );
 
 $ot_ratio = $kpis['total_hours'] > 0
 	? min( 100, round( ( $kpis['overtime_hours'] / $kpis['total_hours'] ) * 100, 1 ) )
@@ -48,6 +50,11 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 			<span class="dashicons dashicons-update" aria-hidden="true"></span>
 			<?php esc_html_e( 'Apply range', 'etwa' ); ?>
 		</button>
+		<?php if ( $can_export ) : ?>
+			<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-analytics-export-report">
+				<?php esc_html_e( 'Export Report', 'etwa' ); ?>
+			</button>
+		<?php endif; ?>
 	</form>
 
 	<div class="etwa-analytics-kpi-grid">

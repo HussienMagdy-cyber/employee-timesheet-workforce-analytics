@@ -30,11 +30,31 @@ use ETWA\Helpers\AuthHelper;
 		<input type="hidden" id="etwa-reset-login" value="<?php echo esc_attr( $login ); ?>" />
 		<label>
 			<?php esc_html_e( 'New password', 'etwa' ); ?>
-			<input type="password" id="etwa-reset-password" required autocomplete="new-password" minlength="8" />
+			<span class="etwa-auth-password-field">
+				<input type="password" id="etwa-reset-password" required autocomplete="new-password" minlength="8" />
+				<button
+					type="button"
+					class="etwa-auth-password-toggle"
+					aria-controls="etwa-reset-password"
+					aria-pressed="false"
+					data-label-show="<?php echo esc_attr__( 'Show password', 'etwa' ); ?>"
+					data-label-hide="<?php echo esc_attr__( 'Hide password', 'etwa' ); ?>"
+				><?php esc_html_e( 'Show', 'etwa' ); ?></button>
+			</span>
 		</label>
 		<label>
 			<?php esc_html_e( 'Confirm password', 'etwa' ); ?>
-			<input type="password" id="etwa-reset-password-confirm" required autocomplete="new-password" minlength="8" />
+			<span class="etwa-auth-password-field">
+				<input type="password" id="etwa-reset-password-confirm" required autocomplete="new-password" minlength="8" />
+				<button
+					type="button"
+					class="etwa-auth-password-toggle"
+					aria-controls="etwa-reset-password-confirm"
+					aria-pressed="false"
+					data-label-show="<?php echo esc_attr__( 'Show password', 'etwa' ); ?>"
+					data-label-hide="<?php echo esc_attr__( 'Hide password', 'etwa' ); ?>"
+				><?php esc_html_e( 'Show', 'etwa' ); ?></button>
+			</span>
 		</label>
 		<button type="submit" class="etwa-btn etwa-btn-primary etwa-auth-submit"><?php esc_html_e( 'Set password', 'etwa' ); ?></button>
 	</form>

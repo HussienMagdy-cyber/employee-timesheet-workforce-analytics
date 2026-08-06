@@ -31,6 +31,7 @@ use ETWA\REST\EmployeeController;
 use ETWA\REST\HrTimesheetController;
 use ETWA\REST\TimesheetController;
 use ETWA\REST\PortalController;
+use ETWA\REST\ReportsController;
 use ETWA\REST\RequestController;
 use ETWA\REST\VacationController;
 use ETWA\Helpers\ComposerDependencyHelper;
@@ -93,6 +94,7 @@ final class Plugin {
 		( new HolidayController() )->register_routes();
 		( new HrTimesheetController() )->register_routes();
 		( new VacationController() )->register_routes();
+		( new ReportsController() )->register_routes();
 		( new RequestController() )->register_routes();
 		( new DepartmentController() )->register_routes();
 		( new PortalController() )->register_routes();

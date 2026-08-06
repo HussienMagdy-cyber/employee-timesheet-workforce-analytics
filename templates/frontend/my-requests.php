@@ -9,19 +9,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$initial_tab = isset( $_GET['etwa_request_tab'] ) ? sanitize_key( wp_unslash( (string) $_GET['etwa_request_tab'] ) ) : 'vacation';
+$initial_tab = $initial_tab ?? ( isset( $_GET['etwa_request_tab'] ) ? sanitize_key( wp_unslash( (string) $_GET['etwa_request_tab'] ) ) : 'vacation' );
 if ( ! in_array( $initial_tab, array( 'vacation', 'wfh', 'permission', 'holiday_work' ), true ) ) {
 	$initial_tab = 'vacation';
 }
 ?>
 <div class="etwa-page-shell etwa-app etwa-portal etwa-requests-app" id="etwa-requests-app" data-initial-tab="<?php echo esc_attr( $initial_tab ); ?>">
-	<div class="etwa-requests-tabs" role="tablist">
-		<button type="button" class="etwa-tab<?php echo 'vacation' === $initial_tab ? ' is-active' : ''; ?>" data-request-tab="vacation"><?php esc_html_e( 'Vacation', 'etwa' ); ?></button>
-		<button type="button" class="etwa-tab<?php echo 'wfh' === $initial_tab ? ' is-active' : ''; ?>" data-request-tab="wfh"><?php esc_html_e( 'Work From Home', 'etwa' ); ?></button>
-		<button type="button" class="etwa-tab<?php echo 'permission' === $initial_tab ? ' is-active' : ''; ?>" data-request-tab="permission"><?php esc_html_e( 'Permissions', 'etwa' ); ?></button>
-		<button type="button" class="etwa-tab<?php echo 'holiday_work' === $initial_tab ? ' is-active' : ''; ?>" data-request-tab="holiday_work"><?php esc_html_e( 'Work on Holiday', 'etwa' ); ?></button>
-	</div>
-
 	<section class="etwa-requests-panel<?php echo 'vacation' === $initial_tab ? ' is-active' : ''; ?>" data-request-panel="vacation"<?php echo 'vacation' === $initial_tab ? '' : ' hidden'; ?>>
 		<?php
 		$embedded = true;

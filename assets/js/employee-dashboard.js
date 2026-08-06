@@ -15,21 +15,7 @@
 	const isHrEdit = () => String($('#etwa-employee-app').data('hrEdit')) === '1';
 	const reviewUserId = () => $('#etwa-employee-app').data('reviewUserId');
 
-	const api = (path, options = {}) => {
-		options.credentials = 'same-origin';
-		options.headers = Object.assign(
-			{ 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' },
-			options.headers || {}
-		);
-		return fetch(cfg.root + path, options).then(async (response) => {
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok && !data.message) {
-				data.message = cfg.i18n?.error || 'Something went wrong.';
-				data.success = false;
-			}
-			return data;
-		});
-	};
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	let timeSlots = [];
 	let timeSlotOptions = [];
@@ -76,6 +62,18 @@
 		const parts = String(time).trim().split(':');
 		if (parts.length < 2) return String(time);
 		return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+	}
+
+	function normalizeEntryDate(date) {
+		if (!date) return '';
+		if (date instanceof Date && !Number.isNaN(date.getTime())) {
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(date.getDate()).padStart(2, '0');
+			return `${year}-${month}-${day}`;
+		}
+		const match = String(date).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+		return match ? match[1] : String(date).trim();
 	}
 
 	function setTimeSelect(selector, time) {
@@ -144,7 +142,36 @@
 		}
 	}
 
+	function getLastEntryEndTimeForDay(date) {
+		const day = normalizeEntryDate(date);
+		const $chips = $(`.etwa-day-card[data-date="${day}"] .etwa-entry-chip`);
+		if (!$chips.length) return '';
+
+		let latest = '';
+		$chips.each(function () {
+			const end = normalizeSlotTime($(this).attr('data-end-time') || '');
+			if (end && (!latest || end > latest)) {
+				latest = end;
+			}
+		});
+		return latest;
+	}
+
+	function setEndTimeAfterStart() {
+		const start = $('#etwa-start-time').val();
+		if (!start || !timeSlots.length) return;
+
+		const startIdx = timeSlots.indexOf(start);
+		if (startIdx >= 0 && startIdx < timeSlots.length - 1) {
+			$('#etwa-end-time').val(timeSlots[startIdx + 1]);
+			return;
+		}
+
+		$('#etwa-end-time').val('');
+	}
+
 	function fillEntryForm(date, entry) {
+		date = normalizeEntryDate(entry?.date || date);
 		$('#etwa-entry-date').val(date || '');
 
 		if (entry) {
@@ -163,7 +190,11 @@
 			if (isHrEdit()) {
 				$('#etwa-edit-reason').val('');
 			}
-			if (defaultStartTime && defaultEndTime) {
+			const lastEnd = getLastEntryEndTimeForDay(date);
+			if (lastEnd) {
+				setTimeSelect('#etwa-start-time', lastEnd);
+				setEndTimeAfterStart();
+			} else if (defaultStartTime && defaultEndTime) {
 				$('#etwa-start-time').val(defaultStartTime);
 				$('#etwa-end-time').val(defaultEndTime);
 			} else if (timeSlots.length > 1) {
@@ -178,6 +209,12 @@
 	}
 
 	function openModal(title, date, entry) {
+		date = normalizeEntryDate(entry?.date || date);
+		if (isEmployeeLockedDay(date)) {
+			ui.error(cfg.i18n?.vacationLocked || 'This day is locked and cannot be edited.');
+			return;
+		}
+
 		$('#etwa-modal-title').text(title);
 		$('#etwa-entry-modal').prop('hidden', false).attr('aria-hidden', 'false');
 		$('body').addClass('etwa-modal-open');
@@ -212,6 +249,21 @@
 			return Number(entry.duration_minutes || 0) / 60;
 		}
 		return Number(entry.regular_hours || 0) + Number(entry.overtime_hours || 0);
+	}
+
+	function dayStatusForDate(date) {
+		const $card = $(`.etwa-day-card[data-date="${date}"]`);
+		return $card.data('dayStatus') || 'working';
+	}
+
+	function isEmployeeLockedDay(date) {
+		if (isHrEdit()) return false;
+		return dayStatusForDate(date) !== 'working';
+	}
+
+	function canShowEntryActions(date) {
+		if (isHrEdit()) return true;
+		return dayStatusForDate(date) === 'working';
 	}
 
 	function detectBreakClientId() {
@@ -337,10 +389,17 @@
 		const hoursHtml = isBreak
 			? `<span class="etwa-break-tag">${formatHours(total)}h ${cfg.i18n?.breakLabel || 'Break'}</span>`
 			: `${formatHours(total)}h${entryTypeChipHtml(entry)}`;
+		const showActions = canShowEntryActions(entry.entry_date);
+		const actionsHtml = showActions
+			? `<div class="etwa-entry-actions">
+					<button type="button" class="etwa-link etwa-edit-entry">${cfg.i18n?.edit || 'Edit'}</button>
+					<button type="button" class="etwa-link etwa-delete-entry">${cfg.i18n?.delete || 'Delete'}</button>
+				</div>`
+			: '';
 
 		return `
 			<article
-				class="etwa-entry-chip${isBreak ? ' is-break' : ''} is-clickable"
+				class="etwa-entry-chip${isBreak ? ' is-break' : ''}${showActions ? ' is-clickable' : ''}"
 				data-entry-id="${entry.id}"
 				data-entry-date="${entry.entry_date}"
 				data-start-time="${entry.start_time}"
@@ -351,8 +410,7 @@
 				data-entry-type="${entry.entry_type || 'regular'}"
 				data-overtime-hours="${Number(entry.overtime_hours || 0)}"
 				data-duration-minutes="${Number(entry.duration_minutes || 0)}"
-				tabindex="0"
-				role="button"
+				${showActions ? 'tabindex="0" role="button"' : ''}
 			>
 				<div class="etwa-entry-time">${entry.time_range_label || `${ui.formatTime12(entry.start_time)} – ${ui.formatTime12(entry.end_time)}`}</div>
 				<div class="etwa-entry-meta">
@@ -360,10 +418,7 @@
 					<span>${entry.task || ''}</span>
 				</div>
 				<div class="etwa-entry-hours">${hoursHtml}</div>
-				<div class="etwa-entry-actions">
-					<button type="button" class="etwa-link etwa-edit-entry">${cfg.i18n?.edit || 'Edit'}</button>
-					<button type="button" class="etwa-link etwa-delete-entry">${cfg.i18n?.delete || 'Delete'}</button>
-				</div>
+				${actionsHtml}
 			</article>`;
 	}
 
@@ -385,11 +440,36 @@
 		}, 0);
 	}
 
+	function applyDayMeta(dayMeta, workDates) {
+		if (!dayMeta) return;
+
+		workDates.forEach((date) => {
+			const meta = dayMeta[date] || { status: 'working' };
+			const status = meta.status || 'working';
+			const canLog = status === 'working';
+			const $card = $(`.etwa-day-card[data-date="${date}"]`);
+			if (!$card.length) return;
+
+			$card
+				.attr('data-day-status', status)
+				.data('dayStatus', status)
+				.removeClass('etwa-day-working etwa-day-holiday etwa-day-day_off etwa-day-vacation is-non-working')
+				.addClass(`etwa-day-${status}`)
+				.toggleClass('is-non-working', !canLog);
+
+			if (!canLog) {
+				$card.find('.etwa-add-day-entry').remove();
+			}
+		});
+	}
+
 	function updateDashboard(data) {
 		const ts = data.timesheet;
 		const entries = data.entries || [];
 		const workDates = data.work_dates || [];
 		const byDay = groupEntriesByDay(entries, workDates);
+
+		applyDayMeta(data.day_meta, workDates);
 
 		$('.etwa-kpi-card').eq(0).find('.etwa-kpi-value').text(formatHoursFull(Number(ts.total_regular_hours) + Number(ts.total_overtime_hours)));
 		$('.etwa-kpi-card').eq(1).find('.etwa-status')
@@ -433,6 +513,7 @@
 			if (!dayEntries.length) {
 				if (status === 'holiday') return;
 				if (status === 'day_off') return;
+				if (status === 'vacation') return;
 				$container.html(`<p class="etwa-day-empty">${cfg.i18n?.noEntries || 'No entries'}</p>`);
 			} else {
 				$container.html(dayEntries.map(renderEntryChip).join(''));
@@ -481,6 +562,12 @@
 	}
 
 	function handleDelete($chip) {
+		const entryDate = $chip.data('entryDate');
+		if (isEmployeeLockedDay(entryDate)) {
+			ui.error(cfg.i18n?.vacationLocked || 'This day is locked and cannot be edited.');
+			return;
+		}
+
 		const doDelete = (reason) => {
 			if (isHrEdit() && !reason) return;
 			const id = $chip.data('entry-id');
@@ -514,11 +601,7 @@
 
 	function loadVacationNotifications() {
 		if (!cfg.canViewOwnVacation || isHrEdit()) return;
-		fetch(cfg.root + 'vacations/notifications', {
-			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': cfg.nonce },
-		})
-			.then((r) => r.json())
+		api('vacations/notifications')
 			.then((res) => {
 				if (!res.success || !(res.data?.items?.length)) return;
 				const html = res.data.items
@@ -528,12 +611,7 @@
 					)
 					.join('');
 				$('#etwa-employee-app').prepend(`<div class="etwa-vacation-notifications">${html}</div>`);
-				fetch(cfg.root + 'vacations/notifications', {
-					method: 'PUT',
-					credentials: 'same-origin',
-					headers: { 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' },
-					body: '{}',
-				});
+				return api('vacations/notifications', { method: 'PUT', body: '{}' });
 			})
 			.catch(() => {});
 	}
@@ -554,7 +632,7 @@
 		$('#etwa-start-time').on('change', toggleEntryTypeField);
 
 		$('.etwa-add-day-entry').on('click', function () {
-			openModal(cfg.i18n?.addEntry || 'Add Time Entry', $(this).data('date'));
+			openModal(cfg.i18n?.addEntry || 'Add Time Entry', $(this).attr('data-date'));
 		});
 
 		$('.etwa-modal-close').on('click', closeModal);
@@ -572,6 +650,10 @@
 			e.preventDefault();
 			const data = Object.fromEntries(new FormData(this).entries());
 			const entryId = data.entry_id || null;
+			if (isEmployeeLockedDay(data.entry_date)) {
+				ui.error(cfg.i18n?.vacationLocked || 'This day is locked and cannot be edited.');
+				return;
+			}
 			if (String(data.client_id) === String(breakClientId) && !data.task) {
 				data.task = 'Break';
 			}

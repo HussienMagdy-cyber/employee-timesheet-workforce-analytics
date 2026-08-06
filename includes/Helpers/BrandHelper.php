@@ -31,4 +31,24 @@ final class BrandHelper {
 	public static function workforce_display_label(): string {
 		return __( 'WorkForce', 'etwa' );
 	}
+
+	/**
+	 * Fallback letter when no WordPress site icon is set.
+	 */
+	public static function mark_letter(): string {
+		return strtoupper( mb_substr( self::name(), 0, 1 ) );
+	}
+
+	/**
+	 * Site favicon / Site Icon URL, or empty string if unset.
+	 */
+	public static function icon_url( int $size = 64 ): string {
+		if ( ! has_site_icon() ) {
+			return '';
+		}
+
+		$url = get_site_icon_url( $size );
+
+		return is_string( $url ) ? $url : '';
+	}
 }

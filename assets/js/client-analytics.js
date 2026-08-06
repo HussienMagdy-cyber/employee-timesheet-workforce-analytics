@@ -4,21 +4,7 @@
 	const cfg = window.etwaApp || {};
 	const ui = window.etwaUI || {};
 
-	const api = (path, options = {}) => {
-		options.credentials = 'same-origin';
-		options.headers = Object.assign(
-			{ 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' },
-			options.headers || {}
-		);
-		return fetch(cfg.root + path, options).then(async (response) => {
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok && !data.message) {
-				data.message = cfg.i18n?.error || 'Something went wrong.';
-				data.success = false;
-			}
-			return data;
-		});
-	};
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	let trendChart = null;
 
@@ -137,6 +123,39 @@
 			.finally(() => ui.setButtonLoading($btn[0], false));
 	}
 
+	function exportReport(reportType, button) {
+		const app = document.getElementById('etwa-client-analytics-app');
+		const clientId = parseInt(app?.dataset.clientId || '0', 10);
+		if (!clientId || !cfg.canExport || !window.etwaDateRange) return;
+
+		const q = queryParams();
+		const defaults = window.etwaDateRange.defaultRange();
+
+		window.etwaDateRange.loadFilters().then((filters) => {
+			window.etwaDateRange
+				.promptDateRangeExport({
+					title:
+						reportType === 'client_labor_cost'
+							? cfg.i18n?.exportLaborCostReport || 'Export Labor Cost Report'
+							: cfg.i18n?.exportClientReport || 'Export Client Report',
+					date_from: q.date_from || defaults.date_from,
+					date_to: q.date_to || defaults.date_to,
+					client_id: clientId,
+					client_name: app?.dataset.clientName || '',
+					fields: {
+						client: { required: true, readonly: true },
+					},
+					filters,
+				})
+				.then((params) => {
+					if (!params) return;
+					params.client_id = clientId;
+					return window.etwaDateRange.exportReport(reportType, params, button);
+				})
+				.catch((err) => ui.error(err.message));
+		});
+	}
+
 	function bindListSearch() {
 		let timer;
 		$('#etwa-ca-search').on('input', function () {
@@ -164,6 +183,12 @@
 
 		$('#etwa-ca-export-excel').on('click', () => exportClient('excel'));
 		$('#etwa-ca-export-csv').on('click', () => exportClient('csv'));
+		$('#etwa-ca-export-client-report').on('click', function () {
+			exportReport('client', this);
+		});
+		$('#etwa-ca-export-labor-cost').on('click', function () {
+			exportReport('client_labor_cost', this);
+		});
 	}
 
 	$(function () {

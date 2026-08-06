@@ -2,7 +2,7 @@
 
 All tables use the WordPress table prefix (e.g. `wp_etwa_*`).
 
-**Current schema version:** `1.4.1` (stored in option `etwa_db_version`)
+**Current schema version:** `1.17.0` (stored in option `etwa_db_version`)
 
 ## etwa_timesheets
 
@@ -22,10 +22,14 @@ Date-based reporting periods (work week Sun–Thu).
 | reviewed_at | DATETIME | Review timestamp |
 | review_notes | TEXT | HR/Owner notes |
 | is_locked | TINYINT(1) | Period lock flag |
+| draft_saved_at | DATETIME | When employee last saved a draft snapshot for HR review |
+| draft_snapshot | LONGTEXT JSON | Serialized entry snapshot shown to HR before submit (v1.9+) |
 | created_at | DATETIME | Created |
 | updated_at | DATETIME | Updated |
 
 **Indexes:** UNIQUE(user_id, period_start, period_end), status, period_start
+
+**Draft workflow:** While status is `draft` or `rejected`, HR reviewers see `draft_snapshot` (if saved) instead of live edits. Submit clears the snapshot.
 
 ---
 
@@ -47,10 +51,20 @@ Individual time entries (date-based, not fixed weekly rows).
 | duration_minutes | INT | Total duration |
 | regular_hours | DECIMAL(8,2) | Calculated regular |
 | overtime_hours | DECIMAL(8,2) | Calculated OT |
+| entry_type | VARCHAR(20) | `regular`, `overtime`, or `compensation` (v1.11+) |
+| created_from | VARCHAR(100) | Source context (e.g. copy-previous) |
 | created_at | DATETIME | Created |
 | updated_at | DATETIME | Updated |
 
-**Example row:** `2026-07-06 | 17:00–18:00 | SDM | Website`
+**Entry types (after 18:00):**
+
+| Type | Hour columns | Analytics |
+|------|--------------|-----------|
+| `regular` | `regular_hours` | Regular Hours |
+| `overtime` | `overtime_hours` | Overtime Hours |
+| `compensation` | `regular_hours` + full duration | Regular + Combined (+ Comp KPI on client detail) |
+
+**Example row:** `2026-07-06 | 17:00–18:00 | SDM | Website | regular`
 
 ---
 
@@ -64,6 +78,27 @@ Individual time entries (date-based, not fixed weekly rows).
 | department | VARCHAR(100) | Department grouping |
 | is_active | TINYINT(1) | Active flag |
 | created_at | DATETIME | Created |
+
+**System clients:** `Break` (non-billable, excluded from analytics) and **Moderation** (requires detailed notes on each entry; formerly “All Clients”).
+
+---
+
+## etwa_departments
+
+Organizational units with optional department-head approval.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| name | VARCHAR(191) UNIQUE | Department name |
+| description | TEXT | Optional description |
+| head_user_id | BIGINT | Assigned department head (WP user) |
+| approval_enabled | TINYINT(1) | Dept-head approval for requests |
+| status | VARCHAR(20) | `active`, `inactive` |
+| created_at | DATETIME | Created |
+| updated_at | DATETIME | Updated |
+
+Employee department assignment is stored in user meta (`etwa_department_id`).
 
 ---
 
@@ -101,6 +136,24 @@ Key-value configuration store.
 | autoload | TINYINT(1) | Load on boot |
 
 **Default keys:** work_day_start, work_day_end, time_interval_minutes, min_overtime_minutes, overtime_round_minutes, available_hours_week, hr_email, owner_email, email_cc_owner, autosave_interval
+
+---
+
+## etwa_email_settings (WordPress option)
+
+Branded HTML email template and signature. Stored in `wp_options` (not a custom table). Managed by `EmailSettingsRepository` (`OPTION_KEY = etwa_email_settings`).
+
+| Key | Description |
+|-----|-------------|
+| `from_name`, `from_email`, `reply_to` | Outgoing mail headers |
+| `logo_id`, `logo_width`, `logo_height` | Signature logo |
+| `greeting`, `email_body` | Template wrapper (`email_body` defaults to `{email_content}`) |
+| `appreciation`, `closing_text`, `signature_dedication` | Footer text above signature rows |
+| `signature_rows` | JSON array of styled signature lines |
+| `default_sender_name`, `default_sender_role`, `default_sender_email`, `default_sender_phone` | Fallback sender when no reviewer user ID |
+| `company_name`, `company_tagline`, `office_phone`, `office_address` | Company block in signature |
+
+Seeded on plugin activation. See [SYSTEM-DOCUMENTATION.md — Email system](SYSTEM-DOCUMENTATION.md#email-system) for layout and notification details.
 
 ---
 
@@ -218,6 +271,34 @@ On approval, a record is created and usage is posted; the request status is upda
 
 ---
 
+## etwa_requests
+
+Unified permission and leave-adjacent request workflow (v1.6+).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| request_type | VARCHAR(30) | e.g. permission, leave |
+| user_id | BIGINT | Employee |
+| request_date | DATE | Submission date |
+| work_date | DATE | Affected work date |
+| start_time / end_time | TIME | Permission window |
+| permission_type | VARCHAR(50) | Permission category |
+| reason | TEXT | Employee reason |
+| notes | TEXT | Review notes |
+| status | VARCHAR(20) | pending, approved, rejected |
+| reviewed_by / reviewed_at | BIGINT / DATETIME | Legacy single reviewer |
+| hr_approved_by / hr_approved_at | BIGINT / DATETIME | HR approval step |
+| owner_approved_by / owner_approved_at | BIGINT / DATETIME | Owner approval step |
+| dept_approved_by / dept_approved_at | BIGINT / DATETIME | Department-head step |
+| workflow_status | VARCHAR(30) | e.g. `pending_hr`, `pending_dept` |
+| extra_data | LONGTEXT JSON | Type-specific payload |
+| created_at / updated_at | DATETIME | Timestamps |
+
+Dual/hierarchical approval columns added in v1.5.0 (vacation requests) and v1.8.0 (general requests).
+
+---
+
 ### User meta (vacation notifications)
 
 | Meta key | Description |
@@ -254,21 +335,32 @@ users (WP)
               └── etwa_overtime (1:1)
 
 users (WP, role: etwa_employee)
+  ├── etwa_departments (N:1 via user meta)
+  ├── etwa_requests (1:N)
   ├── etwa_vacation_transactions (1:N)
   ├── etwa_vacation_records (1:N)
   └── etwa_vacation_requests (1:N)
         └── etwa_leave_types (N:1)
+
+etwa_departments
+  └── head_user_id → users (department head)
 ```
 
-## User meta (preferences)
+## User meta (profiles & preferences)
 
-Not stored in custom tables; used for portal UX.
+Not stored in custom tables; used for portal UX and employee profiles.
 
-| Meta key | Values | Description |
-|----------|--------|-------------|
-| `etwa_dark_mode` | `0` / `1` | User theme preference for portal (light vs OLED dark). Set via AJAX `etwa_toggle_dark_mode`. |
-
-Vacation in-app notifications may also use user meta (see vacation REST docs).
+| Meta key | Description |
+|----------|-------------|
+| `etwa_dark_mode` | `0` / `1` — light vs OLED dark theme (`etwa_toggle_dark_mode` AJAX) |
+| `etwa_job_title` | Job title |
+| `etwa_join_date` | Join date (Y-m-d) |
+| `etwa_birthday` | Birthday (Y-m-d) |
+| `etwa_phone` | Phone number |
+| `etwa_department_id` | Assigned department ID |
+| `etwa_hourly_cost_egp` | Hourly labor cost (EGP) for analytics/reports |
+| `etwa_employment_status` | `active` / `inactive` |
+| `etwa_vacation_notifications` | In-app vacation approval/rejection notices |
 
 ## ER Diagram
 
@@ -287,4 +379,18 @@ erDiagram
     ETWA_LEAVE_TYPES ||--o{ ETWA_VACATION_RECORDS : categorizes
     ETWA_LEAVE_TYPES ||--o{ ETWA_VACATION_REQUESTS : categorizes
     ETWA_VACATION_RECORDS ||--o| ETWA_VACATION_TRANSACTIONS : usage_row
+    ETWA_DEPARTMENTS ||--o{ USERS : members
+    USERS ||--o{ ETWA_REQUESTS : submits
 ```
+
+## Schema migration history (selected)
+
+| Version | Notable change |
+|---------|----------------|
+| 1.4.1 | Annual leave pool (`tracks_allocation` on leave types) |
+| 1.6.0 | `etwa_requests` table |
+| 1.7.0 | Entry time-offset migration; system clients |
+| 1.9.0 | Timesheet draft snapshot columns |
+| 1.11.0 | `entry_type` column; Moderation client rename |
+| 1.12.0 | Overtime cost multiplier default → 1× |
+| 1.13.0–1.17.0 | Entry type flow, after-hours reclassification, hour normalization, compensation fixes |

@@ -106,16 +106,26 @@
 }
 
 .etwa-portal-brand-mark {
-	width: 36px !important;
-	height: 36px !important;
+	width: 28px !important;
+	height: 28px !important;
 	display: flex !important;
-	align-items: center !important;
+	align-items: start !important;
 	justify-content: center !important;
 	border-radius: var(--etwa-radius) !important;
 	background: var(--etwa-primary) !important;
 	color: #fff !important;
 	font-weight: 700 !important;
 	font-size: var(--etwa-text-sm) !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-portal-brand-mark--icon {
+	display: block !important;
+	object-fit: contain !important;
+	background: transparent !important;
+	color: inherit !important;
+	font-weight: inherit !important;
+	font-size: inherit !important;
 }
 
 .etwa-portal-brand-text {
@@ -146,6 +156,76 @@
 	display: flex !important;
 	flex-direction: column !important;
 	gap: var(--etwa-space-1) !important;
+}
+
+.etwa-portal-nav-groups {
+	gap: var(--etwa-space-2) !important;
+}
+
+.etwa-portal-nav-group {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 2px !important;
+}
+
+.etwa-portal-nav-group-toggle {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-3) !important;
+	width: 100% !important;
+	padding: 10px 12px !important;
+	border: none !important;
+	border-radius: var(--etwa-radius) !important;
+	background: transparent !important;
+	color: var(--etwa-text) !important;
+	font-size: var(--etwa-text-sm) !important;
+	font-weight: 600 !important;
+	text-align: left !important;
+	cursor: pointer !important;
+	transition: background var(--etwa-duration) var(--etwa-ease), color var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-portal-nav-group-toggle .dashicons {
+	font-size: 18px !important;
+	width: 18px !important;
+	height: 18px !important;
+	opacity: 0.85 !important;
+}
+
+.etwa-portal-nav-chevron {
+	margin-left: auto !important;
+	font-size: 16px !important;
+	width: 16px !important;
+	height: 16px !important;
+	opacity: 0.65 !important;
+	transition: transform 0.2s var(--etwa-ease) !important;
+}
+
+.etwa-portal-nav-group.is-open .etwa-portal-nav-chevron {
+	transform: rotate(180deg) !important;
+}
+
+.etwa-portal-nav-group-toggle:hover,
+.etwa-portal-nav-group.has-active > .etwa-portal-nav-group-toggle {
+	background: var(--etwa-border-subtle) !important;
+}
+
+.etwa-portal-nav-group-items {
+	list-style: none !important;
+	margin: 0 !important;
+	padding: 0 0 0 var(--etwa-space-2) !important;
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 2px !important;
+}
+
+.etwa-portal-nav-group-items[hidden] {
+	display: none !important;
+}
+
+.etwa-portal-nav-group-items .etwa-portal-nav-link {
+	padding-left: 36px !important;
+	font-weight: 500 !important;
 }
 
 .etwa-portal-nav-link {
@@ -341,6 +421,14 @@
 	line-height: 1.2 !important;
 }
 
+.etwa-portal-page-detail-title {
+	margin: var(--etwa-space-2) 0 0 !important;
+	font-size: var(--etwa-text-xl) !important;
+	font-weight: 600 !important;
+	color: var(--etwa-text) !important;
+	line-height: 1.3 !important;
+}
+
 .etwa-portal-page-subtitle {
 	margin: var(--etwa-space-2) 0 0 !important;
 	font-size: var(--etwa-text-sm) !important;
@@ -522,6 +610,11 @@
 }
 
 .etwa-dark .etwa-portal-nav-link:hover {
+	background: #111111 !important;
+}
+
+.etwa-dark .etwa-portal-nav-group-toggle:hover,
+.etwa-dark .etwa-portal-nav-group.has-active > .etwa-portal-nav-group-toggle {
 	background: #111111 !important;
 }
 
@@ -726,6 +819,11 @@
 	background: var(--etwa-border-subtle) !important;
 }
 
+.etwa-day-card.etwa-day-vacation {
+	border-color: #60a5fa !important;
+	background: linear-gradient(180deg, rgba(96, 165, 250, 0.08), var(--etwa-panel)) !important;
+}
+
 .etwa-day-badge {
 	display: inline-flex !important;
 	padding: 4px 8px !important;
@@ -745,12 +843,25 @@
 	color: var(--etwa-muted) !important;
 }
 
+.etwa-day-badge-vacation {
+	background: #dbeafe !important;
+	color: #1e40af !important;
+}
+
 .etwa-day-holiday-msg {
 	margin: 0 !important;
 	padding: 12px !important;
 	text-align: center !important;
 	font-weight: 600 !important;
 	color: #92400e !important;
+}
+
+.etwa-day-vacation-msg {
+	margin: 0 !important;
+	padding: 12px !important;
+	text-align: center !important;
+	font-weight: 600 !important;
+	color: #1e40af !important;
 }
 
 .etwa-calendar-weekdays {
@@ -781,6 +892,15 @@
 
 .etwa-dark .etwa-day-holiday-msg {
 	color: #fcd34d !important;
+}
+
+.etwa-dark .etwa-day-badge-vacation {
+	background: rgba(96, 165, 250, 0.15) !important;
+	color: #93c5fd !important;
+}
+
+.etwa-dark .etwa-day-vacation-msg {
+	color: #93c5fd !important;
 }
 
 @media (max-width: 1200px) {

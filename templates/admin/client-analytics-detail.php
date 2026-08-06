@@ -34,7 +34,7 @@ $filter_url = $in_portal
 	? PortalNav::view_url( $portal_base, 'client-analytics', array( 'client_id' => $client_id ) )
 	: add_query_arg( array( 'page' => 'etwa-client-analytics', 'client_id' => $client_id ), admin_url( 'admin.php' ) );
 ?>
-<div class="etwa-app etwa-client-analytics-page<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>" id="etwa-client-analytics-app" data-mode="detail" data-client-id="<?php echo esc_attr( (string) $client_id ); ?>">
+<div class="etwa-app etwa-client-analytics-page<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>" id="etwa-client-analytics-app" data-mode="detail" data-client-id="<?php echo esc_attr( (string) $client_id ); ?>" data-client-name="<?php echo esc_attr( (string) ( $client['name'] ?? '' ) ); ?>">
 
 	<p class="etwa-back-link-wrap">
 		<a class="etwa-link" href="<?php echo esc_url( $list_url ); ?>">&larr; <?php esc_html_e( 'Client Analytics', 'etwa' ); ?></a>
@@ -43,13 +43,17 @@ $filter_url = $in_portal
 	<div class="etwa-hero etwa-hero-compact">
 		<div class="etwa-hero-copy">
 			<p class="etwa-eyebrow"><?php echo esc_html( $client['department'] ?? '' ); ?></p>
-			<h1><?php echo esc_html( $client['name'] ?? '' ); ?> <code class="etwa-code-inline"><?php echo esc_html( $client['code'] ?? '' ); ?></code></h1>
+			<h1><?php esc_html_e( 'Client:', 'etwa' ); ?> <?php echo esc_html( $client['name'] ?? '' ); ?> <code class="etwa-code-inline"><?php echo esc_html( $client['code'] ?? '' ); ?></code></h1>
 			<p class="etwa-subtitle"><?php echo esc_html( $range['label'] ?? '' ); ?></p>
 		</div>
 		<?php if ( $can_export ) : ?>
 			<div class="etwa-hero-actions">
-				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-ca-export-excel"><?php esc_html_e( 'Export Excel', 'etwa' ); ?></button>
-				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-ca-export-csv"><?php esc_html_e( 'Export CSV', 'etwa' ); ?></button>
+				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-ca-export-client-report"><?php esc_html_e( 'Export Client Report', 'etwa' ); ?></button>
+				<?php if ( $show_labor_cost ) : ?>
+					<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-ca-export-labor-cost"><?php esc_html_e( 'Export Labor Cost Report', 'etwa' ); ?></button>
+				<?php endif; ?>
+				<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-quiet" id="etwa-ca-export-excel"><?php esc_html_e( 'Export Excel', 'etwa' ); ?></button>
+				<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-quiet" id="etwa-ca-export-csv"><?php esc_html_e( 'Export CSV', 'etwa' ); ?></button>
 			</div>
 		<?php endif; ?>
 	</div>
@@ -100,12 +104,6 @@ $filter_url = $in_portal
 		<?php endif; ?>
 		<article class="etwa-analytics-kpi">
 			<div class="etwa-analytics-kpi-body">
-				<span class="etwa-kpi-label"><?php esc_html_e( 'Compensation Hours', 'etwa' ); ?></span>
-				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['compensation_hours'] ?? 0 ), 1 ) ); ?>h</strong>
-			</div>
-		</article>
-		<article class="etwa-analytics-kpi">
-			<div class="etwa-analytics-kpi-body">
 				<span class="etwa-kpi-label"><?php esc_html_e( 'Employees', 'etwa' ); ?></span>
 				<strong class="etwa-kpi-value"><?php echo esc_html( (string) ( $summary['employee_count'] ?? 0 ) ); ?></strong>
 			</div>
@@ -133,7 +131,6 @@ $filter_url = $in_portal
 						<th><?php esc_html_e( 'Employee', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'Regular', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'OT', 'etwa' ); ?></th>
-						<th><?php esc_html_e( 'Comp', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'Combined', 'etwa' ); ?></th>
 						<?php if ( $show_labor_cost ) : ?>
 							<th><?php esc_html_e( 'OT Cost', 'etwa' ); ?></th>
@@ -143,14 +140,13 @@ $filter_url = $in_portal
 				</thead>
 				<tbody>
 					<?php if ( empty( $detail['employees'] ) ) : ?>
-						<tr><td colspan="<?php echo $show_labor_cost ? 8 : 6; ?>"><?php esc_html_e( 'No entries for this period.', 'etwa' ); ?></td></tr>
+						<tr><td colspan="<?php echo $show_labor_cost ? 7 : 5; ?>"><?php esc_html_e( 'No entries for this period.', 'etwa' ); ?></td></tr>
 					<?php else : ?>
 						<?php foreach ( $detail['employees'] as $emp ) : ?>
 							<tr>
 								<td><?php echo esc_html( $emp['display_name'] ); ?></td>
 								<td><?php echo esc_html( number_format( (float) ( $emp['regular_hours'] ?? 0 ), 1 ) ); ?>h</td>
 								<td><?php echo esc_html( number_format( (float) ( $emp['overtime_hours'] ?? 0 ), 1 ) ); ?>h</td>
-								<td><?php echo esc_html( number_format( (float) ( $emp['compensation_hours'] ?? 0 ), 1 ) ); ?>h</td>
 								<td><?php echo esc_html( number_format( (float) ( $emp['combined_hours'] ?? $emp['total_hours'] ?? 0 ), 1 ) ); ?>h</td>
 								<?php if ( $show_labor_cost ) : ?>
 									<td><?php echo esc_html( number_format( (float) ( $emp['overtime_cost_egp'] ?? 0 ), 2 ) ); ?></td>

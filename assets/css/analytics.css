@@ -495,7 +495,7 @@
 }
 
 .etwa-analytics-grid.zwei-col {
-	display: grid !important;
+	display: flex !important;
 	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 	gap: var(--etwa-space-5) !important;
 	margin-top: var(--etwa-space-5) !important;
@@ -515,4 +515,124 @@
 	.etwa-date-preset-row .etwa-tab {
 		flex: 1 1 auto !important;
 	}
+}
+
+/* ——— Reports & Exports ——— */
+.etwa-reports-grid {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+	gap: var(--etwa-space-5) !important;
+}
+
+.etwa-report-card {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-4) !important;
+}
+
+.etwa-report-card-head h2 {
+	margin: 0 0 var(--etwa-space-2) !important;
+	font-size: 1.125rem !important;
+}
+
+.etwa-report-card-head p {
+	margin: 0 !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-date-range-dialog .etwa-date-range-fields {
+	display: grid !important;
+	gap: var(--etwa-space-4) !important;
+	margin: var(--etwa-space-4) 0 !important;
+}
+
+.etwa-report-card-featured {
+	grid-column: 1 / -1 !important;
+}
+
+.etwa-comparison-filters {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+	gap: var(--etwa-space-4) !important;
+}
+
+.etwa-comparison-actions {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: var(--etwa-space-3) !important;
+}
+
+.etwa-comparison-results {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-5) !important;
+	margin-top: var(--etwa-space-4) !important;
+}
+
+.etwa-comparison-table th.etwa-sortable {
+	cursor: pointer !important;
+	user-select: none !important;
+	white-space: nowrap !important;
+}
+
+.etwa-comparison-table th.etwa-sortable.is-sorted::after {
+	content: ' ▼' !important;
+	font-size: 0.75em !important;
+	opacity: 0.7 !important;
+}
+
+.etwa-comparison-table th.etwa-sortable.is-sorted.is-asc::after {
+	content: ' ▲' !important;
+}
+
+.etwa-comparison-table tfoot td {
+	font-weight: 600 !important;
+	border-top: 2px solid var(--etwa-border) !important;
+}
+
+.etwa-comparison-accordion {
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-md) !important;
+	overflow: hidden !important;
+}
+
+.etwa-comparison-accordion + .etwa-comparison-accordion {
+	margin-top: var(--etwa-space-3) !important;
+}
+
+.etwa-comparison-accordion-toggle {
+	width: 100% !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-3) !important;
+	padding: var(--etwa-space-3) var(--etwa-space-4) !important;
+	background: var(--etwa-surface-2, var(--etwa-surface)) !important;
+	border: 0 !important;
+	cursor: pointer !important;
+	text-align: left !important;
+	font: inherit !important;
+	color: inherit !important;
+}
+
+.etwa-comparison-accordion-panel {
+	padding: 0 var(--etwa-space-4) var(--etwa-space-4) !important;
+}
+
+.etwa-comparison-accordion-panel[hidden] {
+	display: none !important;
+}
+
+.etwa-span-2 {
+	grid-column: span 2 !important;
+}
+
+@media (max-width: 900px) {
+	.etwa-span-2 {
+		grid-column: span 1 !important;
+	}
+}
+
+.etwa-btn-quiet {
+	opacity: 0.85 !important;
 }

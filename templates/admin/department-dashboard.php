@@ -18,7 +18,7 @@ $context    = $context ?? 'frontend';
 $in_portal  = 'frontend' === $context;
 $portal_url = $portal_url ?? '';
 $requests_url = $in_portal && $portal_url
-	? PortalNav::view_url( $portal_url, 'requests-hr' )
+	? PortalNav::view_url( $portal_url, PortalNav::hr_request_view_id( 'vacation' ) )
 	: admin_url( 'admin.php?page=etwa-requests' );
 ?>
 <div class="etwa-page-shell etwa-app<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>" id="etwa-dept-dashboard-app">

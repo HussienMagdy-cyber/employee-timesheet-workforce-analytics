@@ -1,4 +1,4 @@
-# Think Marketing Workforce — System Documentation
+ # Think Marketing Workforce — System Documentation
 
 Complete reference for the **Employee Timesheet & Workforce Analytics** WordPress plugin (namespace `ETWA`).
 
@@ -16,9 +16,10 @@ Complete reference for the **Employee Timesheet & Workforce Analytics** WordPres
 8. [REST API](#rest-api)
 9. [Database](#database)
 10. [Configuration & settings](#configuration--settings)
-11. [Architecture & code layout](#architecture--code-layout)
-12. [Scheduled jobs & notifications](#scheduled-jobs--notifications)
-13. [Troubleshooting](#troubleshooting)
+11. [Email system](#email-system)
+12. [Architecture & code layout](#architecture--code-layout)
+13. [Scheduled jobs & notifications](#scheduled-jobs--notifications)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -31,7 +32,7 @@ The plugin replaces weekly Excel timesheets with a web-based workforce platform 
 - **Leave & requests** (annual pool, dual approval where configured)
 - **Departments** and department-head dashboards
 - **Employee management** (HR/Owner creates accounts, assigns roles & departments)
-- **Analytics & exports** (client analytics, owner analytics, Excel reports)
+- **Analytics & exports** (client analytics, owner analytics, centralized Reports & Exports, legacy Excel/email)
 - **Unified frontend portal** with role-based navigation
 
 **Tech stack:** WordPress 6+, PHP 8+, custom MySQL tables, REST API (`/wp-json/etwa/v1/`), jQuery frontend modules, PhpSpreadsheet for exports.
@@ -79,7 +80,8 @@ Point your site menu or homepage redirect to the portal page for logged-in users
 3. Open **Employees** → create staff (no password required; setup email is sent)
 4. Open **Departments** → create departments and assign department heads
 5. Open **Vacations** → set annual leave allocations
-6. Configure **Settings** (Owner): work week, hours, emails, etc.
+6. Configure **Settings** (Owner): work week, hours, HR/owner emails
+7. Configure **Email Settings** (Owner): branded HTML template, signature, test send
 
 ---
 
@@ -154,7 +156,7 @@ WordPress **Administrators** receive all capabilities for testing (including own
 | Client Analytics | — | — | ✓ | ✓ |
 | Owner Analytics | — | — | ✓ | ✓ |
 | Clients & Settings | — | — | — | ✓ |
-| Export / Audit logs | — | — | ✓ | ✓ |
+| Export / Reports / Audit logs | — | — | ✓ | ✓ |
 
 \*Dept Head features require the user to be assigned as **department head** on a department.
 
@@ -194,6 +196,7 @@ Navigation URLs are built by `PortalNav::view_url()`.
 | `dept-dashboard` | Department Dashboard | Dept Head (assigned) |
 | `requests-hr` | Team Requests / Requests | Dept Head, HR, Owner |
 | `hr` | HR Dashboard | HR, Owner |
+| `reports` | Reports & Exports | HR, Owner |
 | `client-analytics` | Client Analytics | HR, Owner |
 | `employees` | Employees | HR, Owner |
 | `departments` | Departments | HR, Owner |
@@ -210,6 +213,8 @@ Navigation URLs are built by `PortalNav::view_url()`.
 - Dark mode per user (`etwa_dark_mode` user meta), toggled via header control
 - Portal styles isolated under `.etwa-portal-layout` for Elementor/theme compatibility
 - Shared toasts/confirm dialogs: `assets/js/etwa-ui.js`
+- Shared REST client with nonce refresh: `assets/js/etwa-api.js`
+- Shared date-range presets and export modals: `assets/js/etwa-date-range.js`
 
 ### Asset loading
 
@@ -222,12 +227,14 @@ Navigation URLs are built by `PortalNav::view_url()`.
 ### Timesheets
 
 - **Work week:** Default Sun–Thu (`SettingsRepository`)
-- **Day cards:** Entries with client, task, start/end time, notes
+- **Day cards:** Entries with client, task, start/end time, notes, **entry type** (regular / overtime / compensation after 18:00)
+- **Save Draft** — snapshot visible to HR before submit (`draft_snapshot` on timesheet)
 - **Submit / approve workflow** via `TimesheetService`, `ApprovalService`
 - **Copy previous week** — copies day-aligned entries from the prior work week into an empty week
-- **Overtime** after configured end time (`OvertimeService`)
+- **Overtime** after configured end time (`OvertimeService`); after-hours entries require explicit OT or Compensation type
+- **Moderation client** — detailed notes required on every entry
 
-**Key paths:** `TimesheetController`, `EntryController`, `assets/js/employee-dashboard.js`, `templates/partials/week-timesheet.php`
+**Key paths:** `TimesheetController`, `EntryController`, `TimesheetDraftHelper`, `EntryTypeHelper`, `assets/js/employee-dashboard.js`, `templates/partials/week-timesheet.php`
 
 ### HR Dashboard
 
@@ -277,12 +284,27 @@ Unified leave and permission requests (replaces standalone “My Vacation” tab
 
 | Module | Audience | Description |
 |--------|----------|-------------|
-| Client Analytics | HR, Owner | Client-level hours/cost trends |
+| Client Analytics | HR, Owner | Per-client Regular / OT / Combined / Compensation KPIs and employee breakdown |
 | Owner Analytics | Owner | Workforce KPIs, departments, insights |
+| Reports & Exports | HR, Owner | Centralized Excel reports and live All Clients Comparison dashboard |
+
+**Reports & Exports** (`ReportingService`, `ReportExportService`, `ReportsController`):
+
+| Report | Export | Live UI |
+|--------|:------:|:-------:|
+| Employee Timesheet | ✓ | — |
+| Client Report | ✓ | — |
+| Client Labor Cost | ✓* | — |
+| Employee Hours by Client | ✓ | — |
+| All Clients Comparison | ✓ | ✓ (charts + sortable table) |
+
+\*Requires labor-cost permission (`EmployeeCostHelper::can_view_labor_cost()`).
+
+**Key paths:** `includes/Services/ReportingService.php`, `includes/Services/ReportExportService.php`, `includes/REST/ReportsController.php`, `assets/js/reports-exports.js`, `templates/admin/reports-exports.php`
 
 ### Clients & holidays
 
-- **Clients:** billable entities for timesheet entries (+ system “Break” client)
+- **Clients:** billable entities for timesheet entries (+ system **Break** and **Moderation** clients)
 - **Holidays:** company calendar affecting leave calculations
 
 ### Audit & debug logs
@@ -300,8 +322,11 @@ WordPress admin menu **Timesheets** (slug varies by role):
 |------|------------|-------|
 | My Timesheet | `etwa_view_own_timesheet` | Employee landing |
 | HR Dashboard | `etwa_view_all_timesheets` | HR/Owner |
+| Reports & Exports | `etwa_export_reports` | HR/Owner |
 | Vacations | `etwa_manage_vacation` | Leave management |
+| Client Analytics | `etwa_view_analytics` | HR/Owner |
 | Owner Analytics | `etwa_view_advanced_analytics` | Owner only |
+| Email Settings | `etwa_manage_settings` | Branded HTML template, signature, live preview, test send |
 | Settings | `etwa_manage_settings` | Work rules, emails |
 | Audit Logs | `etwa_view_all_timesheets` | HR/Owner |
 
@@ -336,8 +361,9 @@ Full endpoint reference: **[docs/REST-API.md](REST-API.md)**
 | `AnalyticsController` | Dashboard analytics |
 | `ClientController` / `ClientAnalyticsController` | Clients |
 | `HolidayController` | Holidays |
-| `ExportController` | Excel export & email |
-| `PortalController` | Nav badge counts |
+| `ExportController` | Legacy Excel export & email |
+| `ReportsController` | Centralized reports, filters, comparison |
+| `PortalController` | Nav badge counts, session nonce refresh |
 
 Standard response envelope:
 
@@ -350,7 +376,7 @@ Standard response envelope:
 
 ## Database
 
-Schema version tracked in option `etwa_db_version`. Migrations in `Schema::maybe_upgrade()`.
+Schema version tracked in option `etwa_db_version` (current: **1.17.0**). Migrations in `Schema::maybe_upgrade()`.
 
 **Reference:** [docs/DATABASE-SCHEMA.md](DATABASE-SCHEMA.md)
 
@@ -364,7 +390,9 @@ Schema version tracked in option `etwa_db_version`. Migrations in `Schema::maybe
 | Requests | `etwa_requests` (unified request workflow) |
 | System | `etwa_settings`, `etwa_audit_logs`, `etwa_holidays` |
 
-Employee profile fields (job title, join date, birthday) stored in **user meta** via `EmployeeProfileHelper`.
+Employee profile fields (job title, join date, birthday, phone) stored in **user meta** via `EmployeeProfileHelper`.
+
+Email branding stored in WordPress option `etwa_email_settings` via `EmailSettingsRepository` and rendered by `MailService`.
 
 ---
 
@@ -380,12 +408,152 @@ Stored in `etwa_settings` table (`SettingsRepository`).
 | `min_overtime_minutes` | 30 | OT threshold |
 | `overtime_round_minutes` | 30 | OT rounding |
 | `available_hours_week` | 40 | Expected weekly hours |
-| `overtime_cost_multiplier` | 1.5 | Cost calculation |
+| `overtime_cost_multiplier` | 1.0 | Cost calculation (1× = same rate as regular) |
 | `hr_email` / `owner_email` | admin_email | Report recipients |
 | `vacation_dual_approval` | 1 | Dept + HR approval |
 | `enable_audit_logs` | 1 | Audit trail |
 
 Owner configures via **Settings** admin page or Owner portal settings view.
+
+---
+
+## Email system
+
+ETWA uses two email paths: **branded HTML notifications** (workforce events) and **plain-text password reset** (WordPress core).
+
+### Architecture
+
+| Layer | File | Role |
+|-------|------|------|
+| Delivery & HTML wrapper | `includes/Services/MailService.php` | Builds branded HTML, replaces `{placeholders}`, sends via `wp_mail()` |
+| Event notifications | `includes/Services/NotificationService.php` | Listens to workflow hooks, supplies subject + message per event |
+| Report emails | `includes/Services/EmailService.php` | Generates Excel export, emails HR (optional CC Owner) |
+| Template storage | `includes/Repositories/EmailSettingsRepository.php` | Defaults + `wp_options` key `etwa_email_settings` |
+| Admin UI | `includes/Admin/EmailSettingsManager.php`, `templates/admin/email-settings.php` | Settings form, live preview, test send |
+| Scheduled mail | `includes/Cron/CronJobs.php` | Weekly report + daily timesheet reminders |
+
+There are **no separate `.html` email template files**. Per-event code passes plain (or limited HTML) **message content**; `MailService` wraps it in one shared layout.
+
+### Branded HTML layout
+
+All ETWA notifications use `Content-Type: text/html; charset=UTF-8`.
+
+```
+┌─────────────────────────────────────────┐
+│  Outer page (#f3f4f6 bg, 24px padding)  │
+│  ┌───────────────────────────────────┐  │
+│  │ Card (640px max, white, bordered) │  │
+│  │  • Greeting (optional)            │  │
+│  │  • Main body ({email_content})    │  │
+│  │  ─── divider ───                  │  │
+│  │  • Signature / footer block       │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+**Main content typography:** Arial/Helvetica, 15px, `#1f2937`, line-height 1.6.
+
+Default admin template parts:
+
+| Setting | Default |
+|---------|---------|
+| `greeting` | `Hello {employee_name},` |
+| `email_body` | `{email_content}` |
+| `appreciation` | `With Appreciation,` |
+| `closing_text` | Assistance / clarifications line |
+| `signature_dedication` | `Dedicated to your success,` |
+
+### Signature / footer block
+
+Everything **below the horizontal rule** is the footer. Order:
+
+1. **Appreciation line** — 13px muted gray (`#6b7280`)
+2. **Closing / assistance text** — same muted style
+3. **Logo** (optional) — media attachment from Email Settings; default 180×60 px
+4. **Signature rows** — configurable styled lines (size, weight, color, spacing)
+
+Default signature rows:
+
+| Line | Content | Style |
+|------|---------|-------|
+| Dedication | From `signature_dedication` setting | 15px normal |
+| Sender name | Reviewer or default sender | 16px bold, dark |
+| Sender role | Job title or default role | 14px muted |
+| Contact | `M: {sender_phone} \| E: {sender_email}` | 14px; email as `mailto:` link |
+| Company | `{company_name} \| {company_tagline}` | 14px bold, dark |
+| Office phone | `T: {office_phone}` | 14px |
+| Office address | `A: {office_address}` | 14px; multiline supported |
+
+**Not included:** unsubscribe link, social icons, legal disclaimer, or copyright line.
+
+### Placeholders
+
+Simple `{key}` string replace in greeting, body, and signature. Available keys:
+
+`employee_name`, `employee_email`, `sender_name`, `sender_role`, `sender_email`, `sender_phone`, `company_name`, `company_tagline`, `office_phone`, `office_address`, `current_date`, `request_type`, `request_status`, `department`, `approval_link`, `system_name`, `email_content`
+
+When `sender_user_id` / `recipient_user_id` are passed to `MailService::send()`, sender and recipient fields are filled from the WordPress user and employee profile.
+
+### Notification emails (`NotificationService`)
+
+Hook-driven emails for workflow events. Subjects and message text are defined in PHP; only the **wrapper** is admin-configurable.
+
+| Hook | Recipient | Purpose |
+|------|-----------|---------|
+| `etwa_timesheet_submitted` | HR | Employee submitted timesheet |
+| `etwa_timesheet_reviewed` | Employee | Timesheet approved / rejected |
+| `etwa_overtime_reviewed` | Employee | Overtime approved / rejected |
+| `etwa_vacation_requested` | Dept head or HR | New vacation request |
+| `etwa_vacation_dept_approved` | HR | Dept approved → HR step |
+| `etwa_vacation_approved` | Employee | Final leave approval |
+| `etwa_vacation_rejected` | Employee | Leave rejected (with reason) |
+| `etwa_request_submitted` | Dept head or HR | Generic request submitted |
+| `etwa_request_dept_approved` | HR | Dept approved → HR step |
+| `etwa_request_approved` | Employee | Request approved |
+| `etwa_request_rejected` | Employee | Request rejected (with reason) |
+
+**Routing:** If the employee has a department head, dept head is notified first; otherwise HR (`hr_email` from settings). After dept approval, HR is notified. Final approve/reject goes to the employee.
+
+### Report & reminder emails
+
+| Source | Recipient | Content |
+|--------|-----------|---------|
+| `EmailService::send_report()` | HR (+ CC Owner if enabled) | Plain message + Excel attachment |
+| Cron `etwa_weekly_report_email` | Same as above | Previous work week export |
+| Cron `etwa_daily_reminder` | Employees missing submit/approve | Timesheet reminder for current week |
+
+Manual report email: `POST /export/email` (`ExportController`).
+
+### Password reset emails (separate — plain text)
+
+Password setup and reset **do not** use `MailService` or the branded HTML wrapper. They use WordPress `retrieve_password()` with filters in `includes/Frontend/Auth.php`:
+
+- Custom subject via `AuthHelper::password_reset_email_subject()`
+- Custom plain-text body with link to `/set-password/?key=...&login=...`
+
+Triggered when HR creates an employee, sends reset from profile, or user uses forgot-password on the login page.
+
+### Email Settings admin
+
+**Timesheets → Email Settings** (`etwa_manage_settings`):
+
+- General: From Name, From Email, Reply-To
+- Branding: logo upload, dimensions
+- Template: greeting, main body (must include `{email_content}` slot)
+- Signature: appreciation, closing, dedication, default sender fields, signature row builder
+- Company info: name, tagline, phone, address
+- Live iframe preview (AJAX) and send test email
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `includes/Services/MailService.php` | HTML render, placeholders, `wp_mail()` |
+| `includes/Services/NotificationService.php` | Workflow notification handlers |
+| `includes/Services/EmailService.php` | Report export email |
+| `includes/Repositories/EmailSettingsRepository.php` | Option storage & defaults |
+| `includes/Admin/EmailSettingsManager.php` | Settings API, preview/test AJAX |
+| `assets/js/email-settings.js` | Preview + signature builder UI |
 
 ---
 
@@ -413,7 +581,7 @@ employee-timesheet-workforce-analytics/
 │   └── frontend/                                # Portal shell, auth, views
 ├── assets/
 │   ├── css/                                     # tokens, components, portal, auth
-│   └── js/                                      # Feature modules + etwa-ui.js
+│   └── js/                                      # Feature modules + etwa-ui.js, etwa-api.js, etwa-date-range.js
 └── docs/                                        # This file, REST API, schema, roadmap
 ```
 
@@ -430,18 +598,20 @@ employee-timesheet-workforce-analytics/
 
 | Cron hook | Schedule | Purpose |
 |-----------|----------|---------|
-| `etwa_weekly_report_email` | Weekly (Friday 08:00) | Email workforce export |
-| `etwa_daily_reminder` | Daily (09:00) | Timesheet reminders |
+| `etwa_weekly_report_email` | Weekly (Friday 08:00) | Email workforce export to HR |
+| `etwa_daily_reminder` | Daily (09:00) | Timesheet reminders to employees who have not submitted |
 
-In-app notifications for approved/rejected requests via `NotificationService` (user meta).
+**Email notifications** for workflow events are sent by `NotificationService` (see [Email system](#email-system)).
+
+**In-app vacation notifications** (portal badge / list) are stored in user meta `etwa_vacation_notifications` by `VacationService` — separate from email delivery.
 
 ---
 
 ## Troubleshooting
 
-### “Cookie check failed” on login
+### “Cookie check failed” on login or long portal sessions
 
-Caused by sending auth nonce in `X-WP-Nonce`. Auth JS must use **`X-ETWA-Nonce`**. Hard-refresh the login page after plugin updates.
+Caused by expired REST nonces. Auth JS must use **`X-ETWA-Nonce`** on login routes. Portal modules use `etwa-api.js`, which refreshes nonces via `GET /portal/session` every 10 minutes and retries failed requests.
 
 ### Login page layout broken
 
@@ -449,7 +619,11 @@ Auth pages use a plugin-only template (`auth-page.php`). If the theme still wrap
 
 ### Password email not received
 
-Local environments (Local WP) need Mailhog or SMTP. Check spam; verify `wp_mail()` works.
+Password reset uses WordPress core plain-text mail (not the branded HTML template). Local environments (Local WP) need Mailhog or SMTP. Check spam; verify `wp_mail()` works.
+
+### Branded notification email not received
+
+Workflow emails (timesheet, leave, requests) use `MailService` HTML. Test from **Email Settings → Send Test Email**. Confirm `hr_email` is set under **Settings** for HR-bound notifications.
 
 ### Employee cannot log in
 
@@ -486,4 +660,4 @@ define( 'ETWA_DELETE_DATA', true );
 
 ---
 
-*Last updated: July 2026 — plugin version 1.0.0*
+*Last updated: July 2026 — plugin version 1.1.3*

@@ -78,7 +78,14 @@ final class ExportService {
 
 		$writer = new Xlsx( $spreadsheet );
 		$writer->setIncludeCharts( true );
-		$writer->save( $path );
+		try {
+			$writer->save( $path );
+		} catch ( \Throwable $e ) {
+			// Fallback: export tabular data without embedded chart if PhpSpreadsheet chart rendering fails.
+			$writer = new Xlsx( $spreadsheet );
+			$writer->setIncludeCharts( false );
+			$writer->save( $path );
+		}
 
 		$spreadsheet->disconnectWorksheets();
 		unset( $spreadsheet, $writer );
@@ -241,7 +248,6 @@ final class ExportService {
 			array( 'Regular Hours', $summary['regular_hours'] ?? 0 ),
 			array( 'Overtime Hours', $summary['overtime_hours'] ?? 0 ),
 			array( 'Combined Hours', $summary['combined_hours'] ?? 0 ),
-			array( 'Compensation Hours', $summary['compensation_hours'] ?? 0 ),
 			array( 'Overtime Percentage', ( $summary['overtime_percentage'] ?? 0 ) . '%' ),
 			array( 'Employees', $summary['employee_count'] ?? 0 ),
 			array( 'Last Activity', $summary['last_activity'] ?? '' ),
@@ -261,7 +267,7 @@ final class ExportService {
 		$sheet = $spreadsheet->createSheet();
 		$sheet->setTitle( 'Employees' );
 		$include_cost = EmployeeCostHelper::can_view_labor_cost();
-		$headers      = array( 'Employee', 'Regular Hours', 'OT Hours', 'Combined Hours', 'Compensation Hours' );
+		$headers      = array( 'Employee', 'Regular Hours', 'OT Hours', 'Combined Hours' );
 		if ( $include_cost ) {
 			$headers[] = 'OT Cost (EGP)';
 			$headers[] = 'Labor Cost (EGP)';
@@ -274,7 +280,6 @@ final class ExportService {
 				$emp['regular_hours'],
 				$emp['overtime_hours'],
 				$emp['combined_hours'] ?? $emp['total_hours'],
-				$emp['compensation_hours'] ?? 0,
 			);
 			if ( $include_cost ) {
 				$row_data[] = $emp['overtime_cost_egp'] ?? 0;
@@ -492,20 +497,42 @@ final class ExportService {
 		}
 
 		if ( count( $trends ) > 0 ) {
-			$last   = $row - 1;
-			$series = new DataSeries(
+			$last     = $row - 1;
+			$points   = count( $trends );
+			$category = new DataSeriesValues(
+				DataSeriesValues::DATASERIES_TYPE_STRING,
+				"'Charts'!\$A\$2:\$A\${$last}",
+				null,
+				$points
+			);
+
+			$regular_series = new DataSeries(
 				DataSeries::TYPE_BARCHART,
 				DataSeries::GROUPING_CLUSTERED,
-				range( 0, 1 ),
-				array( new Title( 'Hours' ) ),
-				array( new Title( 'Month' ) ),
+				array( 0 ),
 				array(
-					new DataSeriesValues( DataSeriesValues::DATASIZE_NUMBER, "'Charts'!\$B\$2:\$B\${$last}" ),
-					new DataSeriesValues( DataSeriesValues::DATASIZE_NUMBER, "'Charts'!\$C\$2:\$C\${$last}" ),
+					new DataSeriesValues( DataSeriesValues::DATASERIES_TYPE_STRING, "'Charts'!\$B\$1", null, 1 ),
 				),
-				array( new DataSeriesValues( DataSeriesValues::DATASIZE_STRING, "'Charts'!\$A\$2:\$A\${$last}" ) )
+				array( $category ),
+				array(
+					new DataSeriesValues( DataSeriesValues::DATASERIES_TYPE_NUMBER, "'Charts'!\$B\$2:\$B\${$last}", null, $points ),
+				)
 			);
-			$plot  = new PlotArea( null, array( $series ) );
+
+			$overtime_series = new DataSeries(
+				DataSeries::TYPE_BARCHART,
+				DataSeries::GROUPING_CLUSTERED,
+				array( 0 ),
+				array(
+					new DataSeriesValues( DataSeriesValues::DATASERIES_TYPE_STRING, "'Charts'!\$C\$1", null, 1 ),
+				),
+				array( $category ),
+				array(
+					new DataSeriesValues( DataSeriesValues::DATASERIES_TYPE_NUMBER, "'Charts'!\$C\$2:\$C\${$last}", null, $points ),
+				)
+			);
+
+			$plot  = new PlotArea( null, array( $regular_series, $overtime_series ) );
 			$chart = new Chart( 'trend_chart', new Title( 'Monthly Trends' ), new Legend(), $plot );
 			$chart->setTopLeftPosition( 'E2' );
 			$chart->setBottomRightPosition( 'M18' );

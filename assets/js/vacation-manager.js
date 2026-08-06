@@ -17,21 +17,7 @@
 	let calMonth = new Date().getMonth() + 1;
 	let vacationCalendar = null;
 
-	const api = (path, options = {}) => {
-		options.credentials = 'same-origin';
-		options.headers = Object.assign(
-			{ 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' },
-			options.headers || {}
-		);
-		return fetch(cfg.root + path, options).then(async (response) => {
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok && !data.message) {
-				data.message = cfg.i18n?.error || 'Something went wrong.';
-				data.success = false;
-			}
-			return data;
-		});
-	};
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	function renderBalanceCards(balances, target) {
 		const primary = balances.filter((b) => b.is_primary_pool);

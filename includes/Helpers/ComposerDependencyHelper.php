@@ -28,6 +28,10 @@ final class ComposerDependencyHelper {
 	}
 
 	public static function install_command(): string {
+		return 'powershell -ExecutionPolicy Bypass -File scripts/install-composer-deps.ps1';
+	}
+
+	public static function install_command_site_shell(): string {
 		return 'composer install --no-dev';
 	}
 
@@ -60,13 +64,14 @@ final class ComposerDependencyHelper {
 					</p>
 					<p><?php esc_html_e( 'PhpSpreadsheet is not installed. Excel exports and emailed reports will fail until Composer dependencies are installed.', 'etwa' ); ?></p>
 					<p>
-						<?php esc_html_e( 'In Local, open Site Shell for this site, then run:', 'etwa' ); ?>
+						<?php esc_html_e( 'From PowerShell or Cursor terminal (Windows + Local WP), run:', 'etwa' ); ?>
 					</p>
 					<pre style="white-space:pre-wrap;margin:0 0 12px;padding:10px;background:#f6f7f7;border:1px solid #dcdcde;">cd <?php echo esc_html( $dir ); ?>
 
 <?php echo esc_html( $command ); ?></pre>
 					<p class="description">
-						<?php esc_html_e( 'If composer is not found in Site Shell, install Composer globally first or run: php composer.phar install --no-dev', 'etwa' ); ?>
+						<?php esc_html_e( 'Or double-click scripts/install-composer-deps.bat in the plugin folder.', 'etwa' ); ?>
+						<?php esc_html_e( 'In Local Site Shell you can also run: composer install --no-dev', 'etwa' ); ?>
 					</p>
 				</div>
 				<?php

@@ -11,6 +11,7 @@ namespace ETWA\Helpers;
 
 use ETWA\Repositories\HolidayRepository;
 use ETWA\Repositories\SettingsRepository;
+use ETWA\Repositories\VacationRecordRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -18,9 +19,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class CalendarHelper {
 
-	public const STATUS_WORKING = 'working';
-	public const STATUS_HOLIDAY = 'holiday';
-	public const STATUS_DAY_OFF = 'day_off';
+	public const STATUS_WORKING  = 'working';
+	public const STATUS_HOLIDAY  = 'holiday';
+	public const STATUS_DAY_OFF  = 'day_off';
+	public const STATUS_VACATION = 'vacation';
 
 	/** @return array<int,string> dow (0=Sun) => status */
 	public static function weekday_config(): array {
@@ -126,6 +128,67 @@ final class CalendarHelper {
 	}
 
 	/**
+	 * Whether an employee may log time on a date (calendar + approved vacation).
+	 */
+	public static function can_employee_log_entry( string $date, int $user_id ): bool {
+		if ( ! self::can_log_entry( $date ) ) {
+			return false;
+		}
+
+		return ! self::is_approved_vacation_day( $date, $user_id );
+	}
+
+	public static function is_approved_vacation_day( string $date, int $user_id ): bool {
+		if ( $user_id <= 0 ) {
+			return false;
+		}
+
+		$map = self::approved_vacation_dates_map( $date, $date, $user_id );
+
+		return isset( $map[ $date ] );
+	}
+
+	/**
+	 * Approved vacation dates for one employee within a range (one query).
+	 *
+	 * @return array<string,string> Y-m-d => leave type label
+	 */
+	public static function approved_vacation_dates_map( string $date_from, string $date_to, int $user_id ): array {
+		if ( $user_id <= 0 || ! $date_from || ! $date_to || $date_to < $date_from ) {
+			return array();
+		}
+
+		$records = ( new VacationRecordRepository() )->approved_in_range( $date_from, $date_to, $user_id );
+		$map     = array();
+
+		foreach ( $records as $record ) {
+			$range_start = max( $date_from, (string) $record->start_date );
+			$range_end   = min( $date_to, (string) $record->end_date );
+			if ( $range_end < $range_start ) {
+				continue;
+			}
+
+			$label = ! empty( $record->leave_type_name )
+				? (string) $record->leave_type_name
+				: __( 'Vacation', 'etwa' );
+
+			try {
+				$current = new \DateTimeImmutable( $range_start );
+				$end     = new \DateTimeImmutable( $range_end );
+			} catch ( \Exception $e ) {
+				continue;
+			}
+
+			while ( $current <= $end ) {
+				$map[ $current->format( 'Y-m-d' ) ] = $label;
+				$current                            = $current->modify( '+1 day' );
+			}
+		}
+
+		return $map;
+	}
+
+	/**
 	 * @return array<string,array{name:string,id:int}>
 	 */
 	public static function holidays_map_for_range( string $date_from, string $date_to ): array {
@@ -133,12 +196,15 @@ final class CalendarHelper {
 		return $repo->map_for_date_range( $date_from, $date_to );
 	}
 
-	/** @return array<string,array{status:string,label:string,holiday_name:?string}> */
-	public static function build_day_meta( array $dates ): array {
+	/** @return array<string,array{status:string,label:string,holiday_name:?string,vacation_label:?string}> */
+	public static function build_day_meta( array $dates, ?int $user_id = null ): array {
 		$bounds = self::bounds_for_dates( $dates );
 		$from   = $bounds['from'];
 		$to     = $bounds['to'];
 		$map    = $from && $to ? self::holidays_map_for_range( $from, $to ) : array();
+		$vacation_map = ( $user_id && $from && $to )
+			? self::approved_vacation_dates_map( $from, $to, $user_id )
+			: array();
 		$meta = array();
 
 		foreach ( $dates as $date ) {
@@ -155,10 +221,21 @@ final class CalendarHelper {
 			}
 
 			$meta[ $date ] = array(
-				'status'       => $status,
-				'label'        => $label,
-				'holiday_name' => $name,
+				'status'         => $status,
+				'label'          => $label,
+				'holiday_name'   => $name,
+				'vacation_label' => null,
 			);
+
+			// Approved vacation locks working days only; holidays/day-off keep existing behavior.
+			if ( self::STATUS_WORKING === $status && isset( $vacation_map[ $date ] ) ) {
+				$meta[ $date ] = array(
+					'status'         => self::STATUS_VACATION,
+					'label'          => __( 'Vacation', 'etwa' ),
+					'holiday_name'   => null,
+					'vacation_label' => $vacation_map[ $date ],
+				);
+			}
 		}
 
 		return $meta;

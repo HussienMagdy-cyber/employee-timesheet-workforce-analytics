@@ -12,21 +12,7 @@
 	let permissionTypes = {};
 	let permissionReasons = {};
 
-	const api = (path, options = {}) => {
-		options.credentials = 'same-origin';
-		options.headers = Object.assign(
-			{ 'X-WP-Nonce': cfg.nonce, 'Content-Type': 'application/json' },
-			options.headers || {}
-		);
-		return fetch(cfg.root + path, options).then(async (response) => {
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok && !data.message) {
-				data.message = cfg.i18n?.error || 'Something went wrong.';
-				data.success = false;
-			}
-			return data;
-		});
-	};
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	function todayIso() {
 		return new Date().toISOString().slice(0, 10);
@@ -397,7 +383,7 @@
 			.catch(() => {});
 
 		const initialTab = app.data('initial-tab') || 'vacation';
-		if (initialTab !== 'vacation') switchTab(initialTab);
+		switchTab(initialTab);
 
 		app.on('click', '[data-request-tab]', function () {
 			switchTab($(this).data('request-tab'));

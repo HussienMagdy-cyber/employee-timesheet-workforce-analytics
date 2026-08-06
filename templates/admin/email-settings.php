@@ -91,7 +91,7 @@ $option_key = EmailSettingsRepository::OPTION_KEY;
 
 				<div class="etwa-panel">
 					<h2><?php esc_html_e( 'Signature', 'etwa' ); ?></h2>
-					<p class="etwa-muted"><?php esc_html_e( 'The signature block appears below a divider in every ETWA email. Appreciation and closing text are rendered in a smaller muted font above the signature rows. Sender details use the reviewer when available; automated emails use the default sender values below.', 'etwa' ); ?></p>
+					<p class="etwa-muted"><?php esc_html_e( 'The signature block appears below a divider in every ETWA email. Appreciation and closing text render above the logo, followed by the configured signature rows.', 'etwa' ); ?></p>
 					<div class="etwa-form-grid">
 						<label class="etwa-span-2">
 							<?php esc_html_e( 'Appreciation Line', 'etwa' ); ?>
@@ -128,7 +128,7 @@ $option_key = EmailSettingsRepository::OPTION_KEY;
 							<h3><?php esc_html_e( 'Signature Rows', 'etwa' ); ?></h3>
 							<button type="button" class="button" id="etwa-signature-add-row"><?php esc_html_e( 'Add Row', 'etwa' ); ?></button>
 						</div>
-						<p class="etwa-muted"><?php esc_html_e( 'Configure styled text lines below the appreciation block. Use placeholders like {sender_name}, {sender_email}, {company_name}.', 'etwa' ); ?></p>
+						<p class="etwa-muted"><?php esc_html_e( 'Configure styled text lines below the logo. Use placeholders like {sender_name}, {sender_email}, {company_name}.', 'etwa' ); ?></p>
 						<input type="hidden" name="<?php echo esc_attr( $option_key ); ?>[signature_rows_json]" id="etwa-signature-rows-json" value="<?php echo esc_attr( wp_json_encode( $settings['signature_rows'] ?? EmailSettingsRepository::default_signature_rows() ) ); ?>" />
 						<div id="etwa-signature-rows-list" class="etwa-signature-rows-list"></div>
 					</div>

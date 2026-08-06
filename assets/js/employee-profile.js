@@ -5,19 +5,7 @@
 	const ui = () => window.etwaUI || {};
 
 	function api(path, options = {}) {
-		options.credentials = 'same-origin';
-		options.headers = Object.assign(
-			{ 'X-WP-Nonce': cfg().nonce, 'Content-Type': 'application/json' },
-			options.headers || {}
-		);
-		return fetch(cfg().root + path, options).then(async (response) => {
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok && !data.message) {
-				data.message = cfg().i18n?.error || 'Something went wrong.';
-				data.success = false;
-			}
-			return data;
-		});
+		return window.etwaAPI.api(path, options);
 	}
 
 	function roleOptions(selected) {

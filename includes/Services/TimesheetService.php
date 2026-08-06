@@ -333,6 +333,17 @@ final class TimesheetService {
 			return new WP_Error( 'forbidden', __( 'Cannot delete this entry.', 'etwa' ), array( 'status' => 403 ) );
 		}
 
+		if (
+			$user_id === $timesheet->user_id
+			&& CalendarHelper::is_approved_vacation_day( $entry->entry_date, (int) $timesheet->user_id )
+		) {
+			return new WP_Error(
+				'invalid_date',
+				__( 'Entries cannot be deleted on approved vacation days.', 'etwa' ),
+				array( 'status' => 400 )
+			);
+		}
+
 		$this->overtime->delete_by_entry( $entry_id );
 		$this->entries->delete( $entry_id );
 		if ( $audit_context ) {
@@ -363,17 +374,16 @@ final class TimesheetService {
 		}
 
 		$entries = $this->entries->find_by_timesheet( $timesheet_id );
-		if ( empty( $entries ) && null === $timesheet->draft_saved_at ) {
+		if ( empty( $entries ) ) {
 			return new WP_Error( 'empty', __( 'Cannot submit an empty timesheet.', 'etwa' ), array( 'status' => 400 ) );
 		}
 
-		if ( null === $timesheet->draft_saved_at || '' === trim( (string) $timesheet->draft_snapshot ) ) {
-			return new WP_Error(
-				'draft_not_saved',
-				__( 'Save your draft before submitting the timesheet.', 'etwa' ),
-				array( 'status' => 400 )
-			);
+		// Persist current live entries as the draft snapshot so submit matches on-screen edits.
+		$saved = $this->save_draft( $user_id, $timesheet_id );
+		if ( is_wp_error( $saved ) ) {
+			return $saved;
 		}
+		$timesheet = $saved;
 
 		$restored = $this->restore_entries_from_snapshot( $timesheet );
 		if ( is_wp_error( $restored ) ) {
@@ -713,8 +723,16 @@ final class TimesheetService {
 			);
 		}
 
-		if ( ! $skip_calendar_check && ! CalendarHelper::can_log_entry( $entry_date ) ) {
-			$status = CalendarHelper::get_day_status( $entry_date );
+		if ( ! $skip_calendar_check && ! CalendarHelper::can_employee_log_entry( $entry_date, (int) $timesheet->user_id ) ) {
+			if ( CalendarHelper::is_approved_vacation_day( $entry_date, (int) $timesheet->user_id ) ) {
+				return new WP_Error(
+					'invalid_date',
+					__( 'Entries cannot be logged on approved vacation days.', 'etwa' ),
+					array( 'status' => 400 )
+				);
+			}
+
+			$status  = CalendarHelper::get_day_status( $entry_date );
 			$message = CalendarHelper::STATUS_HOLIDAY === $status
 				? __( 'Entries cannot be logged on holidays.', 'etwa' )
 				: __( 'Entries cannot be logged on days off.', 'etwa' );

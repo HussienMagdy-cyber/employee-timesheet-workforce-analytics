@@ -18,11 +18,7 @@
 
 	let chartInstances = [];
 
-	const api = (path) =>
-		fetch(`${cfg.root}${path}`, {
-			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': cfg.nonce },
-		}).then((r) => r.json());
+	const api = (path, options = {}) => window.etwaAPI.api(path, options);
 
 	function chartDefaults() {
 		return {
@@ -333,6 +329,30 @@
 		if (!document.getElementById('etwa-owner-app')) return;
 
 		renderInsights(owner.insights || {});
+
+		const exportBtn = document.getElementById('etwa-analytics-export-report');
+		if (exportBtn && cfg.canExport && window.etwaDateRange) {
+			exportBtn.addEventListener('click', () => {
+				window.etwaDateRange.loadFilters().then((filters) => {
+					window.etwaDateRange
+						.promptDateRangeExport({
+							title: cfg.i18n?.employeeHoursByClientReport || 'Employee Hours by Client',
+							date_from: owner.dateFrom || '',
+							date_to: owner.dateTo || '',
+							fields: {
+								employee: { required: false },
+								client: { required: false },
+							},
+							filters,
+						})
+						.then((params) => {
+							if (!params) return;
+							return window.etwaDateRange.exportReport('employee_hours_by_client', params, exportBtn);
+						})
+						.catch((err) => window.etwaUI?.error(err.message));
+				});
+			});
+		}
 
 		api(`analytics/advanced?date_from=${encodeURIComponent(owner.dateFrom)}&date_to=${encodeURIComponent(owner.dateTo)}`)
 			.then((res) => {

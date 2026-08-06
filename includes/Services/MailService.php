@@ -269,25 +269,7 @@ final class MailService {
 
 	/** @param array<string,string> $placeholders @param array<string,mixed> $settings */
 	private function render_signature( array $placeholders, array $settings ): string {
-		$logo_id = absint( $settings['logo_id'] ?? 0 );
-		$logo    = '';
-
-		if ( $logo_id > 0 ) {
-			$logo_url = wp_get_attachment_image_url( $logo_id, 'full' );
-			if ( $logo_url ) {
-				$width  = absint( $settings['logo_width'] ?? 180 );
-				$height = absint( $settings['logo_height'] ?? 60 );
-				$logo   = sprintf(
-					'<p style="margin:0 0 20px;"><img src="%1$s" alt="%2$s" width="%3$d" height="%4$d" style="display:block;max-width:100%%;height:auto;" /></p>',
-					esc_url( $logo_url ),
-					esc_attr( (string) ( $settings['company_name'] ?? '' ) ),
-					$width,
-					$height
-				);
-			}
-		}
-
-		$html = $logo;
+		$html = '';
 
 		$appreciation = trim( $this->replace_placeholders( (string) ( $settings['appreciation'] ?? '' ), $placeholders ) );
 		$closing      = trim( $this->replace_placeholders( (string) ( $settings['closing_text'] ?? '' ), $placeholders ) );
@@ -300,6 +282,22 @@ final class MailService {
 			$html .= '<p style="' . $muted_style . 'margin-bottom:20px;">' . wp_kses_post( nl2br( esc_html( $closing ) ) ) . '</p>';
 		} elseif ( '' !== $appreciation ) {
 			$html .= '<p style="margin:0 0 20px;"></p>';
+		}
+
+		$logo_id = absint( $settings['logo_id'] ?? 0 );
+		if ( $logo_id > 0 ) {
+			$logo_url = wp_get_attachment_image_url( $logo_id, 'full' );
+			if ( $logo_url ) {
+				$width = absint( $settings['logo_width'] ?? 180 );
+				$height = absint( $settings['logo_height'] ?? 60 );
+				$html  .= sprintf(
+					'<p style="margin:0 0 20px;"><img src="%1$s" alt="%2$s" width="%3$d" height="%4$d" style="display:block;max-width:100%%;height:auto;" /></p>',
+					esc_url( $logo_url ),
+					esc_attr( (string) ( $settings['company_name'] ?? '' ) ),
+					$width,
+					$height
+				);
+			}
 		}
 
 		$rows = $settings['signature_rows'] ?? EmailSettingsRepository::default_signature_rows();

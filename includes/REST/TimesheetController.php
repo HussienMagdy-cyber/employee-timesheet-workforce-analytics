@@ -159,7 +159,7 @@ final class TimesheetController extends RestController {
 
 		$week           = $date ? DateHelper::get_work_week_for_date( $date ) : DateHelper::get_current_work_week();
 		$calendar_dates = CalendarHelper::get_calendar_dates( $week['period_start'] );
-		$day_meta       = CalendarHelper::build_day_meta( $calendar_dates );
+		$day_meta       = CalendarHelper::build_day_meta( $calendar_dates, $user_id );
 		$timesheet      = $data['timesheet'];
 		$entries        = $data['entries'];
 		$sync_state     = TimesheetDraftHelper::draft_sync_state( $timesheet, $entries );

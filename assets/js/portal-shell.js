@@ -28,6 +28,27 @@
 		}
 	}
 
+	function initNavGroups() {
+		if (!root || root.dataset.etwaNavGroupsBound === '1') {
+			return;
+		}
+		root.dataset.etwaNavGroupsBound = '1';
+
+		root.querySelectorAll('.etwa-portal-nav-group-toggle').forEach((button) => {
+			button.addEventListener('click', () => {
+				const group = button.closest('.etwa-portal-nav-group');
+				const panel = group?.querySelector('.etwa-portal-nav-group-items');
+				if (!group || !panel) {
+					return;
+				}
+
+				const isOpen = group.classList.toggle('is-open');
+				panel.hidden = !isOpen;
+				button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+			});
+		});
+	}
+
 	function initMobileNav() {
 		if (!root || (toggle && toggle.dataset.etwaNavBound === '1')) {
 			return;
@@ -86,7 +107,12 @@
 		}
 	}
 
-	function persistDarkMode(cfg, isDark) {
+	function persistDarkMode(isDark) {
+		const cfg = portalConfig();
+		if (!cfg || !cfg.ajaxUrl || !cfg.ajaxNonce) {
+			return Promise.resolve();
+		}
+
 		const body = new URLSearchParams({
 			action: 'etwa_toggle_dark_mode',
 			nonce: cfg.ajaxNonce,
@@ -133,7 +159,7 @@
 
 			const nextDark = !root.classList.contains('etwa-dark');
 			setDarkModeUi(nextDark);
-			persistDarkMode(cfg, nextDark);
+			persistDarkMode(nextDark);
 		});
 	}
 
@@ -145,6 +171,7 @@
 			return;
 		}
 		shellInitialized = true;
+		initNavGroups();
 		initMobileNav();
 		bindDarkToggle();
 		loadNavBadges();
@@ -152,15 +179,11 @@
 
 	function loadNavBadges() {
 		const cfg = window.etwaApp;
-		if (!cfg || !cfg.root || !cfg.nonce || !document.querySelector('[data-nav-badge]')) {
+		if (!cfg || !cfg.root || !window.etwaAPI || !document.querySelector('[data-nav-badge]')) {
 			return;
 		}
 
-		fetch(cfg.root + 'portal/nav-badges', {
-			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': cfg.nonce },
-		})
-			.then((response) => response.json())
+		window.etwaAPI.api('portal/nav-badges')
 			.then((payload) => {
 				if (!payload || !payload.success) return;
 				const badges = payload.data || {};

@@ -140,9 +140,10 @@ $hr_can_edit = ! empty( $hr_can_edit );
 			$day_items = $entries_by_day[ $date ] ?? array();
 			$day_hours = $day_totals[ $date ] ?? 0;
 			$is_today  = $date === current_time( 'Y-m-d' );
-			$meta      = $day_meta[ $date ] ?? array( 'status' => 'working', 'label' => __( 'Working', 'etwa' ), 'holiday_name' => null );
+			$meta      = $day_meta[ $date ] ?? array( 'status' => 'working', 'label' => __( 'Working', 'etwa' ), 'holiday_name' => null, 'vacation_label' => null );
 			$status    = $meta['status'] ?? 'working';
 			$can_log   = 'working' === $status;
+			$show_entry_actions = ! $readonly && ( 'vacation' !== $status || $hr_can_edit );
 			?>
 			<section class="etwa-day-card etwa-day-<?php echo esc_attr( $status ); ?><?php echo $is_today ? ' is-today' : ''; ?><?php echo ! $can_log ? ' is-non-working' : ''; ?>" data-date="<?php echo esc_attr( $date ); ?>" data-day-status="<?php echo esc_attr( $status ); ?>">
 				<header class="etwa-day-head">
@@ -153,6 +154,8 @@ $hr_can_edit = ! empty( $hr_can_edit );
 					<div class="etwa-day-head-end">
 						<?php if ( 'holiday' === $status ) : ?>
 							<span class="etwa-day-badge etwa-day-badge-holiday"><?php echo esc_html( strtoupper( $meta['label'] ?? __( 'Holiday', 'etwa' ) ) ); ?></span>
+						<?php elseif ( 'vacation' === $status ) : ?>
+							<span class="etwa-day-badge etwa-day-badge-vacation"><?php esc_html_e( 'VACATION', 'etwa' ); ?></span>
 						<?php elseif ( 'day_off' === $status ) : ?>
 							<span class="etwa-day-badge etwa-day-badge-off"><?php esc_html_e( 'DAY OFF', 'etwa' ); ?></span>
 						<?php else : ?>
@@ -164,6 +167,8 @@ $hr_can_edit = ! empty( $hr_can_edit );
 				<div class="etwa-day-entries">
 					<?php if ( 'holiday' === $status && empty( $day_items ) ) : ?>
 						<p class="etwa-day-holiday-msg"><?php echo esc_html( $meta['holiday_name'] ?? __( 'Holiday', 'etwa' ) ); ?></p>
+					<?php elseif ( 'vacation' === $status && empty( $day_items ) ) : ?>
+						<p class="etwa-day-vacation-msg"><?php echo esc_html( $meta['vacation_label'] ?? __( 'Vacation', 'etwa' ) ); ?></p>
 					<?php elseif ( 'day_off' === $status && empty( $day_items ) ) : ?>
 						<p class="etwa-day-empty"><?php esc_html_e( 'Day off', 'etwa' ); ?></p>
 					<?php elseif ( empty( $day_items ) ) : ?>
@@ -208,7 +213,7 @@ $hr_can_edit = ! empty( $hr_can_edit );
 										<?php endif; ?>
 									<?php endif; ?>
 								</div>
-								<?php if ( ! $readonly ) : ?>
+								<?php if ( $show_entry_actions ) : ?>
 									<div class="etwa-entry-actions">
 										<button type="button" class="etwa-link etwa-edit-entry"><?php esc_html_e( 'Edit', 'etwa' ); ?></button>
 										<button type="button" class="etwa-link etwa-delete-entry"><?php esc_html_e( 'Delete', 'etwa' ); ?></button>

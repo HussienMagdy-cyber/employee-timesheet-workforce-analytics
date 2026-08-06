@@ -37,6 +37,7 @@ final class Shortcodes {
 		add_shortcode( 'etwa_clients', array( $this, 'render_clients' ) );
 		add_shortcode( 'etwa_employees', array( $this, 'render_employees' ) );
 		add_shortcode( 'etwa_client_analytics', array( $this, 'render_client_analytics' ) );
+		add_shortcode( 'etwa_reports', array( $this, 'render_reports' ) );
 		add_shortcode( 'etwa_holidays', array( $this, 'render_holidays' ) );
 		add_shortcode( 'etwa_vacations', array( $this, 'render_vacations' ) );
 		add_shortcode( 'etwa_my_vacation', array( $this, 'render_my_vacation' ) );
@@ -50,7 +51,8 @@ final class Shortcodes {
 		}
 
 		$user_id   = get_current_user_id();
-		$nav_items = PortalNav::items_for_user( $user_id );
+		$nav_items  = PortalNav::items_for_user( $user_id );
+		$nav_groups = PortalNav::groups_for_user( $user_id );
 		if ( ! $nav_items ) {
 			return $this->denied_message();
 		}
@@ -63,7 +65,7 @@ final class Shortcodes {
 		self::$active[] = 'portal';
 		AssetRegistry::mark( 'portal-shell' );
 		AssetRegistry::mark( PortalNav::script_for_view( $current_view ) );
-		if ( 'requests' === $current_view ) {
+		if ( PortalNav::is_employee_requests_view( $current_view ) ) {
 			AssetRegistry::mark( 'employee-vacation' );
 		}
 		if ( 'hr' === $current_view && ! empty( $_GET['review_user'] ) && ! empty( $_GET['etwa_week'] ) ) {
@@ -80,8 +82,9 @@ final class Shortcodes {
 		$this->render_portal_view( $current_view, $portal_url, $atts );
 		$portal_content = (string) ob_get_clean();
 
-		$page_title    = $page_meta['title'];
-		$page_subtitle = $page_meta['subtitle'];
+		$page_title        = $page_meta['title'];
+		$page_subtitle     = $page_meta['subtitle'];
+		$page_detail_title = $this->portal_page_detail_title( $current_view );
 
 		ob_start();
 		include ETWA_PLUGIN_DIR . 'templates/frontend/portal-shell.php';
@@ -106,6 +109,9 @@ final class Shortcodes {
 			case 'client-analytics':
 				$this->output_client_analytics( $portal_url );
 				break;
+			case 'reports':
+				$this->output_reports();
+				break;
 			case 'employees':
 				$this->output_employees();
 				break;
@@ -122,10 +128,18 @@ final class Shortcodes {
 				$this->output_vacations();
 				break;
 			case 'requests-hr':
-				$this->output_requests_hr();
+			case 'requests-hr-vacation':
+			case 'requests-hr-wfh':
+			case 'requests-hr-permission':
+			case 'requests-hr-holiday-work':
+				$this->output_requests_hr( PortalNav::request_tab_for_view( $view ) );
 				break;
 			case 'requests':
-				$this->output_requests();
+			case 'requests-vacation':
+			case 'requests-wfh':
+			case 'requests-permission':
+			case 'requests-holiday-work':
+				$this->output_requests( PortalNav::request_tab_for_view( $view ) );
 				break;
 			case 'my-vacation':
 				$this->output_my_vacation();
@@ -248,6 +262,17 @@ final class Shortcodes {
 		include ETWA_PLUGIN_DIR . 'templates/frontend/client-analytics.php';
 	}
 
+	private function output_reports(): void {
+		if ( ! current_user_can( RoleManager::CAP_EXPORT ) ) {
+			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			return;
+		}
+
+		$can_view_labor_cost = EmployeeCostHelper::can_view_labor_cost();
+		$can_view_analytics  = current_user_can( RoleManager::CAP_ANALYTICS );
+		include ETWA_PLUGIN_DIR . 'templates/frontend/reports-exports.php';
+	}
+
 	private function output_employees(): void {
 		if ( ! EmployeeCostHelper::can_view_labor_cost() ) {
 			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -341,7 +366,7 @@ final class Shortcodes {
 		include ETWA_PLUGIN_DIR . 'templates/frontend/vacation.php';
 	}
 
-	private function output_requests(): void {
+	private function output_requests( string $initial_tab = 'vacation' ): void {
 		if ( ! current_user_can( RoleManager::CAP_VIEW_OWN_VACATION ) ) {
 			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			return;
@@ -350,7 +375,7 @@ final class Shortcodes {
 		include ETWA_PLUGIN_DIR . 'templates/frontend/my-requests.php';
 	}
 
-	private function output_requests_hr(): void {
+	private function output_requests_hr( string $initial_tab = 'vacation' ): void {
 		$user_id = get_current_user_id();
 		$allowed = current_user_can( RoleManager::CAP_MANAGE_VACATION )
 			|| ( user_can( $user_id, RoleManager::CAP_APPROVE_DEPT_REQUESTS ) && \ETWA\Helpers\DepartmentHelper::user_heads_department( $user_id ) );
@@ -552,6 +577,22 @@ final class Shortcodes {
 		return (string) ob_get_clean();
 	}
 
+	public function render_reports( $atts = array() ): string {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_EXPORT ) ) {
+			return $this->denied_message();
+		}
+
+		self::$active[] = 'reports';
+		AssetRegistry::mark( 'reports-exports' );
+
+		ob_start();
+		$this->output_reports();
+		return (string) ob_get_clean();
+	}
+
 	public function render_employees( $atts = array() ): string {
 		if ( ! is_user_logged_in() ) {
 			AuthHelper::redirect_to_login();
@@ -590,5 +631,19 @@ final class Shortcodes {
 
 	private function denied_message(): string {
 		return '<div class="etwa-portal-message"><p>' . esc_html__( 'You do not have permission to view this page.', 'etwa' ) . '</p></div>';
+	}
+
+	private function portal_page_detail_title( string $view ): string {
+		if ( 'client-analytics' !== $view ) {
+			return '';
+		}
+
+		$client_id = isset( $_GET['client_id'] ) ? (int) $_GET['client_id'] : 0;
+		if ( $client_id <= 0 ) {
+			return '';
+		}
+
+		$client = ( new ClientRepository() )->find( $client_id );
+		return $client ? $client->name : '';
 	}
 }

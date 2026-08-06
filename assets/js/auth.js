@@ -31,10 +31,35 @@
 		$btn.prop('disabled', loading);
 	}
 
+	function syncPasswordToggle($btn, visible) {
+		const showLabel = $btn.attr('data-label-show') || cfg.i18n?.showPassword || 'Show password';
+		const hideLabel = $btn.attr('data-label-hide') || cfg.i18n?.hidePassword || 'Hide password';
+		$btn
+			.attr('aria-pressed', visible ? 'true' : 'false')
+			.attr('aria-label', visible ? hideLabel : showLabel)
+			.text(visible ? cfg.i18n?.hide || 'Hide' : cfg.i18n?.show || 'Show');
+	}
+
 	$(function () {
 		if (!$('#etwa-auth-app').length) {
 			return;
 		}
+
+		$('#etwa-auth-app').on('click', '.etwa-auth-password-toggle', function () {
+			const $btn = $(this);
+			const inputId = $btn.attr('aria-controls');
+			const $input = inputId ? $('#' + inputId) : $btn.siblings('input').first();
+			if (!$input.length) {
+				return;
+			}
+			const visible = $input.attr('type') === 'password';
+			$input.attr('type', visible ? 'text' : 'password');
+			syncPasswordToggle($btn, visible);
+		});
+
+		$('.etwa-auth-password-toggle').each(function () {
+			syncPasswordToggle($(this), false);
+		});
 
 		$('#etwa-login-form').on('submit', function (e) {
 			e.preventDefault();

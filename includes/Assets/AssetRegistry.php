@@ -88,7 +88,7 @@ final class AssetRegistry {
 		if ( ! $post ) {
 			return false;
 		}
-		$tags = array( 'etwa_timesheet', 'etwa_hr', 'etwa_analytics', 'etwa_client_analytics', 'etwa_clients', 'etwa_employees', 'etwa_holidays', 'etwa_vacations', 'etwa_my_vacation', 'etwa_requests', 'etwa_requests_hr', 'etwa_portal', 'etwa_login', 'etwa_set_password' );
+		$tags = array( 'etwa_timesheet', 'etwa_hr', 'etwa_analytics', 'etwa_client_analytics', 'etwa_clients', 'etwa_employees', 'etwa_reports', 'etwa_holidays', 'etwa_vacations', 'etwa_my_vacation', 'etwa_requests', 'etwa_requests_hr', 'etwa_portal', 'etwa_login', 'etwa_set_password' );
 		foreach ( $tags as $tag ) {
 			if ( has_shortcode( $post->post_content, $tag ) ) {
 				if ( 'etwa_portal' === $tag && is_user_logged_in() ) {
@@ -129,6 +129,9 @@ final class AssetRegistry {
 		if ( isset( self::$scripts['employee-vacation'] ) ) {
 			return 'employee-vacation';
 		}
+		if ( isset( self::$scripts['reports-exports'] ) ) {
+			return 'reports-exports';
+		}
 		if ( isset( self::$scripts['client-analytics'] ) ) {
 			return 'client-analytics';
 		}
@@ -161,6 +164,7 @@ final class AssetRegistry {
 			'etwa_hr'        => 'hr-dashboard',
 			'etwa_analytics' => 'owner-analytics',
 			'etwa_client_analytics' => 'client-analytics',
+			'etwa_reports'   => 'reports-exports',
 			'etwa_clients'   => 'clients-manager',
 			'etwa_employees' => 'employees-manager',
 			'etwa_holidays'  => 'holidays-manager',
@@ -223,7 +227,7 @@ final class AssetRegistry {
 			wp_enqueue_media();
 		}
 
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script ) {
 			wp_enqueue_style(
 				'etwa-analytics',
 				ETWA_PLUGIN_URL . 'assets/css/analytics.css',
@@ -232,7 +236,17 @@ final class AssetRegistry {
 			);
 		}
 
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script ) {
+		if ( in_array( $script, array( 'reports-exports', 'client-analytics', 'employees-manager', 'owner-analytics', 'hr-dashboard' ), true ) ) {
+			wp_enqueue_script(
+				'etwa-date-range',
+				ETWA_PLUGIN_URL . 'assets/js/etwa-date-range.js',
+				array( 'etwa-ui', 'etwa-api' ),
+				ETWA_VERSION,
+				true
+			);
+		}
+
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script ) {
 			wp_enqueue_script(
 				'chartjs',
 				'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
@@ -253,12 +267,26 @@ final class AssetRegistry {
 			true
 		);
 
-		$deps = array( 'jquery', 'etwa-ui' );
+		wp_enqueue_script(
+			'etwa-api',
+			ETWA_PLUGIN_URL . 'assets/js/etwa-api.js',
+			array( 'etwa-ui' ),
+			ETWA_VERSION,
+			true
+		);
+
+		$deps = array( 'jquery', 'etwa-ui', 'etwa-api' );
+		if ( 'auth' === $script ) {
+			$deps = array( 'jquery', 'etwa-ui' );
+		}
 		if ( ! in_array( $script, array( 'clients-manager', 'auth' ), true ) ) {
 			$deps[] = 'wp-api-fetch';
 		}
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script ) {
 			$deps[] = 'chartjs';
+		}
+		if ( wp_script_is( 'etwa-date-range', 'enqueued' ) ) {
+			$deps[] = 'etwa-date-range';
 		}
 		if ( 'vacation-manager' === $script || 'employee-vacation' === $script || 'employee-requests' === $script ) {
 			wp_enqueue_script(
@@ -274,7 +302,7 @@ final class AssetRegistry {
 			wp_enqueue_script(
 				'etwa-employee-profile',
 				ETWA_PLUGIN_URL . 'assets/js/employee-profile.js',
-				array( 'jquery', 'etwa-ui' ),
+				array( 'jquery', 'etwa-ui', 'etwa-api' ),
 				ETWA_VERSION,
 				true
 			);
@@ -310,6 +338,8 @@ final class AssetRegistry {
 						'sending'        => __( 'Sending…', 'etwa' ),
 						'saving'         => __( 'Saving…', 'etwa' ),
 						'resetEmailSent' => __( 'If an account exists for that email, a reset link has been sent.', 'etwa' ),
+						'show'           => __( 'Show', 'etwa' ),
+						'hide'           => __( 'Hide', 'etwa' ),
 					),
 				)
 			);
@@ -329,8 +359,10 @@ final class AssetRegistry {
 				'nonce'      => wp_create_nonce( 'wp_rest' ),
 				'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
 				'ajaxNonce'  => wp_create_nonce( 'etwa_ajax' ),
+				'loginUrl'   => AuthHelper::login_url(),
 				'userId'     => get_current_user_id(),
 				'canExport'  => current_user_can( RoleManager::CAP_EXPORT ),
+				'canViewAnalytics' => current_user_can( RoleManager::CAP_ANALYTICS ),
 				'canApprove' => current_user_can( RoleManager::CAP_APPROVE_TS ),
 				'canManage'        => current_user_can( RoleManager::CAP_MANAGE_SETTINGS ),
 				'canViewLaborCost' => EmployeeCostHelper::can_view_labor_cost(),
@@ -361,6 +393,7 @@ final class AssetRegistry {
 					'approved'         => __( 'Timesheet approved.', 'etwa' ),
 					'rejected'         => __( 'Timesheet rejected.', 'etwa' ),
 					'error'            => __( 'Something went wrong.', 'etwa' ),
+					'sessionExpired'   => __( 'Your session expired. Please refresh the page and log in again.', 'etwa' ),
 					'locked'           => __( 'This period is locked.', 'etwa' ),
 					'clientSaved'      => __( 'Client saved.', 'etwa' ),
 					'clientUpdated'    => __( 'Client updated.', 'etwa' ),
@@ -569,6 +602,34 @@ final class AssetRegistry {
 					'invalidRecipient' => __( 'Enter a valid recipient email address.', 'etwa' ),
 					'sending'        => __( 'Sending…', 'etwa' ),
 					'sendPasswordReset' => __( 'Send password reset', 'etwa' ),
+					'exportReport'      => __( 'Export Report', 'etwa' ),
+					'exportToExcel'     => __( 'Export to Excel', 'etwa' ),
+					'exportClientReport'=> __( 'Export Client Report', 'etwa' ),
+					'exportLaborCostReport' => __( 'Export Labor Cost Report', 'etwa' ),
+					'exportTimesheet'   => __( 'Export Timesheet', 'etwa' ),
+					'employeeTimesheetReport' => __( 'Employee Timesheet Report', 'etwa' ),
+					'clientReport'      => __( 'Client Report', 'etwa' ),
+					'clientLaborCostReport' => __( 'Client Labor Cost Report', 'etwa' ),
+					'employeeHoursByClientReport' => __( 'Employee Hours by Client', 'etwa' ),
+					'allClientsComparisonReport' => __( 'All Clients Comparison', 'etwa' ),
+					'generateComparison' => __( 'Generate Comparison', 'etwa' ),
+					'generating'       => __( 'Generating…', 'etwa' ),
+					'exportExcel'      => __( 'Export Excel', 'etwa' ),
+					'grandTotal'       => __( 'Grand Total', 'etwa' ),
+					'noComparisonData' => __( 'No client activity for the selected filters.', 'etwa' ),
+					'employeeAllocation' => __( 'Employee Allocation Breakdown', 'etwa' ),
+					'department'       => __( 'Department', 'etwa' ),
+					'allDepartments'   => __( 'All Departments', 'etwa' ),
+					'allEmployees'     => __( 'All Employees', 'etwa' ),
+					'startDate'        => __( 'Start Date', 'etwa' ),
+					'endDate'          => __( 'End Date', 'etwa' ),
+					'regularHours'     => __( 'Regular Hours', 'etwa' ),
+					'laborCost'        => __( 'Labor Cost', 'etwa' ),
+					'employees'        => __( 'Employees', 'etwa' ),
+					'allClients'        => __( 'All Clients', 'etwa' ),
+					'selectClient'      => __( 'Please select a client.', 'etwa' ),
+					'invalidDateRange'  => __( 'Please select a valid date range.', 'etwa' ),
+					'client'            => __( 'Client', 'etwa' ),
 				),
 		);
 	}
@@ -581,7 +642,7 @@ final class AssetRegistry {
 		wp_enqueue_script(
 			'etwa-portal-shell',
 			ETWA_PLUGIN_URL . 'assets/js/portal-shell.js',
-			array(),
+			array( 'etwa-api' ),
 			ETWA_VERSION,
 			true
 		);

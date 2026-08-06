@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 use ETWA\Frontend\PortalNav;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\DateRangeHelper;
+use ETWA\Helpers\RoleManager;
 
 $context     = $context ?? 'frontend';
 $in_portal   = 'frontend' === $context && ! empty( $portal_base );
@@ -31,6 +32,10 @@ $page        = (int) ( $list['page'] ?? 1 );
 $per_page    = (int) ( $list['per_page'] ?? 25 );
 $total_pages = max( 1, (int) ceil( $total / max( 1, $per_page ) ) );
 $search      = isset( $_GET['search'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['search'] ) ) : '';
+$can_compare = current_user_can( RoleManager::CAP_ANALYTICS ) && current_user_can( RoleManager::CAP_EXPORT );
+$compare_url = $in_portal
+	? PortalNav::view_url( $portal_base, 'reports' ) . '#etwa-all-clients-comparison'
+	: admin_url( 'admin.php?page=etwa-reports#etwa-all-clients-comparison' );
 ?>
 <div class="etwa-app etwa-client-analytics-page<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>" id="etwa-client-analytics-app" data-mode="list">
 
@@ -56,6 +61,11 @@ $search      = isset( $_GET['search'] ) ? sanitize_text_field( wp_unslash( (stri
 				<input type="search" id="etwa-ca-search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search clients…', 'etwa' ); ?>" autocomplete="off" />
 			</label>
 			<p class="etwa-muted" id="etwa-ca-count"><?php echo esc_html( sprintf( _n( '%d client', '%d clients', $total, 'etwa' ), $total ) ); ?></p>
+			<?php if ( $can_compare ) : ?>
+				<a class="etwa-btn etwa-btn-secondary" href="<?php echo esc_url( $compare_url ); ?>">
+					<?php esc_html_e( 'Compare All Clients', 'etwa' ); ?>
+				</a>
+			<?php endif; ?>
 		</div>
 
 		<div class="etwa-table-wrap">
