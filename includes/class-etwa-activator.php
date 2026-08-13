@@ -66,6 +66,7 @@ final class Activator {
 			'autosave_interval'     => 30,
 			'enable_audit_logs'     => '1',
 			'vacation_dual_approval'=> '1',
+			'deliverable_expiration_thresholds' => wp_json_encode( array( 7, 3, 1 ) ),
 		);
 
 		foreach ( $defaults as $key => $value ) {
@@ -101,6 +102,9 @@ final class Activator {
 		}
 		if ( ! wp_next_scheduled( 'etwa_daily_reminder' ) ) {
 			wp_schedule_event( strtotime( 'tomorrow 09:00' ), 'daily', 'etwa_daily_reminder' );
+		}
+		if ( ! wp_next_scheduled( 'etwa_deliverable_expiration_check' ) ) {
+			wp_schedule_event( strtotime( 'tomorrow 08:30' ), 'daily', 'etwa_deliverable_expiration_check' );
 		}
 	}
 }

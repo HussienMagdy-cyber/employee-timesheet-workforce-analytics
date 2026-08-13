@@ -115,6 +115,26 @@ final class PortalNav {
 					);
 				}
 			}
+			// Employees in a department flagged for deliverables (runtime access, not WP cap).
+			if (
+				! user_can( $user_id, RoleManager::CAP_VIEW_DELIVERABLES )
+				&& RoleManager::user_can_view_deliverables( $user_id )
+			) {
+				$items[] = array(
+					'id'    => 'deliverables',
+					'label' => __( 'Deliverables', 'etwa' ),
+					'cap'   => RoleManager::CAP_VIEW_OWN,
+					'icon'  => 'dashicons-clipboard',
+					'group' => 'deliverables',
+				);
+				$items[] = array(
+					'id'    => 'files',
+					'label' => __( 'Files', 'etwa' ),
+					'cap'   => RoleManager::CAP_VIEW_OWN,
+					'icon'  => 'dashicons-portfolio',
+					'group' => 'deliverables',
+				);
+			}
 		}
 
 		if ( user_can( $user_id, RoleManager::CAP_APPROVE_DEPT_REQUESTS ) && \ETWA\Helpers\DepartmentHelper::user_heads_department( $user_id ) ) {
@@ -125,6 +145,22 @@ final class PortalNav {
 				'icon'  => 'dashicons-networking',
 				'group' => 'team',
 			);
+			if ( RoleManager::user_can_view_deliverables( $user_id ) && ! user_can( $user_id, RoleManager::CAP_VIEW_ALL ) ) {
+				$items[] = array(
+					'id'    => 'deliverables',
+					'label' => __( 'Deliverables', 'etwa' ),
+					'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
+					'icon'  => 'dashicons-clipboard',
+					'group' => 'deliverables',
+				);
+				$items[] = array(
+					'id'    => 'files',
+					'label' => __( 'Files', 'etwa' ),
+					'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
+					'icon'  => 'dashicons-portfolio',
+					'group' => 'deliverables',
+				);
+			}
 			// Dept heads without full HR access review team requests under Team.
 			if ( ! user_can( $user_id, RoleManager::CAP_VIEW_ALL ) ) {
 				foreach ( self::request_type_definitions() as $tab => $def ) {
@@ -153,6 +189,20 @@ final class PortalNav {
 				'cap'   => RoleManager::CAP_EXPORT,
 				'icon'  => 'dashicons-media-spreadsheet',
 				'group' => 'reports',
+			);
+			$items[] = array(
+				'id'    => 'deliverables',
+				'label' => __( 'Deliverables', 'etwa' ),
+				'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
+				'icon'  => 'dashicons-clipboard',
+				'group' => 'deliverables',
+			);
+			$items[] = array(
+				'id'    => 'files',
+				'label' => __( 'Files', 'etwa' ),
+				'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
+				'icon'  => 'dashicons-portfolio',
+				'group' => 'deliverables',
 			);
 			$items[] = array(
 				'id'    => 'client-analytics',
@@ -321,6 +371,10 @@ final class PortalNav {
 				'label' => __( 'Reports', 'etwa' ),
 				'icon'  => 'dashicons-chart-bar',
 			),
+			'deliverables'   => array(
+				'label' => __( 'Deliverables', 'etwa' ),
+				'icon'  => 'dashicons-portfolio',
+			),
 			'administration' => array(
 				'label' => __( 'Administration', 'etwa' ),
 				'icon'  => 'dashicons-admin-generic',
@@ -350,6 +404,8 @@ final class PortalNav {
 			'my-vacation'      => 'employee-vacation',
 			'client-analytics' => 'client-analytics',
 			'reports'          => 'reports-exports',
+			'files'            => 'files',
+			'deliverables'     => 'deliverables',
 			'analytics'        => 'owner-analytics',
 			'clients'   => 'clients-manager',
 			'logs'      => 'admin',
@@ -438,6 +494,14 @@ final class PortalNav {
 			'reports' => array(
 				'title'    => __( 'Reports & Exports', 'etwa' ),
 				'subtitle' => __( 'Generate Excel reports with custom date ranges', 'etwa' ),
+			),
+			'files' => array(
+				'title'    => __( 'Files', 'etwa' ),
+				'subtitle' => __( 'Client files and scopes at a glance', 'etwa' ),
+			),
+			'deliverables' => array(
+				'title'    => __( 'Deliverables', 'etwa' ),
+				'subtitle' => __( 'Client scopes, allocations, and progress', 'etwa' ),
 			),
 			'holidays'  => array(
 				'title'    => __( 'Holidays', 'etwa' ),

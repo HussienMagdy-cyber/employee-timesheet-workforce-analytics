@@ -78,8 +78,8 @@ $filter_url = $in_portal
 		</article>
 		<article class="etwa-analytics-kpi">
 			<div class="etwa-analytics-kpi-body">
-				<span class="etwa-kpi-label"><?php esc_html_e( 'Combined Hours', 'etwa' ); ?></span>
-				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['combined_hours'] ?? 0 ), 1 ) ); ?>h</strong>
+				<span class="etwa-kpi-label"><?php esc_html_e( 'Total Hours', 'etwa' ); ?></span>
+				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['total_hours'] ?? $summary['combined_hours'] ?? 0 ), 1 ) ); ?>h</strong>
 			</div>
 		</article>
 		<article class="etwa-analytics-kpi">
@@ -109,6 +109,41 @@ $filter_url = $in_portal
 			</div>
 		</article>
 	</div>
+
+	<?php $project_breakdown = $detail['project_breakdown'] ?? array(); ?>
+	<?php if ( $project_breakdown ) : ?>
+	<section class="etwa-panel">
+		<h2><?php esc_html_e( 'Project Breakdown', 'etwa' ); ?></h2>
+		<table class="etwa-table" id="etwa-ca-project-breakdown">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Project', 'etwa' ); ?></th>
+					<th><?php esc_html_e( 'Hours', 'etwa' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $project_breakdown as $row ) : ?>
+					<?php
+					$pid = $row['project_id'] ?? null;
+					$project_url = ( $pid && $in_portal )
+						? PortalNav::view_url( $portal_base, 'client-analytics', array( 'project_id' => (int) $pid, 'preset' => $preset, 'date_from' => $date_from, 'date_to' => $date_to ) )
+						: ( $pid ? add_query_arg( array( 'page' => 'etwa-client-analytics', 'project_id' => (int) $pid, 'preset' => $preset, 'date_from' => $date_from, 'date_to' => $date_to ), admin_url( 'admin.php' ) ) : '' );
+					?>
+					<tr>
+						<td>
+							<?php if ( $project_url ) : ?>
+								<a class="etwa-link" href="<?php echo esc_url( $project_url ); ?>"><?php echo esc_html( $row['name'] ?? '' ); ?></a>
+							<?php else : ?>
+								<?php echo esc_html( $row['name'] ?? '' ); ?>
+							<?php endif; ?>
+						</td>
+						<td><?php echo esc_html( number_format( (float) ( $row['total_hours'] ?? 0 ), 1 ) ); ?>h</td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+	</section>
+	<?php endif; ?>
 
 	<div class="etwa-analytics-charts-grid">
 		<section class="etwa-chart-card">

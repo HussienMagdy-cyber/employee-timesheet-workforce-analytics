@@ -41,12 +41,13 @@ $in_portal = 'frontend' === $context;
 						<th><?php esc_html_e( 'Department Head', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'Employees', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'Dept Approval', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Deliverables', 'etwa' ); ?></th>
 						<th><?php esc_html_e( 'Status', 'etwa' ); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody id="etwa-departments-body">
-					<tr class="etwa-skeleton-row"><td colspan="6"><div class="etwa-skeleton" style="height:40px"></div></td></tr>
+					<tr class="etwa-skeleton-row"><td colspan="7"><div class="etwa-skeleton" style="height:40px"></div></td></tr>
 				</tbody>
 			</table>
 		</div>
@@ -76,6 +77,10 @@ $in_portal = 'frontend' === $context;
 			<label class="etwa-span-2 etwa-checkbox-label">
 				<input type="checkbox" id="etwa-dept-approval" checked />
 				<?php esc_html_e( 'Enable Department Approval', 'etwa' ); ?>
+			</label>
+			<label class="etwa-span-2 etwa-checkbox-label">
+				<input type="checkbox" id="etwa-dept-deliverables" />
+				<?php esc_html_e( 'Allow department members to view & allocate deliverables', 'etwa' ); ?>
 			</label>
 			<label class="etwa-span-2">
 				<?php esc_html_e( 'Status', 'etwa' ); ?>

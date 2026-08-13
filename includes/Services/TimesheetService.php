@@ -194,6 +194,11 @@ final class TimesheetService {
 			return $entry_type;
 		}
 
+		$project_id = $this->resolve_project_id( $data, $client_id );
+		if ( is_wp_error( $project_id ) ) {
+			return $project_id;
+		}
+
 		$normalized = EntryTypeHelper::normalize_stored_hours(
 			$entry_type,
 			$entry_date,
@@ -210,6 +215,7 @@ final class TimesheetService {
 			'start_time'       => $start_time,
 			'end_time'         => $end_time,
 			'client_id'        => $client_id,
+			'project_id'       => $project_id,
 			'task'             => $task,
 			'notes'            => sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) ),
 			'duration_minutes' => $normalized['duration_minutes'],
@@ -536,6 +542,14 @@ final class TimesheetService {
 			$entry_type = $entry->entry_type;
 			$hours      = EntryTypeHelper::split_hours( $entry_type, (float) $calc['regular_hours'], $is_break );
 
+			$project_check = $this->resolve_project_id(
+				array( 'project_id' => $entry->project_id ),
+				$client_id
+			);
+			if ( is_wp_error( $project_check ) ) {
+				return $project_check;
+			}
+
 			$payloads[] = array(
 				'timesheet_id'     => (int) $timesheet->id,
 				'user_id'          => $timesheet->user_id,
@@ -543,6 +557,7 @@ final class TimesheetService {
 				'start_time'       => $start_time,
 				'end_time'         => $end_time,
 				'client_id'        => $client_id,
+				'project_id'       => $project_check,
 				'task'             => $task,
 				'notes'            => sanitize_textarea_field( (string) $entry->notes ),
 				'duration_minutes' => $calc['duration_minutes'],
@@ -805,5 +820,24 @@ final class TimesheetService {
 		}
 
 		return true;
+	}
+
+	/**
+	 * @param array<string,mixed> $data
+	 * @return int|null|WP_Error
+	 */
+	private function resolve_project_id( array $data, int $client_id ): int|null|WP_Error {
+		if ( ! isset( $data['project_id'] ) || '' === (string) $data['project_id'] ) {
+			return null;
+		}
+		$project_id = (int) $data['project_id'];
+		if ( $project_id <= 0 ) {
+			return null;
+		}
+		$check = ( new ProjectService() )->validate_for_entry( $project_id, $client_id );
+		if ( is_wp_error( $check ) ) {
+			return $check;
+		}
+		return $project_id;
 	}
 }

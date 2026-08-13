@@ -38,6 +38,8 @@ final class Shortcodes {
 		add_shortcode( 'etwa_employees', array( $this, 'render_employees' ) );
 		add_shortcode( 'etwa_client_analytics', array( $this, 'render_client_analytics' ) );
 		add_shortcode( 'etwa_reports', array( $this, 'render_reports' ) );
+		add_shortcode( 'etwa_deliverables', array( $this, 'render_deliverables' ) );
+		add_shortcode( 'etwa_files', array( $this, 'render_files' ) );
 		add_shortcode( 'etwa_holidays', array( $this, 'render_holidays' ) );
 		add_shortcode( 'etwa_vacations', array( $this, 'render_vacations' ) );
 		add_shortcode( 'etwa_my_vacation', array( $this, 'render_my_vacation' ) );
@@ -111,6 +113,12 @@ final class Shortcodes {
 				break;
 			case 'reports':
 				$this->output_reports();
+				break;
+			case 'files':
+				$this->output_files();
+				break;
+			case 'deliverables':
+				$this->output_deliverables();
 				break;
 			case 'employees':
 				$this->output_employees();
@@ -271,6 +279,30 @@ final class Shortcodes {
 		$can_view_labor_cost = EmployeeCostHelper::can_view_labor_cost();
 		$can_view_analytics  = current_user_can( RoleManager::CAP_ANALYTICS );
 		include ETWA_PLUGIN_DIR . 'templates/frontend/reports-exports.php';
+	}
+
+	private function output_files(): void {
+		if ( ! RoleManager::user_can_view_deliverables() ) {
+			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			return;
+		}
+
+		$can_view_analytics = current_user_can( RoleManager::CAP_ANALYTICS );
+		$can_allocate       = RoleManager::user_can_allocate_deliverables();
+		$client_id          = isset( $_GET['client_id'] ) ? absint( wp_unslash( (string) $_GET['client_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		include ETWA_PLUGIN_DIR . 'templates/frontend/files.php';
+	}
+
+	private function output_deliverables(): void {
+		if ( ! RoleManager::user_can_view_deliverables() ) {
+			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			return;
+		}
+
+		$can_manage_scopes         = current_user_can( RoleManager::CAP_MANAGE_DELIVERABLE_SCOPES );
+		$can_allocate_deliverables = RoleManager::user_can_allocate_deliverables();
+		$can_manage_types          = RoleManager::user_can_manage_deliverable_types();
+		include ETWA_PLUGIN_DIR . 'templates/frontend/deliverables.php';
 	}
 
 	private function output_employees(): void {
@@ -590,6 +622,38 @@ final class Shortcodes {
 
 		ob_start();
 		$this->output_reports();
+		return (string) ob_get_clean();
+	}
+
+	public function render_files( $atts = array() ): string {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! RoleManager::user_can_view_deliverables() ) {
+			return $this->denied_message();
+		}
+
+		self::$active[] = 'files';
+		AssetRegistry::mark( 'files' );
+
+		ob_start();
+		$this->output_files();
+		return (string) ob_get_clean();
+	}
+
+	public function render_deliverables( $atts = array() ): string {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! RoleManager::user_can_view_deliverables() ) {
+			return $this->denied_message();
+		}
+
+		self::$active[] = 'deliverables';
+		AssetRegistry::mark( 'deliverables' );
+
+		ob_start();
+		$this->output_deliverables();
 		return (string) ob_get_clean();
 	}
 

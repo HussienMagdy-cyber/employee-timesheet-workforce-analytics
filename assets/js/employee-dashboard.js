@@ -179,6 +179,11 @@
 			setTimeSelect('#etwa-start-time', entry.start);
 			setTimeSelect('#etwa-end-time', entry.end);
 			$('#etwa-client-id').val(entry.clientId);
+			loadProjectsForClient(entry.clientId, entry.projectId).then(() => {
+				if (entry.projectId) {
+					$('#etwa-project-id').val(String(entry.projectId));
+				}
+			});
 			$('#etwa-task').val(entry.task);
 			$('#etwa-notes').val(entry.notes);
 			toggleEntryTypeField();
@@ -297,6 +302,49 @@
 		$('#etwa-entry-type').prop('required', false).val('');
 	}
 
+	function loadProjectsForClient(clientId, selectedProjectId) {
+		const $wrap = $('#etwa-project-wrap');
+		const $select = $('#etwa-project-id');
+		if (
+			!clientId ||
+			String(clientId) === String(breakClientId) ||
+			String(clientId) === String(allClientsClientId)
+		) {
+			$wrap.attr('hidden', 'hidden');
+			$select.prop('required', false).html(
+				`<option value="">${cfg.i18n?.directClientWork || 'Social Media'}</option>`
+			);
+			return Promise.resolve();
+		}
+		return api(`clients/${clientId}/projects`)
+			.then((res) => {
+				if (!res.success) throw new Error(res.message);
+				const projects = res.data || [];
+				let html = `<option value="">${cfg.i18n?.directClientWork || 'Social Media'}</option>`;
+				projects.forEach((p) => {
+					html += `<option value="${p.id}">${p.name}</option>`;
+				});
+				$select.html(html).prop('required', false);
+				if (projects.length === 0) {
+					$wrap.attr('hidden', 'hidden');
+				} else {
+					$wrap.removeAttr('hidden');
+				}
+				if (selectedProjectId) {
+					$select.val(String(selectedProjectId));
+				}
+			})
+			.catch(() => {
+				$wrap.removeAttr('hidden');
+				$select.prop('required', false);
+			});
+	}
+
+	function onClientChange() {
+		toggleTaskRequired();
+		loadProjectsForClient($('#etwa-client-id').val(), null);
+	}
+
 	function toggleTaskRequired() {
 		const isBreak = String($('#etwa-client-id').val()) === String(breakClientId);
 		const isAllClients = String($('#etwa-client-id').val()) === String(allClientsClientId);
@@ -367,6 +415,7 @@
 			start: normalizeSlotTime($chip.attr('data-start-time') || ''),
 			end: normalizeSlotTime($chip.attr('data-end-time') || ''),
 			clientId: $chip.attr('data-client-id'),
+			projectId: $chip.attr('data-project-id') || '',
 			task: $chip.attr('data-task') || '',
 			notes: $chip.attr('data-notes') || '',
 			entryType: $chip.attr('data-entry-type') || '',
@@ -385,6 +434,7 @@
 
 	function renderEntryChip(entry) {
 		const isBreak = String(entry.client_id) === String(breakClientId);
+		const isAllClients = String(entry.client_id) === String(allClientsClientId);
 		const total = entryDisplayHours(entry);
 		const hoursHtml = isBreak
 			? `<span class="etwa-break-tag">${formatHours(total)}h ${cfg.i18n?.breakLabel || 'Break'}</span>`
@@ -405,6 +455,7 @@
 				data-start-time="${entry.start_time}"
 				data-end-time="${entry.end_time}"
 				data-client-id="${entry.client_id}"
+				data-project-id="${entry.project_id || ''}"
 				data-task="${$('<div>').text(entry.task || '').html()}"
 				data-notes="${$('<div>').text(entry.notes || '').html()}"
 				data-entry-type="${entry.entry_type || 'regular'}"
@@ -415,6 +466,7 @@
 				<div class="etwa-entry-time">${entry.time_range_label || `${ui.formatTime12(entry.start_time)} – ${ui.formatTime12(entry.end_time)}`}</div>
 				<div class="etwa-entry-meta">
 					<strong>${entry.client_name || ''}</strong>
+					${entry.project_name ? `<span class="etwa-entry-project">${entry.project_name}</span>` : !isBreak && !isAllClients && !entry.project_id ? `<span class="etwa-entry-project">${cfg.i18n?.directClientWork || 'Social Media'}</span>` : ''}
 					<span>${entry.task || ''}</span>
 				</div>
 				<div class="etwa-entry-hours">${hoursHtml}</div>
@@ -626,7 +678,7 @@
 		timeSlotsReady = loadTimeSlots().then(detectBreakClientId);
 		bindEntryActions();
 
-		$('#etwa-client-id').on('change', toggleTaskRequired);
+		$('#etwa-client-id').on('change', onClientChange);
 		$('#etwa-start-time, #etwa-end-time').on('change', updateDurationPreview);
 		$('#etwa-start-time').on('change', autoAdvanceEndTime);
 		$('#etwa-start-time').on('change', toggleEntryTypeField);
@@ -670,6 +722,9 @@
 			}
 			if (!isAfterWorkHours(data.start_time)) {
 				delete data.entry_type;
+			}
+			if (!data.project_id) {
+				delete data.project_id;
 			}
 
 			const saveEntry = (reason) => {

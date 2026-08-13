@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Schema {
 
-	public const VERSION = '1.17.0';
+	public const VERSION = '1.25.0';
 
 	public static function create_tables(): void {
 		global $wpdb;
@@ -147,6 +147,12 @@ final class Schema {
 		dbDelta( self::vacation_requests_sql( $p, $charset ) );
 		dbDelta( self::requests_sql( $p, $charset ) );
 		dbDelta( self::departments_sql( $p, $charset ) );
+		foreach ( self::deliverables_sql_statements( $p, $charset ) as $sql ) {
+			dbDelta( $sql );
+		}
+		foreach ( self::packages_sql_statements( $p, $charset ) as $sql ) {
+			dbDelta( $sql );
+		}
 	}
 
 	private static function leave_types_sql( string $p, string $charset ): string {
@@ -344,6 +350,7 @@ final class Schema {
 			description text DEFAULT NULL,
 			head_user_id bigint(20) unsigned DEFAULT NULL,
 			approval_enabled tinyint(1) NOT NULL DEFAULT 1,
+			can_allocate_deliverables tinyint(1) NOT NULL DEFAULT 0,
 			status varchar(20) NOT NULL DEFAULT 'active',
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
@@ -443,7 +450,496 @@ final class Schema {
 			self::upgrade_compensation_regular_hours_v1170();
 		}
 
+		if ( version_compare( (string) $installed, '1.18.0', '<' ) ) {
+			global $wpdb;
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+			foreach ( self::deliverables_sql_statements( $wpdb->prefix, $wpdb->get_charset_collate() ) as $sql ) {
+				dbDelta( $sql );
+			}
+		}
+
+		if ( version_compare( (string) $installed, '1.19.0', '<' ) ) {
+			self::upgrade_deliverables_contract_totals_v1190();
+		}
+
+		if ( version_compare( (string) $installed, '1.20.0', '<' ) ) {
+			self::upgrade_department_deliverables_v1200();
+		}
+
+		if ( version_compare( (string) $installed, '1.21.0', '<' ) ) {
+			self::upgrade_multi_deliverable_allocations_v1210();
+		}
+
+		// 1.22.0 previously created content-calendar tables; feature removed — tables left in place if present.
+
+		if ( version_compare( (string) $installed, '1.23.0', '<' ) ) {
+			self::upgrade_packages_and_retire_batches_v1230();
+		}
+
+		if ( version_compare( (string) $installed, '1.24.0', '<' ) ) {
+			self::upgrade_projects_and_notifications_v1240();
+		}
+
+		if ( version_compare( (string) $installed, '1.25.0', '<' ) ) {
+			self::upgrade_retire_packages_from_scope_logic_v1250();
+		}
+
 		update_option( 'etwa_db_version', self::VERSION );
+	}
+
+	/**
+	 * Fold batch planning into contract totals, soft-retire patches, add packages/add-ons.
+	 */
+	private static function upgrade_packages_and_retire_batches_v1230(): void {
+		global $wpdb;
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset = $wpdb->get_charset_collate();
+		$p       = $wpdb->prefix;
+		$scopes  = $p . 'etwa_client_scopes';
+		$patches = $p . 'etwa_scope_patches';
+
+		foreach ( self::packages_sql_statements( $p, $charset ) as $sql ) {
+			dbDelta( $sql );
+		}
+
+		self::add_column_if_missing( $scopes, 'package_id', 'bigint(20) unsigned DEFAULT NULL' );
+		self::add_column_if_missing( $scopes, 'package_snapshot', 'longtext DEFAULT NULL' );
+		self::add_index_if_missing( $scopes, 'package_id', 'package_id' );
+
+		// Fold batch contribution into contract_deliverables so Planned stays continuous.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$scope_rows = $wpdb->get_results( "SELECT id, contract_deliverables, patch_count, expected_per_patch FROM {$scopes}" );
+		foreach ( $scope_rows ?: array() as $scope ) {
+			$scope_id   = (int) $scope->id;
+			$contract   = (float) $scope->contract_deliverables;
+			$patch_count = (int) $scope->patch_count;
+			$expected   = (float) $scope->expected_per_patch;
+			$folded     = $contract + ( $patch_count * $expected );
+			$wpdb->update(
+				$scopes,
+				array(
+					'contract_deliverables' => $folded,
+					'patch_count'           => 0,
+					'expected_per_patch'    => 0,
+				),
+				array( 'id' => $scope_id ),
+				array( '%f', '%d', '%f' ),
+				array( '%d' )
+			);
+		}
+
+		// Soft-retire historical batch rows (tables retained for audit).
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "UPDATE {$patches} SET status = 'void' WHERE status <> 'void'" );
+	}
+
+	/**
+	 * Projects, entry/scope project_id, notification log, client category migration.
+	 */
+	private static function upgrade_projects_and_notifications_v1240(): void {
+		global $wpdb;
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset = $wpdb->get_charset_collate();
+		$p       = $wpdb->prefix;
+
+		$projects_sql = "CREATE TABLE {$p}etwa_projects (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			client_id bigint(20) unsigned NOT NULL,
+			name varchar(191) NOT NULL,
+			description text DEFAULT NULL,
+			status varchar(20) NOT NULL DEFAULT 'active',
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY client_id (client_id),
+			KEY client_status (client_id, status)
+		) {$charset};";
+		dbDelta( $projects_sql );
+
+		$log_sql = "CREATE TABLE {$p}etwa_notification_log (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			notification_type varchar(50) NOT NULL,
+			entity_type varchar(50) NOT NULL,
+			entity_id bigint(20) unsigned NOT NULL,
+			threshold_key varchar(20) NOT NULL DEFAULT '',
+			recipient_hash varchar(64) NOT NULL DEFAULT '',
+			sent_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY dedup (notification_type, entity_type, entity_id, threshold_key)
+		) {$charset};";
+		dbDelta( $log_sql );
+
+		$entries = $p . 'etwa_entries';
+		$scopes  = $p . 'etwa_client_scopes';
+		self::add_column_if_missing( $entries, 'project_id', 'bigint(20) unsigned DEFAULT NULL' );
+		self::add_column_if_missing( $scopes, 'project_id', 'bigint(20) unsigned DEFAULT NULL' );
+		self::add_index_if_missing( $entries, 'client_project', 'client_id, project_id' );
+		self::add_index_if_missing( $scopes, 'project_id', 'project_id' );
+
+		$clients = $p . 'etwa_clients';
+		$event   = \ETWA\Repositories\ClientRepository::EVENT_CODE;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$clients} SET is_active = 0 WHERE code = %s",
+				$event
+			)
+		);
+
+		( new \ETWA\Repositories\ClientRepository() )->ensure_system_clients();
+	}
+
+	/**
+	 * Backfill contract_deliverables from package snapshots before package logic is retired from active scope flow.
+	 * Package/add-on tables and columns are retained for historical audit only.
+	 */
+	private static function upgrade_retire_packages_from_scope_logic_v1250(): void {
+		global $wpdb;
+
+		$scopes = $wpdb->prefix . 'etwa_client_scopes';
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = $wpdb->get_results(
+			"SELECT id, contract_deliverables, package_snapshot FROM {$scopes}
+			WHERE (contract_deliverables IS NULL OR contract_deliverables = 0)
+			AND package_snapshot IS NOT NULL AND package_snapshot != ''"
+		);
+
+		foreach ( $rows ?: array() as $row ) {
+			$snap = json_decode( (string) $row->package_snapshot, true );
+			if ( ! is_array( $snap ) || ! isset( $snap['total_deliverables'] ) ) {
+				continue;
+			}
+			$total = (float) $snap['total_deliverables'];
+			if ( $total <= 0 ) {
+				continue;
+			}
+			$wpdb->update(
+				$scopes,
+				array( 'contract_deliverables' => $total ),
+				array( 'id' => (int) $row->id ),
+				array( '%f' ),
+				array( '%d' )
+			);
+		}
+	}
+
+	private static function upgrade_department_deliverables_v1200(): void {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_departments';
+		self::add_column_if_missing( $table, 'can_allocate_deliverables', 'tinyint(1) NOT NULL DEFAULT 0' );
+	}
+
+	/**
+	 * Parent allocation + child items: task_name, items table, backfill, nullable legacy columns.
+	 */
+	private static function upgrade_multi_deliverable_allocations_v1210(): void {
+		global $wpdb;
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset = $wpdb->get_charset_collate();
+		$p       = $wpdb->prefix;
+		$allocs  = $p . 'etwa_deliverable_allocations';
+		$items   = $p . 'etwa_deliverable_allocation_items';
+
+		foreach ( self::deliverables_sql_statements( $p, $charset ) as $sql ) {
+			dbDelta( $sql );
+		}
+
+		self::add_column_if_missing( $allocs, 'task_name', "varchar(255) NOT NULL DEFAULT ''" );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+		$wpdb->query( "ALTER TABLE {$allocs} MODIFY deliverable_type_id bigint(20) unsigned DEFAULT NULL" );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+		$wpdb->query( "ALTER TABLE {$allocs} MODIFY quantity decimal(10,2) DEFAULT NULL" );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+		$wpdb->query( "ALTER TABLE {$allocs} MODIFY scope_impact varchar(20) DEFAULT NULL" );
+
+		$now = current_time( 'mysql' );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration backfill.
+		$wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO {$items} (
+					allocation_id, deliverable_type_id, quantity, scope_impact,
+					replaced_type_id, replacement_qty, sort_order, created_at, updated_at
+				)
+				SELECT a.id, a.deliverable_type_id, a.quantity, COALESCE(a.scope_impact, 'normal'),
+					a.replaced_type_id, a.replacement_qty, 0, %s, %s
+				FROM {$allocs} a
+				WHERE a.deliverable_type_id IS NOT NULL
+					AND NOT EXISTS (
+						SELECT 1 FROM {$items} i WHERE i.allocation_id = a.id
+					)",
+				$now,
+				$now
+			)
+		);
+	}
+
+	private static function upgrade_deliverables_contract_totals_v1190(): void {
+		global $wpdb;
+		$scopes  = $wpdb->prefix . 'etwa_client_scopes';
+		$patches = $wpdb->prefix . 'etwa_scope_patches';
+		$lines   = $wpdb->prefix . 'etwa_scope_contract_lines';
+
+		self::add_column_if_missing( $scopes, 'contract_deliverables', 'decimal(10,2) NOT NULL DEFAULT 0.00' );
+		self::add_column_if_missing( $scopes, 'patch_count', 'int(11) NOT NULL DEFAULT 0' );
+		self::add_column_if_missing( $scopes, 'expected_per_patch', 'decimal(10,2) NOT NULL DEFAULT 0.00' );
+		self::add_column_if_missing( $patches, 'expected_qty', 'decimal(10,2) NOT NULL DEFAULT 0.00' );
+
+		$patch_lines = $wpdb->prefix . 'etwa_scope_patch_lines';
+		// Backfill patch expected_qty from legacy type deltas when still zero.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$zero_patches = $wpdb->get_results( "SELECT id FROM {$patches} WHERE expected_qty <= 0" );
+		foreach ( $zero_patches ?: array() as $patch_row ) {
+			$pid = (int) $patch_row->id;
+			$sum = (float) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COALESCE(SUM(ABS(qty_delta)), 0) FROM {$patch_lines} WHERE patch_id = %d",
+					$pid
+				)
+			);
+			if ( $sum > 0 ) {
+				$wpdb->update(
+					$patches,
+					array( 'expected_qty' => $sum ),
+					array( 'id' => $pid ),
+					array( '%f' ),
+					array( '%d' )
+				);
+			}
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$scope_rows = $wpdb->get_results( "SELECT id, contract_deliverables, patch_count, expected_per_patch FROM {$scopes}" );
+		foreach ( $scope_rows ?: array() as $scope ) {
+			$scope_id = (int) $scope->id;
+			$contract = (float) $scope->contract_deliverables;
+			if ( $contract <= 0 ) {
+				$sum = (float) $wpdb->get_var(
+					$wpdb->prepare( "SELECT COALESCE(SUM(planned_qty), 0) FROM {$lines} WHERE scope_id = %d", $scope_id )
+				);
+				if ( $sum > 0 ) {
+					$wpdb->update(
+						$scopes,
+						array( 'contract_deliverables' => $sum ),
+						array( 'id' => $scope_id ),
+						array( '%f' ),
+						array( '%d' )
+					);
+				}
+			}
+
+			$patch_count = (int) $scope->patch_count;
+			$expected    = (float) $scope->expected_per_patch;
+			if ( $patch_count <= 0 ) {
+				$active = (int) $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT COUNT(1) FROM {$patches} WHERE scope_id = %d AND status = %s",
+						$scope_id,
+						'active'
+					)
+				);
+				if ( $active > 0 ) {
+					$avg = (float) $wpdb->get_var(
+						$wpdb->prepare(
+							"SELECT COALESCE(AVG(expected_qty), 0) FROM {$patches} WHERE scope_id = %d AND status = %s",
+							$scope_id,
+							'active'
+						)
+					);
+					$wpdb->update(
+						$scopes,
+						array(
+							'patch_count'         => $active,
+							'expected_per_patch'  => $avg > 0 ? $avg : $expected,
+						),
+						array( 'id' => $scope_id ),
+						array( '%d', '%f' ),
+						array( '%d' )
+					);
+				}
+			}
+		}
+	}
+
+	/** @return string[] */
+	private static function deliverables_sql_statements( string $p, string $charset ): array {
+		return array(
+			"CREATE TABLE {$p}etwa_deliverable_types (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				slug varchar(50) NOT NULL,
+				name varchar(191) NOT NULL,
+				description text DEFAULT NULL,
+				effort_score decimal(8,2) NOT NULL DEFAULT 1.00,
+				sort_order int(11) NOT NULL DEFAULT 0,
+				is_active tinyint(1) NOT NULL DEFAULT 1,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY slug (slug),
+				KEY is_active (is_active),
+				KEY sort_order (sort_order)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_client_scopes (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				client_id bigint(20) unsigned NOT NULL,
+				name varchar(191) NOT NULL,
+				code varchar(50) DEFAULT NULL,
+				description text DEFAULT NULL,
+				status varchar(20) NOT NULL DEFAULT 'active',
+				starts_on date DEFAULT NULL,
+				ends_on date DEFAULT NULL,
+				contract_deliverables decimal(10,2) NOT NULL DEFAULT 0.00,
+				patch_count int(11) NOT NULL DEFAULT 0,
+				expected_per_patch decimal(10,2) NOT NULL DEFAULT 0.00,
+				package_id bigint(20) unsigned DEFAULT NULL,
+				package_snapshot longtext DEFAULT NULL,
+				created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY client_id (client_id),
+				KEY status (status),
+				KEY client_status (client_id, status),
+				KEY package_id (package_id)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_scope_contract_lines (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				scope_id bigint(20) unsigned NOT NULL,
+				deliverable_type_id bigint(20) unsigned NOT NULL,
+				planned_qty decimal(10,2) NOT NULL DEFAULT 0.00,
+				notes text DEFAULT NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY scope_type (scope_id, deliverable_type_id),
+				KEY deliverable_type_id (deliverable_type_id)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_scope_patches (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				scope_id bigint(20) unsigned NOT NULL,
+				name varchar(191) NOT NULL,
+				code varchar(50) DEFAULT NULL,
+				description text DEFAULT NULL,
+				status varchar(20) NOT NULL DEFAULT 'draft',
+				expected_qty decimal(10,2) NOT NULL DEFAULT 0.00,
+				effective_on date DEFAULT NULL,
+				created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY scope_id (scope_id),
+				KEY status (status),
+				KEY scope_status (scope_id, status)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_scope_patch_lines (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				patch_id bigint(20) unsigned NOT NULL,
+				deliverable_type_id bigint(20) unsigned NOT NULL,
+				qty_delta decimal(10,2) NOT NULL DEFAULT 0.00,
+				notes text DEFAULT NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY patch_type (patch_id, deliverable_type_id),
+				KEY deliverable_type_id (deliverable_type_id)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_deliverable_allocations (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				scope_id bigint(20) unsigned NOT NULL,
+				patch_id bigint(20) unsigned DEFAULT NULL,
+				task_name varchar(255) NOT NULL DEFAULT '',
+				deliverable_type_id bigint(20) unsigned DEFAULT NULL,
+				quantity decimal(10,2) DEFAULT NULL,
+				scope_impact varchar(20) DEFAULT NULL,
+				replaced_type_id bigint(20) unsigned DEFAULT NULL,
+				replacement_qty decimal(10,2) DEFAULT NULL,
+				completed_date date NOT NULL,
+				notes text DEFAULT NULL,
+				allocated_by bigint(20) unsigned NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY scope_id (scope_id),
+				KEY patch_id (patch_id),
+				KEY deliverable_type_id (deliverable_type_id),
+				KEY scope_impact (scope_impact),
+				KEY completed_date (completed_date),
+				KEY scope_type (scope_id, deliverable_type_id),
+				KEY scope_patch (scope_id, patch_id)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_deliverable_allocation_items (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				allocation_id bigint(20) unsigned NOT NULL,
+				deliverable_type_id bigint(20) unsigned NOT NULL,
+				quantity decimal(10,2) NOT NULL DEFAULT 0.00,
+				scope_impact varchar(20) NOT NULL DEFAULT 'normal',
+				replaced_type_id bigint(20) unsigned DEFAULT NULL,
+				replacement_qty decimal(10,2) DEFAULT NULL,
+				sort_order int(11) NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY allocation_id (allocation_id),
+				KEY deliverable_type_id (deliverable_type_id),
+				KEY scope_impact (scope_impact),
+				KEY allocation_type (allocation_id, deliverable_type_id)
+			) {$charset};",
+		);
+	}
+
+	/** @return string[] */
+	private static function packages_sql_statements( string $p, string $charset ): array {
+		return array(
+			"CREATE TABLE {$p}etwa_packages (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				name varchar(191) NOT NULL,
+				description text DEFAULT NULL,
+				total_deliverables decimal(10,2) NOT NULL DEFAULT 0.00,
+				duration_days int(11) DEFAULT NULL,
+				billing_period varchar(50) DEFAULT NULL,
+				status varchar(20) NOT NULL DEFAULT 'active',
+				created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY status (status),
+				KEY name (name)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_addons (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				name varchar(191) NOT NULL,
+				description text DEFAULT NULL,
+				quantity decimal(10,2) NOT NULL DEFAULT 0.00,
+				deliverable_type_id bigint(20) unsigned DEFAULT NULL,
+				unit_price decimal(12,2) DEFAULT NULL,
+				status varchar(20) NOT NULL DEFAULT 'active',
+				created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY status (status),
+				KEY deliverable_type_id (deliverable_type_id),
+				KEY name (name)
+			) {$charset};",
+			"CREATE TABLE {$p}etwa_scope_addons (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				scope_id bigint(20) unsigned NOT NULL,
+				addon_id bigint(20) unsigned DEFAULT NULL,
+				addon_snapshot longtext DEFAULT NULL,
+				quantity decimal(10,2) NOT NULL DEFAULT 0.00,
+				deliverable_type_id bigint(20) unsigned DEFAULT NULL,
+				sort_order int(11) NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY scope_id (scope_id),
+				KEY addon_id (addon_id),
+				KEY deliverable_type_id (deliverable_type_id)
+			) {$charset};",
+		);
 	}
 
 	public static function seed_calendar_defaults(): void {

@@ -26,6 +26,7 @@ final class Entry {
 		public readonly string $start_time,
 		public readonly string $end_time,
 		public readonly int $client_id,
+		public readonly ?int $project_id,
 		public readonly string $task,
 		public readonly ?string $notes,
 		public readonly int $duration_minutes,
@@ -36,6 +37,7 @@ final class Entry {
 		public readonly string $created_at,
 		public readonly string $updated_at,
 		public readonly ?string $client_name = null,
+		public readonly ?string $project_name = null,
 	) {}
 
 	/** @param object|array<string,mixed> $row */
@@ -49,6 +51,7 @@ final class Entry {
 			substr( (string) $r['start_time'], 0, 5 ),
 			substr( (string) $r['end_time'], 0, 5 ),
 			(int) $r['client_id'],
+			isset( $r['project_id'] ) && (int) $r['project_id'] > 0 ? (int) $r['project_id'] : null,
 			(string) ( $r['task'] ?? '' ),
 			$r['notes'] ?? null,
 			(int) $r['duration_minutes'],
@@ -59,6 +62,7 @@ final class Entry {
 			(string) $r['created_at'],
 			(string) $r['updated_at'],
 			$r['client_name'] ?? null,
+			$r['project_name'] ?? null,
 		);
 	}
 
@@ -72,7 +76,9 @@ final class Entry {
 			'start_time'       => $this->start_time,
 			'end_time'         => $this->end_time,
 			'client_id'        => $this->client_id,
+			'project_id'       => $this->project_id,
 			'client_name'      => $this->client_name,
+			'project_name'     => $this->project_name,
 			'task'             => $this->task,
 			'notes'            => $this->notes,
 			'duration_minutes' => $this->duration_minutes,

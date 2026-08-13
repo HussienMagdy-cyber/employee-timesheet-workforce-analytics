@@ -21,6 +21,7 @@ final class ClientRepository {
 	public const ALL_CLIENTS_CODE = 'ALL_CLIENTS';
 	public const MEETING_CODE     = 'MEETING';
 	public const EVENT_CODE       = 'EVENT';
+	public const GENERAL_CODE     = 'GENERAL';
 
 	/** @return string[] Reserved system client codes. */
 	public static function system_codes(): array {
@@ -29,6 +30,7 @@ final class ClientRepository {
 			self::ALL_CLIENTS_CODE,
 			self::MEETING_CODE,
 			self::EVENT_CODE,
+			self::GENERAL_CODE,
 		);
 	}
 
@@ -37,7 +39,14 @@ final class ClientRepository {
 		return array(
 			self::BREAK_CODE,
 			self::MEETING_CODE,
-			self::EVENT_CODE,
+		);
+	}
+
+	/** @return string[] General category system client codes. */
+	public static function general_codes(): array {
+		return array(
+			self::GENERAL_CODE,
+			self::ALL_CLIENTS_CODE,
 		);
 	}
 
@@ -77,6 +86,11 @@ final class ClientRepository {
 		return $client && self::ALL_CLIENTS_CODE === strtoupper( $client->code );
 	}
 
+	public function is_general_client( int $client_id, ?Client $client = null ): bool {
+		$client = $client ?? $this->find( $client_id );
+		return $client && in_array( strtoupper( $client->code ), self::general_codes(), true );
+	}
+
 	public function is_internal_client( int $client_id, ?Client $client = null ): bool {
 		$client = $client ?? $this->find( $client_id );
 		return $client && in_array( strtoupper( $client->code ), self::internal_codes(), true );
@@ -88,7 +102,7 @@ final class ClientRepository {
 		$order_codes = array(
 			self::BREAK_CODE,
 			self::MEETING_CODE,
-			self::EVENT_CODE,
+			self::GENERAL_CODE,
 			self::ALL_CLIENTS_CODE,
 		);
 		$case_parts  = array();
@@ -146,6 +160,11 @@ final class ClientRepository {
 				'department' => 'Internal',
 			),
 			array(
+				'code'       => self::GENERAL_CODE,
+				'name'       => __( 'General', 'etwa' ),
+				'department' => 'General',
+			),
+			array(
 				'code'       => self::ALL_CLIENTS_CODE,
 				'name'       => __( 'Moderation', 'etwa' ),
 				'department' => 'General',
@@ -160,7 +179,7 @@ final class ClientRepository {
 						'name'       => $row['name'],
 						'code'       => $row['code'],
 						'department' => $row['department'],
-						'is_active'  => 1,
+						'is_active'  => self::EVENT_CODE === strtoupper( $row['code'] ) ? 0 : 1,
 					)
 				);
 				continue;
@@ -202,6 +221,189 @@ final class ClientRepository {
 			$wpdb->prepare(
 				"SELECT COUNT(*) FROM {$table} WHERE client_id = %d",
 				$client_id
+			)
+		);
+	}
+
+	public function reassign_client( int $from_client_id, int $to_client_id ): int {
+		global $wpdb;
+		$entries = $wpdb->prefix . 'etwa_entries';
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$entries} SET client_id = %d, updated_at = %s WHERE client_id = %d",
+				$to_client_id,
+				current_time( 'mysql' ),
+				$from_client_id
+			)
+		);
+	}
+
+	public function scope_count( int $client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_client_scopes';
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table} WHERE client_id = %d",
+				$client_id
+			)
+		);
+	}
+
+	public function reassign_scopes( int $from_client_id, int $to_client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_client_scopes';
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} SET client_id = %d, updated_at = %s WHERE client_id = %d",
+				$to_client_id,
+				current_time( 'mysql' ),
+				$from_client_id
+			)
+		);
+	}
+
+	public function entry_count_direct( int $client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_entries';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table} WHERE client_id = %d AND (project_id IS NULL OR project_id = 0)",
+				$client_id
+			)
+		);
+	}
+
+	public function scope_count_direct( int $client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_client_scopes';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table} WHERE client_id = %d AND (project_id IS NULL OR project_id = 0)",
+				$client_id
+			)
+		);
+	}
+
+	public function allocation_count_for_client( int $client_id ): int {
+		global $wpdb;
+		$scopes = $wpdb->prefix . 'etwa_client_scopes';
+		$allocs = $wpdb->prefix . 'etwa_deliverable_allocations';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$allocs} a
+				INNER JOIN {$scopes} s ON s.id = a.scope_id
+				WHERE s.client_id = %d",
+				$client_id
+			)
+		);
+	}
+
+	public function convert_reassign_entries_direct( int $from_client_id, int $to_client_id, int $project_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_entries';
+
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table}
+				SET client_id = %d, project_id = %d, updated_at = %s
+				WHERE client_id = %d AND (project_id IS NULL OR project_id = 0)",
+				$to_client_id,
+				$project_id,
+				current_time( 'mysql' ),
+				$from_client_id
+			)
+		);
+	}
+
+	public function convert_reassign_entries_with_project( int $from_client_id, int $to_client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_entries';
+
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table}
+				SET client_id = %d, updated_at = %s
+				WHERE client_id = %d AND project_id IS NOT NULL AND project_id != 0",
+				$to_client_id,
+				current_time( 'mysql' ),
+				$from_client_id
+			)
+		);
+	}
+
+	public function convert_reassign_scopes_direct( int $from_client_id, int $to_client_id, int $project_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_client_scopes';
+
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table}
+				SET client_id = %d, project_id = %d, updated_at = %s
+				WHERE client_id = %d AND (project_id IS NULL OR project_id = 0)",
+				$to_client_id,
+				$project_id,
+				current_time( 'mysql' ),
+				$from_client_id
+			)
+		);
+	}
+
+	public function convert_reassign_scopes_with_project( int $from_client_id, int $to_client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_client_scopes';
+
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table}
+				SET client_id = %d, updated_at = %s
+				WHERE client_id = %d AND project_id IS NOT NULL AND project_id != 0",
+				$to_client_id,
+				current_time( 'mysql' ),
+				$from_client_id
+			)
+		);
+	}
+
+	public function request_count_referencing_client( int $client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_requests';
+		$like1 = '%"client_id":' . $client_id . ',%';
+		$like2 = '%"client_id":' . $client_id . '}%';
+		$like3 = '%"client_id": ' . $client_id . ',%';
+		$like4 = '%"client_id": ' . $client_id . '}%';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table}
+				WHERE extra_data LIKE %s OR extra_data LIKE %s OR extra_data LIKE %s OR extra_data LIKE %s",
+				$like1,
+				$like2,
+				$like3,
+				$like4
+			)
+		);
+	}
+
+	public function draft_snapshot_count_referencing_client( int $client_id ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_timesheets';
+		$like1 = '%"client_id":' . $client_id . ',%';
+		$like2 = '%"client_id":' . $client_id . '}%';
+		$like3 = '%"client_id": ' . $client_id . ',%';
+		$like4 = '%"client_id": ' . $client_id . '}%';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table}
+				WHERE draft_snapshot IS NOT NULL AND draft_snapshot != ''
+				AND (draft_snapshot LIKE %s OR draft_snapshot LIKE %s OR draft_snapshot LIKE %s OR draft_snapshot LIKE %s)",
+				$like1,
+				$like2,
+				$like3,
+				$like4
 			)
 		);
 	}

@@ -9,13 +9,16 @@ declare(strict_types=1);
 
 namespace ETWA\Admin;
 
-use ETWA\Admin\Pages\EmailSettingsPage;
 use ETWA\Admin\Pages\AuditLogsPage;
 use ETWA\Admin\Pages\ClientAnalyticsPage;
+use ETWA\Admin\Pages\ClientsPage;
+use ETWA\Admin\Pages\DeliverablesPage;
 use ETWA\Admin\Pages\DepartmentDashboardPage;
 use ETWA\Admin\Pages\DepartmentsPage;
+use ETWA\Admin\Pages\EmailSettingsPage;
 use ETWA\Admin\Pages\EmployeeDashboard;
 use ETWA\Admin\Pages\EmployeesPage;
+use ETWA\Admin\Pages\FilesPage;
 use ETWA\Admin\Pages\HolidaysPage;
 use ETWA\Admin\Pages\HRDashboard;
 use ETWA\Admin\Pages\OwnerAnalytics;
@@ -142,6 +145,24 @@ final class AdminMenu {
 
 		add_submenu_page(
 			'etwa-dashboard',
+			__( 'Deliverables', 'etwa' ),
+			__( 'Deliverables', 'etwa' ),
+			RoleManager::CAP_VIEW_DELIVERABLES,
+			'etwa-deliverables',
+			array( new DeliverablesPage(), 'render' )
+		);
+
+		add_submenu_page(
+			'etwa-dashboard',
+			__( 'Files', 'etwa' ),
+			__( 'Files', 'etwa' ),
+			RoleManager::CAP_VIEW_DELIVERABLES,
+			'etwa-files',
+			array( new FilesPage(), 'render' )
+		);
+
+		add_submenu_page(
+			'etwa-dashboard',
 			__( 'Owner Analytics', 'etwa' ),
 			__( 'Owner Analytics', 'etwa' ),
 			RoleManager::CAP_ADV_ANALYTICS,
@@ -228,6 +249,10 @@ final class AdminMenu {
 			$script = 'client-analytics';
 		} elseif ( str_contains( $hook, 'etwa-reports' ) ) {
 			$script = 'reports-exports';
+		} elseif ( str_contains( $hook, 'etwa-files' ) ) {
+			$script = 'files';
+		} elseif ( str_contains( $hook, 'etwa-deliverables' ) ) {
+			$script = 'deliverables';
 		} elseif ( str_contains( $hook, 'etwa-analytics' ) ) {
 			$script = 'owner-analytics';
 		} elseif ( str_contains( $hook, 'etwa-email-settings' ) ) {

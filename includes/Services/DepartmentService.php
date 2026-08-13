@@ -269,11 +269,12 @@ final class DepartmentService {
 		}
 
 		return array(
-			'name'             => $name,
-			'description'      => sanitize_textarea_field( (string) ( $data['description'] ?? '' ) ),
-			'head_user_id'     => $head_user_id,
-			'approval_enabled' => ! empty( $data['approval_enabled'] ) ? 1 : 0,
-			'status'           => $status,
+			'name'                      => $name,
+			'description'               => sanitize_textarea_field( (string) ( $data['description'] ?? '' ) ),
+			'head_user_id'              => $head_user_id,
+			'approval_enabled'          => ! empty( $data['approval_enabled'] ) ? 1 : 0,
+			'can_allocate_deliverables' => ! empty( $data['can_allocate_deliverables'] ) ? 1 : 0,
+			'status'                    => $status,
 		);
 	}
 

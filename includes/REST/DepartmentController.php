@@ -126,11 +126,12 @@ final class DepartmentController extends RestController {
 		$result = ( new DepartmentService() )->create(
 			get_current_user_id(),
 			array(
-				'name'              => $this->get_string_param( $request, 'name' ),
-				'description'       => $this->get_string_param( $request, 'description' ),
-				'head_user_id'      => $request->get_param( 'head_user_id' ),
-				'approval_enabled'  => $request->get_param( 'approval_enabled' ),
-				'status'            => $this->get_string_param( $request, 'status', 'active' ),
+				'name'                      => $this->get_string_param( $request, 'name' ),
+				'description'               => $this->get_string_param( $request, 'description' ),
+				'head_user_id'              => $request->get_param( 'head_user_id' ),
+				'approval_enabled'          => $request->get_param( 'approval_enabled' ),
+				'can_allocate_deliverables' => $request->get_param( 'can_allocate_deliverables' ),
+				'status'                    => $this->get_string_param( $request, 'status', 'active' ),
 			)
 		);
 		if ( is_wp_error( $result ) ) {
@@ -146,11 +147,12 @@ final class DepartmentController extends RestController {
 			get_current_user_id(),
 			$id,
 			array(
-				'name'             => $this->get_string_param( $request, 'name' ),
-				'description'      => $this->get_string_param( $request, 'description' ),
-				'head_user_id'     => $request->get_param( 'head_user_id' ),
-				'approval_enabled' => $request->get_param( 'approval_enabled' ),
-				'status'           => $this->get_string_param( $request, 'status' ),
+				'name'                      => $this->get_string_param( $request, 'name' ),
+				'description'               => $this->get_string_param( $request, 'description' ),
+				'head_user_id'              => $request->get_param( 'head_user_id' ),
+				'approval_enabled'          => $request->get_param( 'approval_enabled' ),
+				'can_allocate_deliverables' => $request->get_param( 'can_allocate_deliverables' ),
+				'status'                    => $this->get_string_param( $request, 'status' ),
 			)
 		);
 		if ( is_wp_error( $result ) ) {

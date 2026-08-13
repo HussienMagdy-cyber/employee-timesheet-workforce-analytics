@@ -21,6 +21,7 @@ final class Department {
 		public string $description,
 		public ?int $head_user_id,
 		public bool $approval_enabled,
+		public bool $can_allocate_deliverables,
 		public string $status,
 		public string $created_at,
 		public string $updated_at,
@@ -33,6 +34,7 @@ final class Department {
 			(string) ( $row->description ?? '' ),
 			isset( $row->head_user_id ) && $row->head_user_id ? (int) $row->head_user_id : null,
 			(bool) ( $row->approval_enabled ?? 1 ),
+			(bool) ( $row->can_allocate_deliverables ?? 0 ),
 			(string) ( $row->status ?? 'active' ),
 			(string) $row->created_at,
 			(string) $row->updated_at,
@@ -50,14 +52,15 @@ final class Department {
 	/** @return array<string,mixed> */
 	public function to_array(): array {
 		return array(
-			'id'               => $this->id,
-			'name'             => $this->name,
-			'description'      => $this->description,
-			'head_user_id'     => $this->head_user_id,
-			'approval_enabled' => $this->approval_enabled,
-			'status'           => $this->status,
-			'created_at'       => $this->created_at,
-			'updated_at'       => $this->updated_at,
+			'id'                        => $this->id,
+			'name'                      => $this->name,
+			'description'               => $this->description,
+			'head_user_id'              => $this->head_user_id,
+			'approval_enabled'          => $this->approval_enabled,
+			'can_allocate_deliverables' => $this->can_allocate_deliverables,
+			'status'                    => $this->status,
+			'created_at'                => $this->created_at,
+			'updated_at'                => $this->updated_at,
 		);
 	}
 }

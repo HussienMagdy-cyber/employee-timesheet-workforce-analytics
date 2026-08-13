@@ -272,11 +272,14 @@ $hr_can_edit = ! empty( $hr_can_edit );
 							<option value=""><?php esc_html_e( 'Select…', 'etwa' ); ?></option>
 							<?php
 							$internal_clients = array();
+							$general_clients  = array();
 							$work_clients     = array();
 							foreach ( $clients as $client ) {
 								$code = strtoupper( $client->code );
 								if ( in_array( $code, ClientRepository::internal_codes(), true ) ) {
 									$internal_clients[] = $client;
+								} elseif ( in_array( $code, ClientRepository::general_codes(), true ) ) {
+									$general_clients[] = $client;
 								} else {
 									$work_clients[] = $client;
 								}
@@ -289,6 +292,13 @@ $hr_can_edit = ! empty( $hr_can_edit );
 									<?php endforeach; ?>
 								</optgroup>
 							<?php endif; ?>
+							<?php if ( $general_clients ) : ?>
+								<optgroup label="<?php esc_attr_e( 'General', 'etwa' ); ?>">
+									<?php foreach ( $general_clients as $client ) : ?>
+										<option value="<?php echo esc_attr( (string) $client->id ); ?>"><?php echo esc_html( $client->name ); ?></option>
+									<?php endforeach; ?>
+								</optgroup>
+							<?php endif; ?>
 							<?php if ( $work_clients ) : ?>
 								<optgroup label="<?php esc_attr_e( 'Clients', 'etwa' ); ?>">
 									<?php foreach ( $work_clients as $client ) : ?>
@@ -296,6 +306,12 @@ $hr_can_edit = ! empty( $hr_can_edit );
 									<?php endforeach; ?>
 								</optgroup>
 							<?php endif; ?>
+						</select>
+					</label>
+					<label class="etwa-span-2" id="etwa-project-wrap" hidden>
+						<?php esc_html_e( 'Project', 'etwa' ); ?>
+						<select name="project_id" id="etwa-project-id">
+							<option value=""><?php esc_html_e( 'Social Media', 'etwa' ); ?></option>
 						</select>
 					</label>
 					<label class="etwa-span-2"><?php esc_html_e( 'Task', 'etwa' ); ?><input type="text" name="task" id="etwa-task" placeholder="<?php esc_attr_e( 'e.g. Website', 'etwa' ); ?>" /></label>

@@ -2,7 +2,7 @@
 
 All tables use the WordPress table prefix (e.g. `wp_etwa_*`).
 
-**Current schema version:** `1.17.0` (stored in option `etwa_db_version`)
+**Current schema version:** `1.24.0` (stored in option `etwa_db_version`)
 
 ## etwa_timesheets
 
@@ -46,6 +46,7 @@ Individual time entries (date-based, not fixed weekly rows).
 | start_time | TIME | Start (30-min intervals) |
 | end_time | TIME | End |
 | client_id | BIGINT FK | Client reference |
+| project_id | BIGINT FK NULL | Optional project (v1.24+) |
 | task | VARCHAR(255) | Task description |
 | notes | TEXT | Optional notes |
 | duration_minutes | INT | Total duration |
@@ -79,7 +80,39 @@ Individual time entries (date-based, not fixed weekly rows).
 | is_active | TINYINT(1) | Active flag |
 | created_at | DATETIME | Created |
 
-**System clients:** `Break` (non-billable, excluded from analytics) and **Moderation** (requires detailed notes on each entry; formerly “All Clients”).
+**System clients:** `Break` (non-billable, excluded from analytics), **General**, and **Moderation** (requires detailed notes on each entry; formerly “All Clients”). Legacy **Event** client is deactivated but preserved for historical entries.
+
+---
+
+## etwa_projects (v1.24+)
+
+Projects belong to exactly one client.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| client_id | BIGINT FK | Parent client |
+| name | VARCHAR(191) | Project name |
+| description | TEXT NULL | Optional description |
+| status | VARCHAR(20) | `active`, `archived` |
+| created_at / updated_at | DATETIME | Timestamps |
+
+---
+
+## etwa_notification_log (v1.24+)
+
+Dedup store for deliverable email notifications.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| notification_type | VARCHAR(50) | e.g. `content_delivery`, `scope_expiration`, `scope_completed` |
+| entity_type | VARCHAR(50) | e.g. `scope` |
+| entity_id | BIGINT | Related entity ID |
+| threshold_key | VARCHAR(20) | Expiration threshold days or empty |
+| recipient_hash | VARCHAR(64) | Optional |
+| sent_at | DATETIME | Send timestamp |
+
+Unique key: `(notification_type, entity_type, entity_id, threshold_key)`
 
 ---
 
@@ -94,6 +127,7 @@ Organizational units with optional department-head approval.
 | description | TEXT | Optional description |
 | head_user_id | BIGINT | Assigned department head (WP user) |
 | approval_enabled | TINYINT(1) | Dept-head approval for requests |
+| can_allocate_deliverables | TINYINT(1) | When `1`, active department members (and head) can view & allocate deliverables at runtime — no permanent WP caps granted |
 | status | VARCHAR(20) | `active`, `inactive` |
 | created_at | DATETIME | Created |
 | updated_at | DATETIME | Updated |
@@ -344,7 +378,152 @@ users (WP, role: etwa_employee)
 
 etwa_departments
   └── head_user_id → users (department head)
+
+etwa_clients
+  └── etwa_client_scopes (1:N)
+        ├── contract_deliverables (Planned total — sole HR/Owner input for expected qty)
+        ├── project_id (optional → etwa_projects)
+        ├── etwa_scope_contract_lines (legacy type distribution from package era; read-only)
+        ├── etwa_scope_addons (legacy add-on snapshots; read-only)
+        ├── etwa_scope_patches (retired — retained for audit; product UI/API no longer writes)
+        │     └── etwa_scope_patch_lines (legacy)
+        └── etwa_deliverable_allocations (1:N)
+              └── etwa_deliverable_allocation_items (1:N) → etwa_deliverable_types
+
+etwa_packages (deprecated catalog — retained for audit, v1.25.0+)
+etwa_addons (deprecated catalog — retained for audit, v1.25.0+)
 ```
+
+Batches/patches are **soft-retired** as of schema `1.23.0` (planning folded into `contract_deliverables`; tables retained).
+
+## etwa_deliverable_types
+
+Configurable deliverable catalog (not hardcoded). Used when **allocating** deliverables to a scope.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| slug | VARCHAR(50) UNIQUE | Stable key |
+| name | VARCHAR(191) | Display name |
+| description | TEXT | Optional |
+| effort_score | DECIMAL(8,2) | Weight per unit (default 1.00) |
+| sort_order | INT | Sort |
+| is_active | TINYINT(1) | Active flag |
+| created_at / updated_at | DATETIME | Timestamps |
+
+## etwa_packages *(deprecated — v1.25.0)*
+
+Retained for historical audit only. No REST or UI writes after v1.25.0.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| name | VARCHAR(191) | Package name |
+| description | TEXT | Optional |
+| total_deliverables | DECIMAL(10,2) | Base allowance (not a type mix) |
+| duration_days | INT NULL | Optional duration |
+| billing_period | VARCHAR(50) NULL | monthly / quarterly / yearly / custom |
+| status | VARCHAR(20) | active / inactive |
+| created_by | BIGINT | WP user |
+| created_at / updated_at | DATETIME | Timestamps |
+
+## etwa_addons *(deprecated — v1.25.0)*
+
+Retained for historical audit only. No REST or UI writes after v1.25.0.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| name | VARCHAR(191) | Add-on name |
+| description | TEXT | Optional |
+| quantity | DECIMAL(10,2) | Allowance added to Scope |
+| deliverable_type_id | BIGINT NULL | Optional restricted type |
+| unit_price | DECIMAL(12,2) NULL | Optional commercial price |
+| status | VARCHAR(20) | active / inactive |
+| created_by | BIGINT | WP user |
+| created_at / updated_at | DATETIME | Timestamps |
+
+## etwa_scope_addons *(deprecated — v1.25.0)*
+
+Legacy snapshot of add-ons applied to scopes during the package era. Retained for audit; no new rows after v1.25.0.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| scope_id | BIGINT | Parent scope |
+| addon_id | BIGINT NULL | Soft reference to catalog |
+| addon_snapshot | LONGTEXT JSON | Frozen add-on config |
+| quantity | DECIMAL(10,2) | Applied quantity |
+| deliverable_type_id | BIGINT NULL | Restricted type if specialized |
+| sort_order | INT | UI order |
+| created_at / updated_at | DATETIME | Timestamps |
+
+## etwa_client_scopes
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| client_id | BIGINT | → etwa_clients |
+| project_id | BIGINT NULL | Optional → etwa_projects (v1.24+) |
+| name | VARCHAR(191) | Scope name |
+| code | VARCHAR(50) | Auto-generated (`SCP-YYYYMMDD-####`); read-only after create |
+| description | TEXT | Notes |
+| status | VARCHAR(20) | active, closed, archived |
+| starts_on / ends_on | DATE NULL | Optional date range |
+| contract_deliverables | DECIMAL(10,2) | Total expected deliverables (Planned total) |
+| patch_count | INT | Retired (kept at 0 after 1.23.0 migration) |
+| expected_per_patch | DECIMAL(10,2) | Retired (kept at 0 after 1.23.0 migration) |
+| package_id | BIGINT NULL | **Deprecated** — legacy soft reference (v1.25.0+) |
+| package_snapshot | LONGTEXT JSON | **Deprecated** — frozen package config from package era |
+| created_by | BIGINT | WP user |
+| created_at / updated_at | DATETIME | Timestamps |
+
+**Planned total** = `contract_deliverables` only. HR/Owner sets this directly on scope create/edit; Business records actual work via allocations.
+
+## Scope distribution / etwa_scope_contract_lines *(legacy)*
+
+`etwa_scope_contract_lines` stored the Scope deliverable mix during the package era. Retained for audit; write API returns 410 after v1.25.0. Metrics Planned uses the scalar `contract_deliverables`, not the line sum.
+
+## Retired batch tables
+
+`etwa_scope_patches` / `etwa_scope_patch_lines` and allocation `patch_id` are retained for audit. Product UI and write APIs no longer create batches (patch routes return 410). Migration 1.23.0 folds `patch_count × expected_per_patch` into `contract_deliverables`.
+
+## etwa_deliverable_allocations
+
+Parent allocation header (shared task metadata). Child quantities live in `etwa_deliverable_allocation_items`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| scope_id | BIGINT | Scope |
+| patch_id | BIGINT NULL | Historical batch attribution only (ignored on new writes) |
+| task_name | VARCHAR(255) | Task / campaign name |
+| completed_date | DATE | Completion date |
+| notes | TEXT | Optional notes |
+| allocated_by | BIGINT | Actor |
+| deliverable_type_id / quantity / scope_impact / replaced_* | legacy NULL | Retained for pre-1.21 rows; new writes leave NULL |
+
+## etwa_deliverable_allocation_items
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| allocation_id | BIGINT | Parent allocation |
+| deliverable_type_id | BIGINT | Allocated type |
+| quantity | DECIMAL(10,2) | Quantity |
+| scope_impact | VARCHAR(20) | normal, replacement, extra |
+| replaced_type_id | BIGINT NULL | Required when replacement |
+| replacement_qty | DECIMAL(10,2) NULL | Required when replacement |
+| sort_order | INT | Row order within allocation |
+
+**Metrics (services only):**
+- Planned = `contract_deliverables` (Final Scope Allowance)
+- Completed = sum of **item** quantities (Extra included in completion %, excluded from Remaining)
+- Remaining = max(0, planned − completed excluding Extra)
+- Completion % may exceed 100%
+- Effort = Σ (item.quantity × type.effort_score)
+- Type breakdown is from allocation items; legacy contractual mix may exist in `etwa_scope_contract_lines` for old scopes
+- Extra Deliverables = overflow beyond Planned
 
 ## User meta (profiles & preferences)
 
@@ -387,6 +566,14 @@ erDiagram
 
 | Version | Notable change |
 |---------|----------------|
+| 1.25.0 | Package/Add-on catalog removed from active scope logic; backfill `contract_deliverables` from `package_snapshot` where zero; deprecated tables/columns retained |
+| 1.24.0 | Projects on scopes; deliverable notification log |
+| 1.23.0 | Packages & Add-ons (superseded by 1.25.0 rollback); batch planning soft-retired |
+| 1.22.0 | Version marker (content calendar tables may exist on upgraded sites but are unused) |
+| 1.21.0 | Multi-item deliverable allocations (`task_name` + `etwa_deliverable_allocation_items`) |
+| 1.20.0 | Department `can_allocate_deliverables` |
+| 1.19.0 | Scope contract totals planning columns |
+| 1.18.0 | Deliverables module (types, scopes, contract lines, patches, allocations) |
 | 1.4.1 | Annual leave pool (`tracks_allocation` on leave types) |
 | 1.6.0 | `etwa_requests` table |
 | 1.7.0 | Entry time-offset migration; system clients |

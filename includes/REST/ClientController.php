@@ -11,6 +11,8 @@ namespace ETWA\REST;
 
 use ETWA\Helpers\RoleManager;
 use ETWA\Repositories\ClientRepository;
+use ETWA\Services\ClientConvertToProjectService;
+use ETWA\Services\ClientMergeService;
 use ETWA\Services\ClientService;
 use WP_REST_Request;
 use WP_REST_Server;
@@ -81,6 +83,54 @@ final class ClientController extends RestController {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/clients/merge/preview',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'merge_preview' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/clients/merge',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'merge_clients' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/clients/(?P<id>\d+)/convert-to-project/preview',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'convert_to_project_preview' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/clients/(?P<id>\d+)/convert-to-project',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'convert_to_project' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
 	}
 
 	public function can_manage(): bool {
@@ -137,5 +187,55 @@ final class ClientController extends RestController {
 		$service = new ClientService();
 		$result  = $service->delete( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
 		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( array( 'deleted' => true ) );
+	}
+
+	public function merge_preview( WP_REST_Request $request ) {
+		$merge_ids = $request->get_param( 'merge_ids' );
+		if ( ! is_array( $merge_ids ) ) {
+			$merge_ids = array();
+		}
+		$service = new ClientMergeService();
+		$result  = $service->preview(
+			get_current_user_id(),
+			$this->get_int_param( $request, 'primary_id' ),
+			array_map( 'intval', $merge_ids )
+		);
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
+	}
+
+	public function merge_clients( WP_REST_Request $request ) {
+		$merge_ids = $request->get_param( 'merge_ids' );
+		if ( ! is_array( $merge_ids ) ) {
+			$merge_ids = array();
+		}
+		$service = new ClientMergeService();
+		$result  = $service->merge(
+			get_current_user_id(),
+			$this->get_int_param( $request, 'primary_id' ),
+			array_map( 'intval', $merge_ids )
+		);
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
+	}
+
+	public function convert_to_project_preview( WP_REST_Request $request ) {
+		$data    = $this->get_request_data( $request );
+		$service = new ClientConvertToProjectService();
+		$result  = $service->preview(
+			get_current_user_id(),
+			$this->get_int_param( $request, 'id' ),
+			(int) ( $data['parent_client_id'] ?? 0 )
+		);
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
+	}
+
+	public function convert_to_project( WP_REST_Request $request ) {
+		$data    = $this->get_request_data( $request );
+		$service = new ClientConvertToProjectService();
+		$result  = $service->convert(
+			get_current_user_id(),
+			$this->get_int_param( $request, 'id' ),
+			(int) ( $data['parent_client_id'] ?? 0 )
+		);
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
 	}
 }

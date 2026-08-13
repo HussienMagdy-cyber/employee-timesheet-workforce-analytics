@@ -26,10 +26,12 @@ use ETWA\REST\ExportController;
 use ETWA\REST\HolidayController;
 use ETWA\REST\ClientAnalyticsController;
 use ETWA\REST\ClientController;
+use ETWA\REST\DeliverablesController;
 use ETWA\REST\DepartmentController;
 use ETWA\REST\EmployeeController;
 use ETWA\REST\HrTimesheetController;
 use ETWA\REST\TimesheetController;
+use ETWA\REST\ProjectController;
 use ETWA\REST\PortalController;
 use ETWA\REST\ReportsController;
 use ETWA\REST\RequestController;
@@ -37,6 +39,7 @@ use ETWA\REST\VacationController;
 use ETWA\Helpers\ComposerDependencyHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Helpers\WpDebugLogReader;
+use ETWA\Services\DeliverableNotificationService;
 use ETWA\Services\NotificationService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -64,6 +67,7 @@ final class Plugin {
 
 		new CronJobs();
 		new NotificationService();
+		new DeliverableNotificationService();
 	}
 
 	public function bootstrap_runtime(): void {
@@ -89,6 +93,7 @@ final class Plugin {
 		( new AnalyticsController() )->register_routes();
 		( new ExportController() )->register_routes();
 		( new ClientController() )->register_routes();
+		( new ProjectController() )->register_routes();
 		( new ClientAnalyticsController() )->register_routes();
 		( new EmployeeController() )->register_routes();
 		( new HolidayController() )->register_routes();
@@ -97,6 +102,7 @@ final class Plugin {
 		( new ReportsController() )->register_routes();
 		( new RequestController() )->register_routes();
 		( new DepartmentController() )->register_routes();
+		( new DeliverablesController() )->register_routes();
 		( new PortalController() )->register_routes();
 		( new AuthController() )->register_routes();
 	}

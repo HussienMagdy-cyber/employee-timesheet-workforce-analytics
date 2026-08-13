@@ -1,18 +1,33 @@
 (function () {
 	'use strict';
 
+	const SIDEBAR_COLLAPSED_KEY = 'etwa_sidebar_collapsed';
+	const DESKTOP_MQ = window.matchMedia('(min-width: 961px)');
+
 	let root = null;
 	let sidebar = null;
 	let overlay = null;
 	let toggle = null;
+	let collapseToggle = null;
 	let shellInitialized = false;
+	let openFlyoutEl = null;
+	let openFlyoutButton = null;
 
 	function bindElements() {
 		root = document.getElementById('etwa-portal-root');
 		sidebar = document.getElementById('etwa-portal-sidebar');
 		overlay = document.getElementById('etwa-portal-overlay');
 		toggle = document.getElementById('etwa-portal-nav-toggle');
+		collapseToggle = document.getElementById('etwa-portal-sidebar-collapse');
 		return !!root;
+	}
+
+	function isDesktop() {
+		return DESKTOP_MQ.matches;
+	}
+
+	function isSidebarCollapsed() {
+		return !!root && root.classList.contains('etwa-sidebar-collapsed');
 	}
 
 	function setNavOpen(open) {
@@ -28,6 +43,97 @@
 		}
 	}
 
+	function closeFlyouts() {
+		if (openFlyoutEl) {
+			openFlyoutEl.hidden = true;
+			openFlyoutEl = null;
+		}
+		if (openFlyoutButton) {
+			openFlyoutButton.setAttribute('aria-expanded', 'false');
+			openFlyoutButton = null;
+		}
+	}
+
+	function positionFlyout(button, flyout) {
+		const rect = button.getBoundingClientRect();
+		const margin = 8;
+		let top = rect.top;
+		let left = rect.right + margin;
+
+		flyout.style.top = `${top}px`;
+		flyout.style.left = `${left}px`;
+
+		const flyoutRect = flyout.getBoundingClientRect();
+		if (flyoutRect.bottom > window.innerHeight - margin) {
+			top = Math.max(margin, window.innerHeight - flyoutRect.height - margin);
+			flyout.style.top = `${top}px`;
+		}
+		if (flyoutRect.right > window.innerWidth - margin) {
+			left = Math.max(margin, rect.left - flyoutRect.width - margin);
+			flyout.style.left = `${left}px`;
+		}
+	}
+
+	function openFlyout(button, flyout) {
+		if (openFlyoutEl && openFlyoutEl !== flyout) {
+			closeFlyouts();
+		}
+		flyout.hidden = false;
+		positionFlyout(button, flyout);
+		button.setAttribute('aria-expanded', 'true');
+		openFlyoutEl = flyout;
+		openFlyoutButton = button;
+	}
+
+	function setSidebarCollapsed(collapsed, persist) {
+		if (!root) return;
+		closeFlyouts();
+		root.classList.toggle('etwa-sidebar-collapsed', collapsed);
+		if (collapseToggle) {
+			collapseToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+			collapseToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+		}
+		if (persist && isDesktop()) {
+			try {
+				localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+			} catch (e) {
+				/* ignore */
+			}
+		}
+	}
+
+	function initSidebarCollapse() {
+		if (!root || !collapseToggle || collapseToggle.dataset.etwaCollapseBound === '1') {
+			return;
+		}
+		collapseToggle.dataset.etwaCollapseBound = '1';
+
+		if (isDesktop()) {
+			setSidebarCollapsed(isSidebarCollapsed(), false);
+		}
+
+		collapseToggle.addEventListener('click', () => {
+			if (!isDesktop()) return;
+			setSidebarCollapsed(!isSidebarCollapsed(), true);
+		});
+
+		DESKTOP_MQ.addEventListener('change', (event) => {
+			if (event.matches) {
+				let collapsed = false;
+				try {
+					collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+				} catch (e) {
+					collapsed = false;
+				}
+				setSidebarCollapsed(collapsed, false);
+				setNavOpen(false);
+			} else {
+				root.classList.remove('etwa-sidebar-collapsed');
+				closeFlyouts();
+			}
+		});
+	}
+
 	function initNavGroups() {
 		if (!root || root.dataset.etwaNavGroupsBound === '1') {
 			return;
@@ -35,7 +141,22 @@
 		root.dataset.etwaNavGroupsBound = '1';
 
 		root.querySelectorAll('.etwa-portal-nav-group-toggle').forEach((button) => {
-			button.addEventListener('click', () => {
+			button.addEventListener('click', (event) => {
+				if (isSidebarCollapsed() && isDesktop()) {
+					event.preventDefault();
+					const group = button.closest('.etwa-portal-nav-group');
+					const flyout = group?.querySelector('.etwa-portal-nav-flyout');
+					if (!group || !flyout) {
+						return;
+					}
+					if (openFlyoutEl === flyout && !flyout.hidden) {
+						closeFlyouts();
+						return;
+					}
+					openFlyout(button, flyout);
+					return;
+				}
+
 				const group = button.closest('.etwa-portal-nav-group');
 				const panel = group?.querySelector('.etwa-portal-nav-group-items');
 				if (!group || !panel) {
@@ -46,6 +167,40 @@
 				panel.hidden = !isOpen;
 				button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 			});
+		});
+
+		document.addEventListener('click', (event) => {
+			if (!openFlyoutEl || !isSidebarCollapsed()) {
+				return;
+			}
+			if (
+				event.target.closest('.etwa-portal-nav-flyout') ||
+				event.target.closest('.etwa-portal-nav-group-toggle')
+			) {
+				return;
+			}
+			closeFlyouts();
+		});
+
+		document.addEventListener('keydown', (event) => {
+			if (event.key === 'Escape' && openFlyoutEl) {
+				closeFlyouts();
+			}
+		});
+
+		root.querySelectorAll('.etwa-portal-nav-flyout-link, .etwa-portal-nav-rail-direct').forEach((link) => {
+			link.addEventListener('click', () => {
+				closeFlyouts();
+				if (!isDesktop()) {
+					setNavOpen(false);
+				}
+			});
+		});
+
+		window.addEventListener('resize', () => {
+			if (openFlyoutEl && openFlyoutButton) {
+				positionFlyout(openFlyoutButton, openFlyoutEl);
+			}
 		});
 	}
 
@@ -65,7 +220,7 @@
 
 		root.querySelectorAll('.etwa-portal-nav-link').forEach((link) => {
 			link.addEventListener('click', () => {
-				if (window.matchMedia('(max-width: 960px)').matches) {
+				if (!isDesktop()) {
 					setNavOpen(false);
 				}
 			});
@@ -171,6 +326,7 @@
 			return;
 		}
 		shellInitialized = true;
+		initSidebarCollapse();
 		initNavGroups();
 		initMobileNav();
 		bindDarkToggle();

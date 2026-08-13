@@ -11,6 +11,7 @@ namespace ETWA\Cron;
 
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\RoleManager;
+use ETWA\Services\DeliverableNotificationService;
 use ETWA\Services\EmailService;
 use ETWA\Services\MailService;
 
@@ -23,6 +24,7 @@ final class CronJobs {
 	public function __construct() {
 		add_action( 'etwa_weekly_report_email', array( $this, 'send_weekly_report' ) );
 		add_action( 'etwa_daily_reminder', array( $this, 'send_daily_reminder' ) );
+		add_action( 'etwa_deliverable_expiration_check', array( $this, 'send_deliverable_expiration_alerts' ) );
 	}
 
 	public function send_weekly_report(): void {
@@ -81,5 +83,9 @@ final class CronJobs {
 				)
 			);
 		}
+	}
+
+	public function send_deliverable_expiration_alerts(): void {
+		( new DeliverableNotificationService() )->process_expiration_alerts();
 	}
 }

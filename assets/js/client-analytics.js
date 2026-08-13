@@ -99,7 +99,8 @@
 	function exportClient(format) {
 		const app = document.getElementById('etwa-client-analytics-app');
 		const clientId = app?.dataset.clientId;
-		if (!clientId || !cfg.canExport) return;
+		const projectId = app?.dataset.projectId;
+		if ((!clientId && !projectId) || !cfg.canExport) return;
 
 		const q = queryParams();
 		const $btn = format === 'csv' ? $('#etwa-ca-export-csv') : $('#etwa-ca-export-excel');
@@ -111,7 +112,11 @@
 			date_to: q.date_to,
 		});
 
-		api(`client-analytics/${clientId}/export/${format}`, { method: 'POST', body })
+		const path = projectId
+			? `projects/${projectId}/export/${format}`
+			: `client-analytics/${clientId}/export/${format}`;
+
+		api(path, { method: 'POST', body })
 			.then((res) => {
 				if (!res.success) throw new Error(res.message);
 				if (res.data?.file_url) {
@@ -195,7 +200,7 @@
 		if (!$('#etwa-client-analytics-app').length) return;
 
 		const mode = $('#etwa-client-analytics-app').data('mode');
-		if (mode === 'detail') {
+		if (mode === 'detail' || mode === 'project-detail') {
 			initDetail();
 		} else {
 			bindListSearch();

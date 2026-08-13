@@ -24,16 +24,19 @@
 }
 
 /* Isolate portal UI from theme/Elementor global button & link colors */
-.etwa-portal-layout .etwa-app button:not(.etwa-btn-primary):not(.etwa-btn-danger):not(.etwa-tab.active):not(.etwa-vacation-tab.is-active),
+.etwa-portal-layout .etwa-app button:not(.etwa-btn-primary):not(.etwa-btn-danger):not(.etwa-tab.active):not(.etwa-vacation-tab.is-active):not(.etwa-segment.is-active):not(.etwa-portal-sidebar-collapse-toggle),
 .etwa-portal-layout button.etwa-tab:not(.active),
-.etwa-portal-layout button.etwa-vacation-tab:not(.is-active) {
+.etwa-portal-layout button.etwa-vacation-tab:not(.is-active),
+.etwa-portal-layout button.etwa-segment:not(.is-active) {
 	color: var(--etwa-text-secondary) !important;
 }
 
 .etwa-portal-layout button.etwa-tab:not(.active):hover,
 .etwa-portal-layout button.etwa-tab:not(.active):focus-visible,
 .etwa-portal-layout button.etwa-vacation-tab:not(.is-active):hover,
-.etwa-portal-layout button.etwa-vacation-tab:not(.is-active):focus-visible {
+.etwa-portal-layout button.etwa-vacation-tab:not(.is-active):focus-visible,
+.etwa-portal-layout button.etwa-segment:not(.is-active):hover,
+.etwa-portal-layout button.etwa-segment:not(.is-active):focus-visible {
 	color: var(--etwa-text) !important;
 }
 
@@ -46,7 +49,11 @@
 }
 
 .etwa-portal-layout .etwa-portal-nav-link,
-.etwa-portal-layout .etwa-portal-nav-link:hover {
+.etwa-portal-layout .etwa-portal-nav-link:hover,
+.etwa-portal-layout .etwa-portal-nav-flyout-link,
+.etwa-portal-layout .etwa-portal-nav-flyout-link:hover,
+.etwa-portal-layout .etwa-portal-nav-rail-direct,
+.etwa-portal-layout .etwa-portal-nav-rail-direct:hover {
 	color: inherit !important;
 }
 
@@ -95,14 +102,275 @@
 	top: 0 !important;
 	height: 100vh !important;
 	z-index: 100 !important;
+	overflow: hidden !important;
+	min-width: 0 !important;
+	scrollbar-width: none !important;
+	-ms-overflow-style: none !important;
+	transition: width 0.22s var(--etwa-ease), padding 0.22s var(--etwa-ease) !important;
+}
+
+.etwa-portal-sidebar::-webkit-scrollbar,
+.etwa-portal-sidebar::-webkit-scrollbar-button,
+.etwa-portal-sidebar::-webkit-scrollbar-corner {
+	display: none !important;
+	width: 0 !important;
+	height: 0 !important;
+}
+
+.etwa-portal-sidebar > * {
+	min-width: 0 !important;
+	max-width: 100% !important;
+}
+
+.etwa-portal-sidebar-head {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-2) !important;
+	margin-bottom: var(--etwa-space-6) !important;
+	min-height: 36px !important;
+	overflow: hidden !important;
+	max-width: 100% !important;
+	flex-shrink: 0 !important;
+}
+
+.etwa-portal-sidebar-collapse-toggle {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	position: relative !important;
+	flex-shrink: 0 !important;
+	width: 36px !important;
+	height: 36px !important;
+	min-width: 36px !important;
+	max-width: 36px !important;
+	padding: 0 !important;
+	border: none !important;
+	border-radius: var(--etwa-radius) !important;
+	background: transparent !important;
+	color: var(--etwa-text-secondary) !important;
+	cursor: pointer !important;
+	appearance: none !important;
+	box-shadow: none !important;
+	font-size: 0 !important;
+	line-height: 0 !important;
+	overflow: hidden !important;
+	transition: background var(--etwa-duration) var(--etwa-ease), color var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-portal-sidebar-collapse-toggle .dashicons,
+.etwa-portal-sidebar-collapse-toggle [class*="dashicons-"] {
+	display: none !important;
+}
+
+.etwa-portal-sidebar-collapse-toggle::before,
+.etwa-portal-sidebar-collapse-toggle::after {
+	display: none !important;
+	content: none !important;
+}
+
+.etwa-portal-sidebar-collapse-toggle:hover,
+.etwa-portal-sidebar-collapse-toggle:focus-visible {
+	color: var(--etwa-text) !important;
+	background: var(--etwa-border-subtle) !important;
+}
+
+.etwa-portal-sidebar-collapse-icon {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	line-height: 0 !important;
+}
+
+.etwa-portal-sidebar-collapse-icon svg {
+	display: block !important;
+	transition: transform 0.22s var(--etwa-ease) !important;
+}
+
+.etwa-portal-sidebar-collapse-toggle .screen-reader-text {
+	position: absolute !important;
+	width: 1px !important;
+	height: 1px !important;
+	padding: 0 !important;
+	margin: -1px !important;
+	overflow: hidden !important;
+	clip: rect(0, 0, 0, 0) !important;
+	white-space: nowrap !important;
+	border: 0 !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-sidebar-collapse-icon svg {
+	transform: scaleX(-1) !important;
+}
+
+.etwa-portal-nav-rail-direct {
+	display: none !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 40px !important;
+	height: 40px !important;
+	margin: 0 auto !important;
+	border-radius: var(--etwa-radius) !important;
+	color: var(--etwa-text-secondary) !important;
+	text-decoration: none !important;
+	transition: background var(--etwa-duration) var(--etwa-ease), color var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-portal-nav-rail-direct .dashicons {
+	font-size: 18px !important;
+	width: 18px !important;
+	height: 18px !important;
+	opacity: 0.85 !important;
+}
+
+.etwa-portal-nav-rail-direct:hover {
+	background: var(--etwa-border-subtle) !important;
+	color: var(--etwa-text) !important;
+}
+
+.etwa-portal-nav-rail-direct.is-active {
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-portal-nav-flyout {
+	position: fixed !important;
+	z-index: 220 !important;
+	min-width: 220px !important;
+	max-width: 280px !important;
+	padding: var(--etwa-space-3) !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: var(--etwa-radius-lg) !important;
+	background: var(--etwa-panel) !important;
+	box-shadow: var(--etwa-shadow-lg) !important;
+}
+
+.etwa-portal-nav-flyout-title {
+	margin: 0 0 var(--etwa-space-2) !important;
+	padding: 0 var(--etwa-space-2) !important;
+	font-size: var(--etwa-text-xs) !important;
+	font-weight: 700 !important;
+	letter-spacing: 0.04em !important;
+	text-transform: uppercase !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-portal-nav-flyout-items {
+	list-style: none !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 2px !important;
+}
+
+.etwa-portal-nav-flyout-link {
+	display: flex !important;
+	align-items: center !important;
+	gap: var(--etwa-space-3) !important;
+	padding: 10px 12px !important;
+	border-radius: var(--etwa-radius) !important;
+	text-decoration: none !important;
+	color: var(--etwa-text-secondary) !important;
+	font-size: var(--etwa-text-sm) !important;
+	font-weight: 500 !important;
+	transition: background var(--etwa-duration) var(--etwa-ease), color var(--etwa-duration) var(--etwa-ease) !important;
+}
+
+.etwa-portal-nav-flyout-link .dashicons {
+	font-size: 18px !important;
+	width: 18px !important;
+	height: 18px !important;
+	opacity: 0.85 !important;
+}
+
+.etwa-portal-nav-flyout-link:hover {
+	background: var(--etwa-border-subtle) !important;
+	color: var(--etwa-text) !important;
+}
+
+.etwa-portal-nav-flyout-link.is-active {
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+	font-weight: 600 !important;
+}
+
+/* Collapsed icon rail (desktop) */
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-sidebar {
+	width: var(--etwa-rail-width) !important;
+	padding: var(--etwa-space-4) var(--etwa-space-2) !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-sidebar-head {
+	flex-direction: column !important;
+	align-items: center !important;
+	gap: var(--etwa-space-3) !important;
+	margin-bottom: var(--etwa-space-4) !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-sidebar-collapse-toggle {
+	order: -1 !important;
+	margin: 0 auto !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-brand {
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 0 !important;
+	margin-bottom: 0 !important;
+	padding: 0 !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-brand-text,
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-label,
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-label,
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-user-meta {
+	display: none !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group.is-single-item .etwa-portal-nav-group-toggle,
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group.is-single-item .etwa-portal-nav-group-items {
+	display: none !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-rail-direct {
+	display: inline-flex !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-toggle {
+	justify-content: center !important;
+	width: 40px !important;
+	height: 40px !important;
+	margin: 0 auto !important;
+	padding: 0 !important;
+	gap: 0 !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-items {
+	display: none !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group.has-active > .etwa-portal-nav-group-toggle,
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-toggle[aria-expanded="true"] {
+	background: var(--etwa-primary-muted) !important;
+	color: var(--etwa-primary) !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-user-card {
+	justify-content: center !important;
+	padding: var(--etwa-space-2) 0 !important;
 }
 
 .etwa-portal-brand {
 	display: flex !important;
 	align-items: center !important;
 	gap: var(--etwa-space-3) !important;
-	margin-bottom: var(--etwa-space-6) !important;
+	margin-bottom: 0 !important;
 	padding: 0 var(--etwa-space-2) !important;
+	flex: 1 1 auto !important;
+	min-width: 0 !important;
+	overflow: hidden !important;
 }
 
 .etwa-portal-brand-mark {
@@ -145,8 +413,34 @@
 }
 
 .etwa-portal-nav {
-	flex: 1 !important;
+	flex: 1 1 auto !important;
+	min-height: 0 !important;
+	min-width: 0 !important;
+	max-width: 100% !important;
+	overflow-x: hidden !important;
 	overflow-y: auto !important;
+	scrollbar-width: none !important;
+	-ms-overflow-style: none !important;
+}
+
+.etwa-portal-nav::-webkit-scrollbar,
+.etwa-portal-nav::-webkit-scrollbar-button,
+.etwa-portal-nav::-webkit-scrollbar-corner {
+	display: none !important;
+	width: 0 !important;
+	height: 0 !important;
+}
+
+.etwa-portal-nav-group-label,
+.etwa-portal-nav-label {
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+	white-space: nowrap !important;
+	min-width: 0 !important;
+}
+
+.etwa-portal-nav-flyout[hidden] {
+	display: none !important;
 }
 
 .etwa-portal-nav ul {
@@ -190,19 +484,6 @@
 	width: 18px !important;
 	height: 18px !important;
 	opacity: 0.85 !important;
-}
-
-.etwa-portal-nav-chevron {
-	margin-left: auto !important;
-	font-size: 16px !important;
-	width: 16px !important;
-	height: 16px !important;
-	opacity: 0.65 !important;
-	transition: transform 0.2s var(--etwa-ease) !important;
-}
-
-.etwa-portal-nav-group.is-open .etwa-portal-nav-chevron {
-	transform: rotate(180deg) !important;
 }
 
 .etwa-portal-nav-group-toggle:hover,
@@ -261,8 +542,16 @@
 
 .etwa-portal-sidebar-foot {
 	margin-top: auto !important;
+	flex-shrink: 0 !important;
+	overflow: hidden !important;
+	max-width: 100% !important;
 	padding-top: var(--etwa-space-4) !important;
 	border-top: 1px solid var(--etwa-border) !important;
+}
+
+.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-user-card {
+	justify-content: center !important;
+	padding: var(--etwa-space-2) 0 !important;
 }
 
 .etwa-portal-user-card {
@@ -461,6 +750,47 @@
 @media (max-width: 960px) {
 	.etwa-portal-layout {
 		flex-direction: column !important;
+	}
+
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-sidebar {
+		width: var(--etwa-sidebar-width) !important;
+		padding: var(--etwa-space-5) var(--etwa-space-4) !important;
+	}
+
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-brand-text,
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-label,
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-label,
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-user-meta {
+		display: revert !important;
+	}
+
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group.is-single-item .etwa-portal-nav-group-toggle {
+		display: flex !important;
+	}
+
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-rail-direct {
+		display: none !important;
+	}
+
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-toggle {
+		width: 100% !important;
+		height: auto !important;
+		margin: 0 !important;
+		padding: 10px 12px !important;
+		gap: var(--etwa-space-3) !important;
+		justify-content: flex-start !important;
+	}
+
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-items {
+		display: flex !important;
+	}
+
+	.etwa-portal-layout.etwa-sidebar-collapsed .etwa-portal-nav-group-items[hidden] {
+		display: none !important;
+	}
+
+	.etwa-portal-sidebar-collapse-toggle {
+		display: none !important;
 	}
 
 	.etwa-portal-sidebar {

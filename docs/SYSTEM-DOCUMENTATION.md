@@ -197,6 +197,8 @@ Navigation URLs are built by `PortalNav::view_url()`.
 | `requests-hr` | Team Requests / Requests | Dept Head, HR, Owner |
 | `hr` | HR Dashboard | HR, Owner |
 | `reports` | Reports & Exports | HR, Owner |
+| `files` | Files | View deliverables (HR/Owner/Dept Head; dept-flagged employees) |
+| `deliverables` | Deliverables | Analytics dashboard home; scope detail / allocate via `?scope_id=` |
 | `client-analytics` | Client Analytics | HR, Owner |
 | `employees` | Employees | HR, Owner |
 | `departments` | Departments | HR, Owner |
@@ -227,7 +229,7 @@ Navigation URLs are built by `PortalNav::view_url()`.
 ### Timesheets
 
 - **Work week:** Default Sun–Thu (`SettingsRepository`)
-- **Day cards:** Entries with client, task, start/end time, notes, **entry type** (regular / overtime / compensation after 18:00)
+- **Day cards:** Entries with client, optional **project**, task, start/end time, notes, **entry type** (regular / overtime / compensation after 18:00)
 - **Save Draft** — snapshot visible to HR before submit (`draft_snapshot` on timesheet)
 - **Submit / approve workflow** via `TimesheetService`, `ApprovalService`
 - **Copy previous week** — copies day-aligned entries from the prior work week into an empty week
@@ -298,9 +300,22 @@ Unified leave and permission requests (replaces standalone “My Vacation” tab
 | Employee Hours by Client | ✓ | — |
 | All Clients Comparison | ✓ | ✓ (charts + sortable table) |
 
+Entry-level exports and aggregated report workbooks include a **Project** column (entries without a project export as “Social Media”). Client/project analytics exports include project breakdown sheets.
+
 \*Requires labor-cost permission (`EmployeeCostHelper::can_view_labor_cost()`).
 
 **Key paths:** `includes/Services/ReportingService.php`, `includes/Services/ReportExportService.php`, `includes/REST/ReportsController.php`, `assets/js/reports-exports.js`, `templates/admin/reports-exports.php`
+
+### Deliverables & Client Files
+
+| Module | Audience | Description |
+|--------|----------|-------------|
+| Files | View deliverables | Client-first cards of clients that have scopes; drill into a Client File |
+| Deliverables | View / manage / allocate | **Home:** analytics dashboard. **Detail:** scope create/edit with client, optional project, and **Total Expected Deliverables**; multi-item allocate with edit/delete (`?scope_id=`). **Deliverable Types:** always available from page actions and scope detail; create, edit, delete (soft deactivate), reactivate. |
+
+- **Files** (`DeliverableFilesService`, `GET /deliverables/files`, portal view `files`): lists only clients with ≥1 scope; Open Scope deep-links to Deliverables detail.
+- Access: `RoleManager::user_can_view_deliverables()` (role cap or department `can_allocate_deliverables`).
+- UI: `templates/admin/files.php`, `assets/js/files.js`, glass cards in `assets/css/analytics.css`.
 
 ### Clients & holidays
 
@@ -360,9 +375,11 @@ Full endpoint reference: **[docs/REST-API.md](REST-API.md)**
 | `ApprovalController` | Timesheet/overtime approvals |
 | `AnalyticsController` | Dashboard analytics |
 | `ClientController` / `ClientAnalyticsController` | Clients |
+| `ProjectController` | Projects (CRUD, analytics detail, Excel/CSV export) |
 | `HolidayController` | Holidays |
 | `ExportController` | Legacy Excel export & email |
 | `ReportsController` | Centralized reports, filters, comparison |
+| `DeliverablesController` | Types, scopes, files, dashboard analytics, allocations |
 | `PortalController` | Nav badge counts, session nonce refresh |
 
 Standard response envelope:
@@ -376,7 +393,7 @@ Standard response envelope:
 
 ## Database
 
-Schema version tracked in option `etwa_db_version` (current: **1.17.0**). Migrations in `Schema::maybe_upgrade()`.
+Schema version tracked in option `etwa_db_version` (current: **1.25.0**). Migrations in `Schema::maybe_upgrade()`.
 
 **Reference:** [docs/DATABASE-SCHEMA.md](DATABASE-SCHEMA.md)
 
@@ -521,6 +538,17 @@ Hook-driven emails for workflow events. Subjects and message text are defined in
 | `EmailService::send_report()` | HR (+ CC Owner if enabled) | Plain message + Excel attachment |
 | Cron `etwa_weekly_report_email` | Same as above | Previous work week export |
 | Cron `etwa_daily_reminder` | Employees missing submit/approve | Timesheet reminder for current week |
+| Cron `etwa_deliverable_expiration_check` | Daily (08:30) | Scope expiration alerts to HR/Owner (7/3/1 day thresholds) |
+
+### Deliverable notifications (v1.24+)
+
+| Event | Trigger | Recipients |
+|-------|---------|------------|
+| Content delivery required | Scope created or re-activated with contract qty | Users who can allocate deliverables |
+| Scope expiration | Daily cron when `ends_on` within configured threshold | HR + Owner |
+| Scope completed | Allocation save when `remaining_qty` reaches 0 | HR + Owner |
+
+Dedup state stored in `etwa_notification_log`. UI labels display deliverable **Hours** (internal field remains `effort_score`).
 
 Manual report email: `POST /export/email` (`ExportController`).
 
@@ -600,8 +628,9 @@ employee-timesheet-workforce-analytics/
 |-----------|----------|---------|
 | `etwa_weekly_report_email` | Weekly (Friday 08:00) | Email workforce export to HR |
 | `etwa_daily_reminder` | Daily (09:00) | Timesheet reminders to employees who have not submitted |
+| `etwa_deliverable_expiration_check` | Daily (08:30) | Scope expiration alerts (HR/Owner) |
 
-**Email notifications** for workflow events are sent by `NotificationService` (see [Email system](#email-system)).
+**Email notifications** for workflow events are sent by `NotificationService`; deliverable alerts use `DeliverableNotificationService` (see [Email system](#email-system)).
 
 **In-app vacation notifications** (portal badge / list) are stored in user meta `etwa_vacation_notifications` by `VacationService` — separate from email delivery.
 

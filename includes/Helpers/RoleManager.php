@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class RoleManager {
 
-	public const ROLES_VERSION = '1.0.0';
+	public const ROLES_VERSION = '1.2.0';
 
 	public const CAP_VIEW_OWN          = 'etwa_view_own_timesheet';
 	public const CAP_EDIT_OWN          = 'etwa_edit_own_timesheet';
@@ -35,6 +35,9 @@ final class RoleManager {
 	public const CAP_APPROVE_DEPT_REQUESTS = 'etwa_approve_department_requests';
 	public const CAP_VIEW_DEPT_EMPLOYEES   = 'etwa_view_department_employees';
 	public const CAP_VIEW_DEPT_CALENDAR    = 'etwa_view_department_calendar';
+	public const CAP_VIEW_DELIVERABLES           = 'etwa_view_deliverables';
+	public const CAP_MANAGE_DELIVERABLE_SCOPES   = 'etwa_manage_deliverable_scopes';
+	public const CAP_ALLOCATE_DELIVERABLES       = 'etwa_allocate_deliverables';
 
 	/** @return string[] */
 	public static function all_capabilities(): array {
@@ -57,6 +60,9 @@ final class RoleManager {
 			self::CAP_APPROVE_DEPT_REQUESTS,
 			self::CAP_VIEW_DEPT_EMPLOYEES,
 			self::CAP_VIEW_DEPT_CALENDAR,
+			self::CAP_VIEW_DELIVERABLES,
+			self::CAP_MANAGE_DELIVERABLE_SCOPES,
+			self::CAP_ALLOCATE_DELIVERABLES,
 		);
 	}
 
@@ -81,6 +87,8 @@ final class RoleManager {
 			self::CAP_APPROVE_DEPT_REQUESTS => true,
 			self::CAP_VIEW_DEPT_EMPLOYEES   => true,
 			self::CAP_VIEW_DEPT_CALENDAR    => true,
+			self::CAP_VIEW_DELIVERABLES     => true,
+			self::CAP_ALLOCATE_DELIVERABLES => true,
 		);
 
 		$hr_caps = array(
@@ -96,6 +104,9 @@ final class RoleManager {
 			self::CAP_VIEW_OWN_VACATION => true,
 			self::CAP_MANAGE_DEPARTMENTS => true,
 			self::CAP_APPROVE_DEPT_REQUESTS => true,
+			self::CAP_VIEW_DELIVERABLES         => true,
+			self::CAP_MANAGE_DELIVERABLE_SCOPES => true,
+			self::CAP_ALLOCATE_DELIVERABLES     => true,
 		);
 
 		$owner_caps = array_merge(
@@ -224,5 +235,48 @@ final class RoleManager {
 		$viewer_dept = \ETWA\Helpers\DepartmentHelper::get_headed_department_id( $viewer_id );
 		$employee_dept = \ETWA\Helpers\DepartmentHelper::get_employee_department_id( $employee_id );
 		return $viewer_dept && $employee_dept && $viewer_dept === $employee_dept;
+	}
+
+	/**
+	 * View deliverables via role cap or department flag (runtime).
+	 */
+	public static function user_can_view_deliverables( ?int $user_id = null ): bool {
+		$user_id = $user_id ?? get_current_user_id();
+		if ( $user_id <= 0 ) {
+			return false;
+		}
+		if ( user_can( $user_id, self::CAP_VIEW_DELIVERABLES ) ) {
+			return true;
+		}
+		return DepartmentHelper::department_grants_deliverables( $user_id );
+	}
+
+	/**
+	 * Allocate deliverables via role cap or department flag (runtime).
+	 */
+	public static function user_can_allocate_deliverables( ?int $user_id = null ): bool {
+		$user_id = $user_id ?? get_current_user_id();
+		if ( $user_id <= 0 ) {
+			return false;
+		}
+		if ( user_can( $user_id, self::CAP_ALLOCATE_DELIVERABLES ) ) {
+			return true;
+		}
+		return DepartmentHelper::department_grants_deliverables( $user_id );
+	}
+
+	/**
+	 * Manage deliverable type catalog (create/edit/deactivate).
+	 * Scope managers and allocators may maintain types used when allocating.
+	 */
+	public static function user_can_manage_deliverable_types( ?int $user_id = null ): bool {
+		$user_id = $user_id ?? get_current_user_id();
+		if ( $user_id <= 0 ) {
+			return false;
+		}
+		if ( user_can( $user_id, self::CAP_MANAGE_DELIVERABLE_SCOPES ) ) {
+			return true;
+		}
+		return self::user_can_allocate_deliverables( $user_id );
 	}
 }

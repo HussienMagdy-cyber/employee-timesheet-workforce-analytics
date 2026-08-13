@@ -36,6 +36,9 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 		<?php if ( ! $in_portal && is_admin() ) : ?>
 			<input type="hidden" name="page" value="etwa-analytics" />
 		<?php endif; ?>
+		<?php if ( $in_portal ) : ?>
+			<input type="hidden" name="etwa_view" value="analytics" />
+		<?php endif; ?>
 		<div class="etwa-analytics-filter-fields">
 			<label class="etwa-analytics-field">
 				<span><?php esc_html_e( 'From', 'etwa' ); ?></span>

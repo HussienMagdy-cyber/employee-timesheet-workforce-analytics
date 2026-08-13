@@ -159,7 +159,8 @@ final class ReportingService {
 		}
 
 		global $wpdb;
-		$entries_table = $wpdb->prefix . 'etwa_entries';
+		$entries_table  = $wpdb->prefix . 'etwa_entries';
+		$projects_table = $wpdb->prefix . 'etwa_projects';
 
 		$employee_rows = $wpdb->get_results(
 			$wpdb->prepare(
@@ -211,6 +212,39 @@ final class ReportingService {
 			$total_labor    += $labor_cost;
 		}
 
+		$project_rows_raw = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT e.project_id,
+					COALESCE(p.name, %s) AS project_name,
+					COALESCE(SUM(e.regular_hours), 0) AS regular_hours,
+					COALESCE(SUM(e.overtime_hours), 0) AS overtime_hours,
+					COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
+				FROM {$entries_table} e
+				LEFT JOIN {$projects_table} p ON p.id = e.project_id
+				WHERE e.client_id = %d AND e.entry_date BETWEEN %s AND %s
+				GROUP BY e.project_id
+				ORDER BY total_hours DESC",
+				ProjectService::unassigned_label(),
+				$client_id,
+				$date_from,
+				$date_to
+			)
+		);
+
+		$project_rows = array();
+		foreach ( $project_rows_raw ?: array() as $row ) {
+			$regular  = round( (float) $row->regular_hours, 2 );
+			$overtime = round( (float) $row->overtime_hours, 2 );
+			$item     = array(
+				'project_id'     => $row->project_id ? (int) $row->project_id : null,
+				'project_name'   => (string) $row->project_name,
+				'regular_hours'  => $regular,
+				'overtime_hours' => $overtime,
+				'total_hours'    => round( (float) $row->total_hours, 2 ),
+			);
+			$project_rows[] = $item;
+		}
+
 		return array(
 			'report_type' => self::REPORT_CLIENT_LABOR_COST,
 			'range'       => array(
@@ -219,6 +253,7 @@ final class ReportingService {
 			),
 			'client'      => $client,
 			'rows'        => $rows,
+			'project_rows'=> $project_rows,
 			'summary'     => array(
 				'total_regular_hours'  => round( $total_regular, 2 ),
 				'total_overtime_hours' => round( $total_overtime, 2 ),
@@ -256,16 +291,19 @@ final class ReportingService {
 		global $wpdb;
 		$entries_table = $wpdb->prefix . 'etwa_entries';
 		$clients_table = $wpdb->prefix . 'etwa_clients';
+		$projects_table = $wpdb->prefix . 'etwa_projects';
 
-		$sql    = "SELECT e.user_id, e.client_id, c.name AS client_name,
+		$sql    = "SELECT e.user_id, e.client_id, c.name AS client_name, e.project_id,
+				COALESCE(p.name, %s) AS project_name,
 				COALESCE(SUM(e.regular_hours), 0) AS regular_hours,
 				COALESCE(SUM(e.overtime_hours), 0) AS overtime_hours,
 				COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
 			FROM {$entries_table} e
 			INNER JOIN {$clients_table} c ON c.id = e.client_id
+			LEFT JOIN {$projects_table} p ON p.id = e.project_id
 			WHERE e.entry_date BETWEEN %s AND %s
 				AND c.code != %s";
-		$params = array( $date_from, $date_to, ClientRepository::BREAK_CODE );
+		$params = array( ProjectService::unassigned_label(), $date_from, $date_to, ClientRepository::BREAK_CODE );
 
 		if ( $user_id ) {
 			$sql     .= ' AND e.user_id = %d';
@@ -276,7 +314,7 @@ final class ReportingService {
 			$params[] = $client_id;
 		}
 
-		$sql .= ' GROUP BY e.user_id, e.client_id ORDER BY e.user_id ASC, total_hours DESC';
+		$sql .= ' GROUP BY e.user_id, e.client_id, e.project_id ORDER BY e.user_id ASC, total_hours DESC';
 
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
 
@@ -298,6 +336,8 @@ final class ReportingService {
 				'employee_name'  => UserDisplayNames::get( $names, $uid ),
 				'client_id'      => $cid,
 				'client_name'    => (string) $row->client_name,
+				'project_id'     => $row->project_id ? (int) $row->project_id : null,
+				'project_name'   => (string) $row->project_name,
 				'regular_hours'  => round( (float) $row->regular_hours, 2 ),
 				'overtime_hours' => round( (float) $row->overtime_hours, 2 ),
 				'total_hours'    => round( (float) $row->total_hours, 2 ),
@@ -355,8 +395,9 @@ final class ReportingService {
 		}
 
 		global $wpdb;
-		$entries_table = $wpdb->prefix . 'etwa_entries';
-		$clients_table = $wpdb->prefix . 'etwa_clients';
+		$entries_table  = $wpdb->prefix . 'etwa_entries';
+		$clients_table  = $wpdb->prefix . 'etwa_clients';
+		$projects_table = $wpdb->prefix . 'etwa_projects';
 
 		$where  = 'e.entry_date BETWEEN %s AND %s AND c.code != %s';
 		$params = array( $date_from, $date_to, ClientRepository::BREAK_CODE );
@@ -382,17 +423,35 @@ final class ReportingService {
 		$client_rows = $wpdb->get_results( $wpdb->prepare( $client_sql, ...$params ) );
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- dynamic WHERE only.
-		$allocation_sql = "SELECT c.id AS client_id, c.name AS client_name, e.user_id,
+		$allocation_sql = "SELECT c.id AS client_id, c.name AS client_name, e.project_id,
+				COALESCE(p.name, %s) AS project_name, e.user_id,
 				COALESCE(SUM(e.regular_hours), 0) AS regular_hours,
 				COALESCE(SUM(e.overtime_hours), 0) AS overtime_hours,
 				COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
 			FROM {$entries_table} e
 			INNER JOIN {$clients_table} c ON c.id = e.client_id
+			LEFT JOIN {$projects_table} p ON p.id = e.project_id
 			WHERE {$where}
-			GROUP BY c.id, e.user_id
+			GROUP BY c.id, e.project_id, e.user_id
 			ORDER BY c.id ASC, total_hours DESC";
 
-		$allocation_rows = $wpdb->get_results( $wpdb->prepare( $allocation_sql, ...$params ) );
+		$allocation_params = array_merge( array( ProjectService::unassigned_label() ), $params );
+		$allocation_rows   = $wpdb->get_results( $wpdb->prepare( $allocation_sql, ...$allocation_params ) );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- dynamic WHERE only.
+		$project_sql = "SELECT c.id AS client_id, c.name AS client_name, e.project_id,
+				COALESCE(p.name, %s) AS project_name,
+				COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours,
+				COUNT(DISTINCT e.user_id) AS employee_count
+			FROM {$entries_table} e
+			INNER JOIN {$clients_table} c ON c.id = e.client_id
+			LEFT JOIN {$projects_table} p ON p.id = e.project_id
+			WHERE {$where}
+			GROUP BY c.id, e.project_id
+			ORDER BY total_hours DESC";
+
+		$project_params = array_merge( array( ProjectService::unassigned_label() ), $params );
+		$project_rows   = $wpdb->get_results( $wpdb->prepare( $project_sql, ...$project_params ) );
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- dynamic WHERE only.
 		$totals_sql = "SELECT
@@ -445,6 +504,18 @@ final class ReportingService {
 
 		$employee_allocations = $this->build_client_employee_allocations( $allocation_rows ?: array(), $include_cost );
 
+		$project_comparison = array();
+		foreach ( $project_rows ?: array() as $row ) {
+			$project_comparison[] = array(
+				'client_id'       => (int) $row->client_id,
+				'client_name'     => (string) $row->client_name,
+				'project_id'      => $row->project_id ? (int) $row->project_id : null,
+				'project_name'    => (string) $row->project_name,
+				'total_hours'     => round( (float) $row->total_hours, 2 ),
+				'employee_count'  => (int) $row->employee_count,
+			);
+		}
+
 		$summary = array(
 			'total_clients'        => count( $rows ),
 			'total_employees'      => (int) ( $totals_row->employee_count ?? 0 ),
@@ -468,6 +539,7 @@ final class ReportingService {
 			'can_view_labor_cost'   => $include_cost,
 			'rows'                  => $rows,
 			'employee_allocations'  => $employee_allocations,
+			'project_comparison'    => $project_comparison,
 			'summary'               => $summary,
 		);
 	}
@@ -509,9 +581,10 @@ final class ReportingService {
 		$offset  = 0;
 
 		do {
-			$sql    = "SELECT e.*, c.name AS client_name, t.status AS timesheet_status
+			$sql    = "SELECT e.*, c.name AS client_name, p.name AS project_name, t.status AS timesheet_status
 				FROM {$entries_table} e
 				LEFT JOIN {$clients_table} c ON c.id = e.client_id
+				LEFT JOIN {$wpdb->prefix}etwa_projects p ON p.id = e.project_id
 				LEFT JOIN {$timesheets_table} t ON t.id = e.timesheet_id
 				WHERE e.entry_date BETWEEN %s AND %s";
 			$params = array( $date_from, $date_to );
@@ -564,6 +637,8 @@ final class ReportingService {
 			'day'               => $day_info['name'],
 			'client_id'         => $entry->client_id,
 			'client_name'       => $entry->client_name ?? '',
+			'project_id'        => $entry->project_id,
+			'project_name'      => $entry->project_id ? ( $entry->project_name ?? '' ) : ProjectService::unassigned_label(),
 			'activity'          => $entry->task,
 			'entry_type'        => $entry->entry_type,
 			'entry_type_label'  => EntryTypeHelper::label( $entry->entry_type ),
@@ -643,7 +718,8 @@ final class ReportingService {
 				);
 			}
 			$by_employee[ $uid ]['total_hours'] += (float) $row['total_hours'];
-			$by_employee[ $uid ]['clients'][ $row['client_name'] ] = (float) $row['total_hours'];
+			$client_name = (string) $row['client_name'];
+			$by_employee[ $uid ]['clients'][ $client_name ] = (float) ( $by_employee[ $uid ]['clients'][ $client_name ] ?? 0 ) + (float) $row['total_hours'];
 		}
 
 		$summary_rows = array();
@@ -781,6 +857,8 @@ final class ReportingService {
 			$employee = array(
 				'employee_id'    => $user_id,
 				'employee_name'  => UserDisplayNames::get( $names, $user_id ),
+				'project_id'     => isset( $row->project_id ) && $row->project_id ? (int) $row->project_id : null,
+				'project_name'   => isset( $row->project_name ) ? (string) $row->project_name : ProjectService::unassigned_label(),
 				'regular_hours'  => $regular,
 				'overtime_hours' => $overtime,
 				'total_hours'    => $total,

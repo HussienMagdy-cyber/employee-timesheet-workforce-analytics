@@ -29,8 +29,19 @@ $date_from       = $range['date_from'];
 $date_to         = $range['date_to'];
 $range           = $range;
 $client_id       = isset( $_GET['client_id'] ) ? (int) $_GET['client_id'] : 0;
+$project_id      = isset( $_GET['project_id'] ) ? (int) $_GET['project_id'] : 0;
 $page            = max( 1, (int) ( $_GET['ca_page'] ?? 1 ) );
 $search          = isset( $_GET['search'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['search'] ) ) : '';
+
+if ( $project_id > 0 ) {
+	$detail = $service->get_project_detail( $project_id, $date_from, $date_to );
+	if ( is_wp_error( $detail ) ) {
+		echo '<div class="etwa-portal-message"><p>' . esc_html( $detail->get_error_message() ) . '</p></div>';
+		return;
+	}
+	include ETWA_PLUGIN_DIR . 'templates/admin/project-analytics-detail.php';
+	return;
+}
 
 if ( $client_id > 0 ) {
 	$detail = $service->get_client_detail( $client_id, $date_from, $date_to );

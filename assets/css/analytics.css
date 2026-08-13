@@ -4,7 +4,7 @@
  * @package ETWA
  */
 
-/* ——— Date filter ——— */
+/* ??? Date filter ??? */
 .etwa-analytics-page .etwa-analytics-filter {
 	display: flex !important;
 	flex-wrap: wrap !important;
@@ -40,7 +40,7 @@
 	color: var(--etwa-muted) !important;
 }
 
-/* ——— KPI row ——— */
+/* ??? KPI row ??? */
 .etwa-analytics-kpi-grid {
 	display: grid !important;
 	grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
@@ -142,7 +142,7 @@
 	background: var(--etwa-primary) !important;
 }
 
-/* ——— Chart cards ——— */
+/* ??? Chart cards ??? */
 .etwa-analytics-charts {
 	display: grid !important;
 	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -214,7 +214,7 @@
 	display: none !important;
 }
 
-/* ——— Insights section ——— */
+/* ??? Insights section ??? */
 .etwa-insights-section {
 	margin-bottom: var(--etwa-space-8) !important;
 }
@@ -403,7 +403,7 @@
 	background: var(--etwa-border-subtle) !important;
 }
 
-/* ——— Responsive ——— */
+/* ??? Responsive ??? */
 @media (max-width: 1100px) {
 	.etwa-analytics-kpi-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -431,7 +431,7 @@
 	}
 }
 
-/* ——— Client Analytics ——— */
+/* ??? Client Analytics ??? */
 .etwa-client-analytics-page .etwa-date-range-filter {
 	display: flex !important;
 	flex-direction: column !important;
@@ -517,7 +517,7 @@
 	}
 }
 
-/* ——— Reports & Exports ——— */
+/* ??? Reports & Exports ??? */
 .etwa-reports-grid {
 	display: grid !important;
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
@@ -576,13 +576,13 @@
 }
 
 .etwa-comparison-table th.etwa-sortable.is-sorted::after {
-	content: ' ▼' !important;
+	content: ' ?' !important;
 	font-size: 0.75em !important;
 	opacity: 0.7 !important;
 }
 
 .etwa-comparison-table th.etwa-sortable.is-sorted.is-asc::after {
-	content: ' ▲' !important;
+	content: ' ?' !important;
 }
 
 .etwa-comparison-table tfoot td {
@@ -635,4 +635,548 @@
 
 .etwa-btn-quiet {
 	opacity: 0.85 !important;
+}
+
+/* ??? Deliverables ??? */
+.etwa-deliverables-page .etwa-hidden {
+	display: none !important;
+}
+
+.etwa-deliverables-card-grid {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+	gap: var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-scope-card,
+.etwa-deliverables-page .etwa-dlv-patch-card {
+	cursor: pointer !important;
+	margin: 0 !important;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-scope-card:hover,
+.etwa-deliverables-page .etwa-dlv-patch-card:hover {
+	border-color: var(--etwa-primary, #2563eb) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-detail-head {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-4, 1rem) !important;
+	align-items: flex-start !important;
+	margin-bottom: var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-page-actions {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: var(--etwa-space-2, 0.5rem) !important;
+	margin: 0 0 var(--etwa-space-4, 1rem) !important;
+	align-items: center !important;
+}
+
+.etwa-deliverables-page .etwa-analytics-filter.etwa-toolbar {
+	align-items: flex-end !important;
+	margin-bottom: var(--etwa-space-5, 1.25rem) !important;
+}
+
+.etwa-deliverables-page .etwa-analytics-kpi-grid {
+	margin-bottom: var(--etwa-space-5, 1.25rem) !important;
+}
+
+.etwa-deliverables-page .etwa-analytics-grid.zwei-col {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.etwa-deliverables-page .etwa-panel + .etwa-panel,
+.etwa-deliverables-page .etwa-analytics-grid + .etwa-panel {
+	margin-top: var(--etwa-space-5, 1.25rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-line-row {
+	margin-bottom: var(--etwa-space-3, 0.75rem) !important;
+	padding-bottom: var(--etwa-space-3, 0.75rem) !important;
+	border-bottom: 1px solid var(--etwa-border, #e5e7eb) !important;
+}
+
+.etwa-deliverables-page .etwa-modal-content--wide {
+	max-width: 720px !important;
+	width: min(720px, 96vw) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-items-section {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-items-header {
+	margin: 0 !important;
+	padding: 0 !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-items-header h3 {
+	margin: 0 !important;
+	font-size: 1rem !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-alloc-item-main {
+	display: grid !important;
+	grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.7fr) minmax(0, 1fr) auto !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+	align-items: end !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-item-replacement {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+	margin-top: var(--etwa-space-3, 0.75rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-alloc-summary {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: var(--etwa-space-3, 0.75rem) var(--etwa-space-4, 1rem) !important;
+	padding: var(--etwa-space-3, 0.75rem) 0 0 !important;
+	border-top: 1px solid var(--etwa-border, #e5e7eb) !important;
+	font-size: 0.9rem !important;
+	color: var(--etwa-text-muted, #737373) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-alloc-summary strong {
+	color: var(--etwa-text, #171717) !important;
+	font-weight: 600 !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-alloc-row {
+	cursor: pointer !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-alloc-row:hover,
+.etwa-deliverables-page .etwa-dlv-alloc-row:focus {
+	background: var(--etwa-surface-muted, #f8fafc) !important;
+	outline: none !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-alloc-actions,
+.etwa-deliverables-page .etwa-dlv-type-actions {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 0.35rem !important;
+	white-space: nowrap !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-alloc-detail-head h2 {
+	margin: 0 0 var(--etwa-space-2, 0.5rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-detail-items {
+	display: grid !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+	margin-top: var(--etwa-space-3, 0.75rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-detail-item {
+	padding: var(--etwa-space-3, 0.75rem) 0 !important;
+	border-bottom: 1px solid var(--etwa-border, #e5e7eb) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-detail-item h4 {
+	margin: 0 0 0.25rem !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-detail-qty {
+	margin: 0 0 0.35rem !important;
+	font-size: 1.25rem !important;
+	font-weight: 600 !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-detail-total {
+	margin-top: var(--etwa-space-4, 1rem) !important;
+}
+
+@media (max-width: 720px) {
+	.etwa-deliverables-page .etwa-dlv-alloc-item-main,
+	.etwa-deliverables-page .etwa-dlv-item-replacement {
+		grid-template-columns: 1fr !important;
+	}
+
+	.etwa-deliverables-page .etwa-dlv-alloc-item-main .etwa-dlv-remove-item {
+		justify-self: start !important;
+	}
+}
+
+#etwa-dlv-types-table-wrap {
+	margin-top: var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-status-active {
+	background: #dcfce7 !important;
+	color: #166534 !important;
+}
+
+.etwa-status-closed,
+.etwa-status-archived,
+.etwa-status-void {
+	background: #f3f4f6 !important;
+	color: #4b5563 !important;
+}
+
+.etwa-deliverables-page.is-loading .etwa-deliverables-card-grid,
+.etwa-deliverables-page.is-loading #etwa-dlv-contract-body,
+.etwa-deliverables-page.is-loading #etwa-dlv-alloc-body,
+.etwa-deliverables-page.is-loading .etwa-chart-canvas-wrap,
+.etwa-deliverables-page.is-loading #etwa-dlv-scope-perf-body,
+.etwa-deliverables-page.is-loading #etwa-dlv-client-perf-body,
+.etwa-deliverables-page.is-loading #etwa-dlv-activity-body {
+	opacity: 0.55 !important;
+	pointer-events: none !important;
+}
+
+.etwa-deliverables-page .etwa-chart-card .etwa-chart-canvas-wrap {
+	min-height: 260px !important;
+	position: relative !important;
+}
+
+.etwa-deliverables-page .etwa-panel-header-actions {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	gap: 0.75rem !important;
+	flex-wrap: wrap !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-effort-strip {
+	display: grid !important;
+	grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+	gap: var(--etwa-space-4, 1rem) !important;
+	margin-bottom: var(--etwa-space-4, 1rem) !important;
+	padding: 0 var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-effort-strip strong {
+	display: block !important;
+	font-size: 1.25rem !important;
+	margin-top: 0.25rem !important;
+}
+
+.etwa-deliverables-page .etwa-segmented,
+.etwa-deliverables-page .etwa-dlv-perf-tabs {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: center !important;
+	gap: 0.35rem !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-perf-tabs {
+	margin: 0 var(--etwa-space-4, 1rem) var(--etwa-space-3, 0.75rem) !important;
+}
+
+.etwa-deliverables-page button.etwa-segment {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	margin: 0 !important;
+	padding: 0.45rem 0.85rem !important;
+	min-height: 2rem !important;
+	line-height: 1.2 !important;
+	font: inherit !important;
+	font-size: 0.8125rem !important;
+	font-weight: 600 !important;
+	border: 1px solid var(--etwa-border, #e5e7eb) !important;
+	border-radius: 999px !important;
+	background: var(--etwa-panel, #fff) !important;
+	color: var(--etwa-text-secondary, #6b7280) !important;
+	box-shadow: none !important;
+	cursor: pointer !important;
+	text-decoration: none !important;
+	transition: background var(--etwa-duration, 150ms) ease, color var(--etwa-duration, 150ms) ease, border-color var(--etwa-duration, 150ms) ease !important;
+}
+
+.etwa-deliverables-page button.etwa-segment:hover,
+.etwa-deliverables-page button.etwa-segment:focus-visible {
+	color: var(--etwa-text, #111827) !important;
+	background: var(--etwa-border-subtle, #f3f4f6) !important;
+	border-color: var(--etwa-border, #e5e7eb) !important;
+}
+
+.etwa-deliverables-page button.etwa-segment.is-active {
+	background: var(--etwa-primary, #4f46e5) !important;
+	border-color: var(--etwa-primary, #4f46e5) !important;
+	color: #fff !important;
+}
+
+.etwa-deliverables-page button.etwa-segment.is-active:hover,
+.etwa-deliverables-page button.etwa-segment.is-active:focus-visible {
+	background: var(--etwa-primary-hover, #4338ca) !important;
+	border-color: var(--etwa-primary-hover, #4338ca) !important;
+	color: #fff !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-perf-row {
+	cursor: pointer !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-insights {
+	display: grid !important;
+	gap: var(--etwa-space-4, 1rem) !important;
+	padding: 0 var(--etwa-space-4, 1rem) var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-insight-block h4 {
+	margin: 0 0 0.5rem !important;
+	font-size: 0.95rem !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-insight-chips {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 0.5rem !important;
+}
+
+.etwa-deliverables-page .etwa-dlv-insight-chip {
+	display: inline-flex !important;
+	align-items: center !important;
+	padding: 0.35rem 0.65rem !important;
+	border-radius: 999px !important;
+	background: var(--etwa-surface-muted, #f3f4f6) !important;
+	font-size: 0.8125rem !important;
+	color: var(--etwa-text, #111827) !important;
+}
+
+@media (max-width: 900px) {
+	.etwa-deliverables-page .etwa-analytics-grid.zwei-col {
+		grid-template-columns: 1fr !important;
+	}
+
+	.etwa-deliverables-page .etwa-analytics-filter-fields {
+		flex-direction: column !important;
+		width: 100% !important;
+	}
+
+	.etwa-deliverables-page .etwa-analytics-field,
+	.etwa-deliverables-page .etwa-analytics-filter .etwa-btn {
+		width: 100% !important;
+	}
+
+	.etwa-deliverables-page .etwa-dlv-detail-head .etwa-hero-actions {
+		width: 100% !important;
+		display: flex !important;
+		flex-wrap: wrap !important;
+		gap: 0.5rem !important;
+	}
+
+	.etwa-deliverables-page .etwa-dlv-detail-head .etwa-hero-actions .etwa-btn {
+		flex: 1 1 auto !important;
+	}
+}
+
+
+/* Client Files */
+.etwa-files-page .etwa-hidden {
+	display: none !important;
+}
+
+.etwa-files-card-grid {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+	gap: var(--etwa-space-4, 1rem) !important;
+	margin-top: var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-file-card,
+.etwa-scope-file-card {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+	padding: var(--etwa-space-5, 1.25rem) !important;
+	border-radius: 18px !important;
+	border: 1px solid color-mix(in srgb, var(--etwa-border, #e2e8f0) 70%, #fff) !important;
+	background: color-mix(in srgb, var(--etwa-panel, #fff) 82%, transparent) !important;
+	backdrop-filter: blur(10px) !important;
+	-webkit-backdrop-filter: blur(10px) !important;
+	box-shadow: var(--etwa-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.06)) !important;
+	transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease !important;
+}
+
+.etwa-file-card {
+	cursor: pointer !important;
+}
+
+.etwa-file-card:hover,
+.etwa-scope-file-card:hover {
+	transform: translateY(-2px) !important;
+	border-color: color-mix(in srgb, var(--etwa-primary, #4f46e5) 35%, var(--etwa-border, #e2e8f0)) !important;
+	box-shadow: var(--etwa-shadow-md, 0 8px 24px rgba(15, 23, 42, 0.1)) !important;
+}
+
+.etwa-file-card:focus-visible {
+	outline: 2px solid var(--etwa-primary, #4f46e5) !important;
+	outline-offset: 2px !important;
+}
+
+.etwa-file-card-header {
+	display: flex !important;
+	justify-content: space-between !important;
+	align-items: flex-start !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+}
+
+.etwa-file-card-header h3 {
+	margin: 0.15rem 0 0 !important;
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
+	line-height: 1.3 !important;
+	color: var(--etwa-text, #0f172a) !important;
+}
+
+.etwa-file-eyebrow {
+	margin: 0 !important;
+	font-size: 0.75rem !important;
+	letter-spacing: 0.02em !important;
+	text-transform: uppercase !important;
+}
+
+.etwa-file-card-body {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+	flex: 1 1 auto !important;
+}
+
+.etwa-file-metrics {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	gap: var(--etwa-space-3, 0.75rem) !important;
+}
+
+.etwa-file-metrics-dense {
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.etwa-file-metrics .etwa-kpi-label {
+	display: block !important;
+	font-size: 0.72rem !important;
+	margin-bottom: 0.15rem !important;
+}
+
+.etwa-file-metrics strong {
+	font-size: 1rem !important;
+	font-weight: 600 !important;
+	color: var(--etwa-text, #0f172a) !important;
+}
+
+.etwa-file-card-footer {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 0.5rem !important;
+	margin-top: auto !important;
+	padding-top: var(--etwa-space-2, 0.5rem) !important;
+}
+
+.etwa-files-progress-meta {
+	display: flex !important;
+	justify-content: space-between !important;
+	align-items: baseline !important;
+	font-size: 0.85rem !important;
+	margin-bottom: 0.35rem !important;
+	color: var(--etwa-text-secondary, #475569) !important;
+}
+
+.etwa-files-progress-track {
+	height: 8px !important;
+	border-radius: 999px !important;
+	background: var(--etwa-border-subtle, #f1f5f9) !important;
+	overflow: hidden !important;
+}
+
+.etwa-files-progress-track > span {
+	display: block !important;
+	height: 100% !important;
+	border-radius: inherit !important;
+	background: linear-gradient(90deg, var(--etwa-primary, #4f46e5), color-mix(in srgb, var(--etwa-primary, #4f46e5) 70%, #22c55e)) !important;
+	max-width: 100% !important;
+}
+
+.etwa-files-progress.is-exceeded .etwa-files-progress-track > span {
+	background: linear-gradient(90deg, #7c3aed, #a78bfa) !important;
+}
+
+.etwa-files-extra {
+	margin: 0.4rem 0 0 !important;
+	font-size: 0.8rem !important;
+	font-weight: 500 !important;
+	color: #6d28d9 !important;
+}
+
+.etwa-files-detail-head {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	justify-content: space-between !important;
+	gap: var(--etwa-space-4, 1rem) !important;
+	align-items: flex-start !important;
+	margin-bottom: var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-files-detail-head h2 {
+	margin: 0.5rem 0 0.25rem !important;
+}
+
+.etwa-files-page .etwa-analytics-kpi-grid {
+	margin-bottom: var(--etwa-space-4, 1rem) !important;
+}
+
+.etwa-status-exceeded {
+	background: #f3e8ff !important;
+	color: #6b21a8 !important;
+}
+
+.etwa-status-draft {
+	background: #f3f4f6 !important;
+	color: #4b5563 !important;
+}
+
+.etwa-files-page.is-loading .etwa-files-card-grid {
+	opacity: 0.55 !important;
+	pointer-events: none !important;
+}
+
+@media (max-width: 900px) {
+	.etwa-files-card-grid {
+		grid-template-columns: 1fr !important;
+	}
+
+	.etwa-file-metrics-dense {
+		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	}
+
+	.etwa-files-detail-head .etwa-hero-actions {
+		width: 100% !important;
+	}
+
+	.etwa-files-page .etwa-toolbar {
+		flex-direction: column !important;
+		align-items: stretch !important;
+	}
+
+	.etwa-files-page .etwa-search-field,
+	.etwa-files-page .etwa-search-field .etwa-input {
+		width: 100% !important;
+	}
+}
+.etwa-badge-success {
+	background: rgba(16, 185, 129, 0.15) !important;
+	color: #059669 !important;
+}
+.etwa-badge-muted {
+	background: rgba(100, 116, 139, 0.15) !important;
+	color: #64748b !important;
+}
+.etwa-btn-sm {
+	padding: 4px 10px !important;
+	font-size: 12px !important;
 }

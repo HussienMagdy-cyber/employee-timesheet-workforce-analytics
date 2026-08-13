@@ -13,6 +13,8 @@ use ETWA\Helpers\DateRangeHelper;
 use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\UserDisplayNames;
 use ETWA\Repositories\ClientRepository;
+use ETWA\Repositories\ClientScopeRepository;
+use ETWA\Repositories\ProjectRepository;
 use ETWA\Repositories\SettingsRepository;
 use WP_Error;
 
@@ -27,6 +29,8 @@ final class ClientAnalyticsService {
 
 	public function __construct(
 		private ClientRepository $clients = new ClientRepository(),
+		private ProjectRepository $projects = new ProjectRepository(),
+		private ClientScopeRepository $scopes = new ClientScopeRepository(),
 		private SettingsRepository $settings = new SettingsRepository(),
 	) {}
 
@@ -249,6 +253,7 @@ final class ClientAnalyticsService {
 			'employees'  => $employees,
 			'trend'      => $trend,
 			'recent'     => $recent,
+			'project_breakdown' => $this->project_breakdown( $client_id, $date_from, $date_to ),
 			'range'      => array(
 				'date_from' => $date_from,
 				'date_to'   => $date_to,
@@ -375,6 +380,133 @@ final class ClientAnalyticsService {
 			},
 			$rows ?: array()
 		);
+	}
+
+	/** @return array<string,mixed>|WP_Error */
+	public function get_project_detail( int $project_id, string $date_from, string $date_to ): array|WP_Error {
+		$project = $this->projects->find( $project_id );
+		if ( ! $project ) {
+			return new WP_Error( 'not_found', __( 'Project not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		$client = $this->clients->find( (int) $project->client_id );
+		if ( ! $client ) {
+			return new WP_Error( 'not_found', __( 'Client not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		global $wpdb;
+		$entries = $wpdb->prefix . 'etwa_entries';
+
+		$summary = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT
+					COALESCE(SUM(regular_hours + overtime_hours), 0) AS total_hours,
+					COALESCE(SUM(regular_hours), 0) AS regular_hours,
+					COALESCE(SUM(overtime_hours), 0) AS overtime_hours,
+					COUNT(DISTINCT user_id) AS employee_count,
+					MAX(entry_date) AS last_activity
+				FROM {$entries}
+				WHERE project_id = %d AND entry_date BETWEEN %s AND %s",
+				$project_id,
+				$date_from,
+				$date_to
+			)
+		);
+
+		$recent_rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT e.*, c.name AS client_name
+				FROM {$entries} e
+				LEFT JOIN {$wpdb->prefix}etwa_clients c ON c.id = e.client_id
+				WHERE e.project_id = %d AND e.entry_date BETWEEN %s AND %s
+				ORDER BY e.entry_date DESC, e.start_time DESC
+				LIMIT 20",
+				$project_id,
+				$date_from,
+				$date_to
+			)
+		);
+
+		$related_scopes = array();
+		foreach ( $this->scopes->list( array( 'project_id' => $project_id ) ) as $scope ) {
+			$related_scopes[] = $scope->to_array();
+		}
+
+		$regular  = round( (float) ( $summary->regular_hours ?? 0 ), 2 );
+		$overtime = round( (float) ( $summary->overtime_hours ?? 0 ), 2 );
+
+		return array(
+			'project'    => $project->to_array(),
+			'client'     => $client->to_array(),
+			'summary'    => array(
+				'total_hours'    => round( $regular + $overtime, 2 ),
+				'regular_hours'  => $regular,
+				'overtime_hours' => $overtime,
+				'employee_count' => (int) ( $summary->employee_count ?? 0 ),
+				'last_activity'  => $summary->last_activity ?? null,
+			),
+			'recent_entries' => array_map(
+				static fn( $row ) => \ETWA\Models\Entry::from_row( $row )->to_api_array(),
+				$recent_rows ?: array()
+			),
+			'scopes'     => $related_scopes,
+			'range'      => array(
+				'date_from' => $date_from,
+				'date_to'   => $date_to,
+			),
+		);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function project_breakdown( int $client_id, string $date_from, string $date_to ): array {
+		global $wpdb;
+		$entries  = $wpdb->prefix . 'etwa_entries';
+		$projects = $wpdb->prefix . 'etwa_projects';
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.id AS project_id, p.name,
+					COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
+				FROM {$projects} p
+				LEFT JOIN {$entries} e ON e.project_id = p.id
+					AND e.entry_date BETWEEN %s AND %s
+				WHERE p.client_id = %d AND p.status = 'active'
+				GROUP BY p.id
+				ORDER BY total_hours DESC, p.name ASC",
+				$date_from,
+				$date_to,
+				$client_id
+			)
+		);
+
+		$breakdown = array();
+		foreach ( $rows ?: array() as $row ) {
+			$breakdown[] = array(
+				'project_id'  => (int) $row->project_id,
+				'name'        => (string) $row->name,
+				'total_hours' => round( (float) $row->total_hours, 2 ),
+			);
+		}
+
+		$direct = (float) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(regular_hours + overtime_hours), 0)
+				FROM {$entries}
+				WHERE client_id = %d AND (project_id IS NULL OR project_id = 0)
+				AND entry_date BETWEEN %s AND %s",
+				$client_id,
+				$date_from,
+				$date_to
+			)
+		);
+
+		$breakdown[] = array(
+			'project_id'  => null,
+			'name'        => ProjectService::unassigned_label(),
+			'total_hours' => round( $direct, 2 ),
+		);
+
+		return $breakdown;
 	}
 
 	public static function flush_cache(): void {

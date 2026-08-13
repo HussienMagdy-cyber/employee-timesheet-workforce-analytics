@@ -176,6 +176,7 @@ final class ReportExportService {
 			__( 'Date', 'etwa' ),
 			__( 'Day', 'etwa' ),
 			__( 'Client', 'etwa' ),
+			__( 'Project', 'etwa' ),
 			__( 'Activity', 'etwa' ),
 			__( 'Regular Hours', 'etwa' ),
 			__( 'Overtime Hours', 'etwa' ),
@@ -192,6 +193,7 @@ final class ReportExportService {
 					$entry['date'],
 					$entry['day'],
 					$entry['client_name'],
+					$entry['project_name'] ?? '',
 					$entry['activity'],
 					$entry['regular_hours'],
 					$entry['overtime_hours'],
@@ -232,6 +234,7 @@ final class ReportExportService {
 			__( 'Employee', 'etwa' ),
 			__( 'Date', 'etwa' ),
 			__( 'Client', 'etwa' ),
+			__( 'Project', 'etwa' ),
 			__( 'Activity', 'etwa' ),
 			__( 'Regular Hours', 'etwa' ),
 			__( 'Overtime Hours', 'etwa' ),
@@ -246,6 +249,7 @@ final class ReportExportService {
 					$entry['employee_name'],
 					$entry['date'],
 					$entry['client_name'],
+					$entry['project_name'] ?? '',
 					$entry['activity'],
 					$entry['regular_hours'],
 					$entry['overtime_hours'],
@@ -341,8 +345,33 @@ final class ReportExportService {
 			'A2'
 		);
 
+		$project_sheet = $spreadsheet->createSheet();
+		$project_sheet->setTitle( __( 'Project Labor', 'etwa' ) );
+		$project_headers = array(
+			__( 'Project', 'etwa' ),
+			__( 'Regular Hours', 'etwa' ),
+			__( 'Overtime Hours', 'etwa' ),
+			__( 'Total Hours', 'etwa' ),
+		);
+		$project_sheet->fromArray( $project_headers, null, 'A1' );
+		$proj_row = 2;
+		foreach ( $dataset['project_rows'] ?? array() as $entry ) {
+			$project_sheet->fromArray(
+				array(
+					$entry['project_name'] ?? '',
+					$entry['regular_hours'],
+					$entry['overtime_hours'],
+					$entry['total_hours'],
+				),
+				null,
+				"A{$proj_row}"
+			);
+			++$proj_row;
+		}
+
 		$this->auto_size_columns( $detail, count( $headers ) );
 		$this->auto_size_columns( $summary_sheet, 2 );
+		$this->auto_size_columns( $project_sheet, count( $project_headers ) );
 		return $spreadsheet;
 	}
 
@@ -365,6 +394,7 @@ final class ReportExportService {
 		$headers = array(
 			__( 'Employee', 'etwa' ),
 			__( 'Client', 'etwa' ),
+			__( 'Project', 'etwa' ),
 			__( 'Regular Hours', 'etwa' ),
 			__( 'Overtime Hours', 'etwa' ),
 			__( 'Total Hours', 'etwa' ),
@@ -377,6 +407,7 @@ final class ReportExportService {
 				array(
 					$entry['employee_name'],
 					$entry['client_name'],
+					$entry['project_name'] ?? '',
 					$entry['regular_hours'],
 					$entry['overtime_hours'],
 					$entry['total_hours'],
@@ -492,6 +523,7 @@ final class ReportExportService {
 		$allocation_sheet->setTitle( __( 'Employee Allocation', 'etwa' ) );
 		$alloc_headers = array(
 			__( 'Client', 'etwa' ),
+			__( 'Project', 'etwa' ),
 			__( 'Employee', 'etwa' ),
 			__( 'Regular Hours', 'etwa' ),
 			__( 'Overtime Hours', 'etwa' ),
@@ -508,6 +540,7 @@ final class ReportExportService {
 			foreach ( $client_block['employees'] ?? array() as $employee ) {
 				$alloc_data = array(
 					$client_block['client_name'],
+					$employee['project_name'] ?? '',
 					$employee['employee_name'],
 					$employee['regular_hours'],
 					$employee['overtime_hours'],
@@ -520,6 +553,30 @@ final class ReportExportService {
 				$allocation_sheet->fromArray( $alloc_data, null, "A{$alloc_row}" );
 				++$alloc_row;
 			}
+		}
+
+		$project_sheet = $spreadsheet->createSheet();
+		$project_sheet->setTitle( __( 'Project Comparison', 'etwa' ) );
+		$project_headers = array(
+			__( 'Client', 'etwa' ),
+			__( 'Project', 'etwa' ),
+			__( 'Employee Count', 'etwa' ),
+			__( 'Total Hours', 'etwa' ),
+		);
+		$project_sheet->fromArray( $project_headers, null, 'A1' );
+		$proj_row = 2;
+		foreach ( $dataset['project_comparison'] ?? array() as $item ) {
+			$project_sheet->fromArray(
+				array(
+					$item['client_name'],
+					$item['project_name'],
+					$item['employee_count'],
+					$item['total_hours'],
+				),
+				null,
+				"A{$proj_row}"
+			);
+			++$proj_row;
 		}
 
 		$summary_sheet = $spreadsheet->createSheet();

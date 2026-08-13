@@ -132,6 +132,12 @@ final class AssetRegistry {
 		if ( isset( self::$scripts['reports-exports'] ) ) {
 			return 'reports-exports';
 		}
+		if ( isset( self::$scripts['files'] ) ) {
+			return 'files';
+		}
+		if ( isset( self::$scripts['deliverables'] ) ) {
+			return 'deliverables';
+		}
 		if ( isset( self::$scripts['client-analytics'] ) ) {
 			return 'client-analytics';
 		}
@@ -165,6 +171,8 @@ final class AssetRegistry {
 			'etwa_analytics' => 'owner-analytics',
 			'etwa_client_analytics' => 'client-analytics',
 			'etwa_reports'   => 'reports-exports',
+			'etwa_deliverables' => 'deliverables',
+			'etwa_files'     => 'files',
 			'etwa_clients'   => 'clients-manager',
 			'etwa_employees' => 'employees-manager',
 			'etwa_holidays'  => 'holidays-manager',
@@ -227,7 +235,7 @@ final class AssetRegistry {
 			wp_enqueue_media();
 		}
 
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script || 'files' === $script ) {
 			wp_enqueue_style(
 				'etwa-analytics',
 				ETWA_PLUGIN_URL . 'assets/css/analytics.css',
@@ -246,7 +254,7 @@ final class AssetRegistry {
 			);
 		}
 
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script ) {
 			wp_enqueue_script(
 				'chartjs',
 				'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
@@ -282,7 +290,7 @@ final class AssetRegistry {
 		if ( ! in_array( $script, array( 'clients-manager', 'auth' ), true ) ) {
 			$deps[] = 'wp-api-fetch';
 		}
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script ) {
 			$deps[] = 'chartjs';
 		}
 		if ( wp_script_is( 'etwa-date-range', 'enqueued' ) ) {
@@ -374,6 +382,10 @@ final class AssetRegistry {
 				'canViewDeptDashboard' => ( new \ETWA\Services\DepartmentService() )->can_view_department_dashboard(),
 				'canApproveDept'   => current_user_can( RoleManager::CAP_APPROVE_DEPT_REQUESTS ),
 				'canViewOwnVacation'=> current_user_can( RoleManager::CAP_VIEW_OWN_VACATION ),
+				'canViewDeliverables' => RoleManager::user_can_view_deliverables(),
+				'canManageDeliverableScopes' => current_user_can( RoleManager::CAP_MANAGE_DELIVERABLE_SCOPES ),
+				'canAllocateDeliverables' => RoleManager::user_can_allocate_deliverables(),
+				'canManageDeliverableTypes' => RoleManager::user_can_manage_deliverable_types(),
 				'vacationDualApproval' => VacationApprovalHelper::is_dual_approval_enabled(),
 				'autosaveMs'       => (int) ( new SettingsRepository() )->get( 'autosave_interval', 30 ) * 1000,
 				'breakCode'  => \ETWA\Repositories\ClientRepository::BREAK_CODE,
@@ -384,6 +396,8 @@ final class AssetRegistry {
 					'submitted'        => __( 'Submitted successfully', 'etwa' ),
 					'confirmSubmit'    => __( 'Submit this timesheet for approval?', 'etwa' ),
 					'confirmDelete'    => __( 'Delete this entry?', 'etwa' ),
+					'confirmDeleteAllocation' => __( 'Delete this allocation and all of its deliverable items? Scope metrics will recalculate. This cannot be undone.', 'etwa' ),
+					'confirmDeactivateDeliverableType' => __( 'Delete this deliverable type? It will be deactivated and no longer appear when allocating. Existing allocations keep their history.', 'etwa' ),
 					'confirmCopyWeek'  => __( 'Copy all entries from the previous week into this week? This week must be empty.', 'etwa' ),
 					'confirmApprove'   => __( 'Approve this timesheet?', 'etwa' ),
 					'confirmReject'    => __( 'Reject this timesheet?', 'etwa' ),
@@ -399,6 +413,24 @@ final class AssetRegistry {
 					'clientUpdated'    => __( 'Client updated.', 'etwa' ),
 					'clientDeleted'    => __( 'Client deleted.', 'etwa' ),
 					'clientDeactivated'=> __( 'Client deactivated.', 'etwa' ),
+					'convertToProject'   => __( 'Convert to Project', 'etwa' ),
+					'convertSelectionRequired' => __( 'Select a parent client.', 'etwa' ),
+					'convertPreviewRequired' => __( 'Preview the conversion and resolve conflicts first.', 'etwa' ),
+					'confirmConvert'     => __( 'Convert this client into a project under the parent client?', 'etwa' ),
+					'convertComplete'    => __( 'Client converted to project successfully.', 'etwa' ),
+					'convertSourceLabel' => __( 'Converting client:', 'etwa' ),
+					'convertPreviewSource' => __( 'Source', 'etwa' ),
+					'convertPreviewParent' => __( 'Parent', 'etwa' ),
+					'convertPreviewProject' => __( 'New project', 'etwa' ),
+					'convertEntries'     => __( 'entries', 'etwa' ),
+					'convertDirect'      => __( 'social media', 'etwa' ),
+					'convertOnChildProjects' => __( 'on child projects', 'etwa' ),
+					'convertScopes'      => __( 'scopes', 'etwa' ),
+					'convertAllocations' => __( 'allocations (preserved via scopes)', 'etwa' ),
+					'convertChildProjects' => __( 'child projects will become siblings under the parent', 'etwa' ),
+					'convertChildProjectNames' => __( 'Child projects', 'etwa' ),
+					'convertConflicts'   => __( 'Conflicts', 'etwa' ),
+					'convertWarnings'    => __( 'Notes', 'etwa' ),
 					'confirmDeleteClient'   => __( 'Permanently delete this client? This cannot be undone.', 'etwa' ),
 					'confirmDeactivateClient' => __( 'Deactivate this client? It will be hidden from the timesheet dropdown.', 'etwa' ),
 					'deactivate'       => __( 'Deactivate', 'etwa' ),
@@ -418,6 +450,10 @@ final class AssetRegistry {
 					'delete'           => __( 'Delete', 'etwa' ),
 					'breakLabel'       => __( 'Break', 'etwa' ),
 					'taskPlaceholder'  => __( 'e.g. Website', 'etwa' ),
+					'directClientWork' => __( 'Social Media', 'etwa' ),
+					'selectProject'    => __( 'Select a project…', 'etwa' ),
+					'projectRequired'  => __( 'Please select a project for this client.', 'etwa' ),
+					'noProjectsDirect' => __( 'No projects — Social Media', 'etwa' ),
 					'notesPlaceholder' => __( 'Optional details…', 'etwa' ),
 					'allClientsNotesPlaceholder' => __( 'Describe the work performed in detail (required for Moderation entries)…', 'etwa' ),
 					'allClientsNotesRequired' => __( 'Please describe the work performed in detail in Notes because this entry applies to Moderation.', 'etwa' ),

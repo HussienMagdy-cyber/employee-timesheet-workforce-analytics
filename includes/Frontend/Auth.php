@@ -36,24 +36,7 @@ final class Auth {
 		add_filter( 'language_attributes', array( $this, 'html_class' ) );
 		add_filter( 'template_include', array( $this, 'auth_page_template' ) );
 		add_filter( 'rest_authentication_errors', array( $this, 'bypass_rest_cookie_check_on_auth_routes' ), 101 );
-		add_filter( 'rest_authentication_errors', array( $this, 'debug_log_rest_auth_result' ), 102 );
-		add_action( 'wp_ajax_etwa_agent_debug_log', array( $this, 'ajax_agent_debug_log' ) );
-		add_action( 'rest_api_init', array( $this, 'debug_log_rest_bootstrap' ), 999 );
 		add_action( 'login_init', array( $this, 'redirect_wp_login' ) );
-	}
-
-	public function debug_log_rest_bootstrap(): void {
-		// #region agent log
-		self::debug_log(
-			'Auth.php:debug_log_rest_bootstrap',
-			'rest_api_init bootstrap',
-			array(
-				'rest_route' => $this->debug_rest_route(),
-				'method'     => sanitize_text_field( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ),
-			),
-			'H0'
-		);
-		// #endregion
 	}
 
 	public function render_login(): string {
@@ -237,104 +220,27 @@ final class Auth {
 	 * @return \WP_Error|true|null
 	 */
 	public function bypass_rest_cookie_check_on_auth_routes( $result ) {
-		$route = $this->debug_rest_route();
-
-		if ( str_contains( $route, '/etwa/v1/' ) ) {
-			$error_code = $result instanceof \WP_Error ? $result->get_error_code() : null;
-			if ( $result instanceof \WP_Error || 'rest_cookie_invalid_nonce' === $error_code ) {
-				// #region agent log
-				self::debug_log(
-					'Auth.php:bypass_rest_cookie_check_on_auth_routes',
-					'rest auth bypass evaluation',
-					array(
-						'route'              => $route,
-						'error_code'         => $error_code,
-						'is_user_logged_in'  => is_user_logged_in(),
-						'current_user_id'    => get_current_user_id(),
-						'cookie_valid'       => (bool) wp_validate_auth_cookie( '', 'logged_in' ),
-						'has_x_wp_nonce'     => isset( $_SERVER['HTTP_X_WP_NONCE'] ),
-						'nonce_len'          => isset( $_SERVER['HTTP_X_WP_NONCE'] ) ? strlen( (string) $_SERVER['HTTP_X_WP_NONCE'] ) : 0,
-					),
-					'H1-H3'
-				);
-				// #endregion
-			}
-		}
-
 		if ( ! $result instanceof \WP_Error || 'rest_cookie_invalid_nonce' !== $result->get_error_code() ) {
 			return $result;
 		}
 
+		$route = $this->rest_route();
+
 		if ( str_starts_with( $route, '/etwa/v1/auth/' ) ) {
-			// #region agent log
-			self::debug_log(
-				'Auth.php:bypass_rest_cookie_check_on_auth_routes',
-				'bypass applied for auth route',
-				array( 'route' => $route, 'decision' => 'bypass_auth' ),
-				'H2'
-			);
-			// #endregion
 			return null;
 		}
 
-		if ( str_starts_with( $route, '/etwa/v1/portal/session' ) && is_user_logged_in() ) {
-			// #region agent log
-			self::debug_log(
-				'Auth.php:bypass_rest_cookie_check_on_auth_routes',
-				'bypass applied for portal/session',
-				array( 'route' => $route, 'decision' => 'bypass_session' ),
-				'H1'
-			);
-			// #endregion
+		if (
+			str_starts_with( $route, '/etwa/v1/portal/session' )
+			&& ( is_user_logged_in() || wp_validate_auth_cookie( '', 'logged_in' ) )
+		) {
 			return null;
 		}
-
-		// #region agent log
-		self::debug_log(
-			'Auth.php:bypass_rest_cookie_check_on_auth_routes',
-			'bypass NOT applied — error retained',
-			array(
-				'route'             => $route,
-				'decision'          => 'keep_error',
-				'is_user_logged_in' => is_user_logged_in(),
-				'cookie_valid'      => (bool) wp_validate_auth_cookie( '', 'logged_in' ),
-			),
-			'H1-H2'
-		);
-		// #endregion
 
 		return $result;
 	}
 
-	/**
-	 * @param \WP_Error|true|null $result
-	 * @return \WP_Error|true|null
-	 */
-	public function debug_log_rest_auth_result( $result ) {
-		$route = $this->debug_rest_route();
-		if ( ! str_contains( $route, '/etwa/v1/' ) ) {
-			return $result;
-		}
-
-		// #region agent log
-		self::debug_log(
-			'Auth.php:debug_log_rest_auth_result',
-			'final rest auth result before dispatch',
-			array(
-				'route'             => $route,
-				'result_type'       => is_wp_error( $result ) ? 'wp_error' : ( null === $result ? 'null' : gettype( $result ) ),
-				'error_code'        => is_wp_error( $result ) ? $result->get_error_code() : null,
-				'will_dispatch'     => ! is_wp_error( $result ),
-				'is_user_logged_in' => is_user_logged_in(),
-			),
-			'H3-H4'
-		);
-		// #endregion
-
-		return $result;
-	}
-
-	private function debug_rest_route(): string {
+	private function rest_route(): string {
 		if ( isset( $GLOBALS['wp']->query_vars['rest_route'] ) ) {
 			return '/' . ltrim( (string) $GLOBALS['wp']->query_vars['rest_route'], '/' );
 		}
@@ -345,62 +251,6 @@ final class Auth {
 		}
 
 		return '';
-	}
-
-	/** @param array<string,mixed> $data */
-	private static function debug_log( string $location, string $message, array $data, string $hypothesis_id ): void {
-		$entry = wp_json_encode(
-			array(
-				'sessionId'    => '154178',
-				'timestamp'    => (int) round( microtime( true ) * 1000 ),
-				'location'     => $location,
-				'message'      => $message,
-				'data'         => $data,
-				'hypothesisId' => $hypothesis_id,
-				'runId'        => 'pre-fix',
-			)
-		);
-
-		if ( ! $entry ) {
-			return;
-		}
-
-		$line = $entry . "\n";
-		$paths = array(
-			ETWA_PLUGIN_DIR . 'debug-154178.log',
-		);
-		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			$paths[] = WP_CONTENT_DIR . '/debug-154178.log';
-		}
-
-		foreach ( $paths as $path ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-			@file_put_contents( $path, $line, FILE_APPEND | LOCK_EX );
-		}
-
-		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-		error_log( 'DEBUG154178 ' . $entry );
-	}
-
-	public function ajax_agent_debug_log(): void {
-		$raw = file_get_contents( 'php://input' );
-		if ( ! is_string( $raw ) || '' === $raw ) {
-			wp_send_json_success( array( 'logged' => false ) );
-		}
-
-		$payload = json_decode( $raw, true );
-		if ( ! is_array( $payload ) ) {
-			wp_send_json_success( array( 'logged' => false ) );
-		}
-
-		self::debug_log(
-			(string) ( $payload['location'] ?? 'js' ),
-			(string) ( $payload['message'] ?? 'js log' ),
-			is_array( $payload['data'] ?? null ) ? $payload['data'] : array(),
-			(string) ( $payload['hypothesisId'] ?? 'H5' )
-		);
-
-		wp_send_json_success( array( 'logged' => true ) );
 	}
 
 	private function auth_notice(): ?array {

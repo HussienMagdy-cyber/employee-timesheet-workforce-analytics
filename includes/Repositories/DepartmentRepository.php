@@ -84,15 +84,16 @@ final class DepartmentRepository {
 		$wpdb->insert(
 			$this->table,
 			array(
-				'name'              => $data['name'],
-				'description'       => $data['description'] ?? '',
-				'head_user_id'      => $data['head_user_id'] ?? null,
-				'approval_enabled'  => ! empty( $data['approval_enabled'] ) ? 1 : 0,
-				'status'            => $data['status'] ?? 'active',
-				'created_at'        => $now,
-				'updated_at'        => $now,
+				'name'                      => $data['name'],
+				'description'               => $data['description'] ?? '',
+				'head_user_id'              => $data['head_user_id'] ?? null,
+				'approval_enabled'          => ! empty( $data['approval_enabled'] ) ? 1 : 0,
+				'can_allocate_deliverables' => ! empty( $data['can_allocate_deliverables'] ) ? 1 : 0,
+				'status'                    => $data['status'] ?? 'active',
+				'created_at'                => $now,
+				'updated_at'                => $now,
 			),
-			array( '%s', '%s', '%d', '%d', '%s', '%s', '%s' )
+			array( '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s' )
 		);
 		return (int) $wpdb->insert_id;
 	}
@@ -102,12 +103,13 @@ final class DepartmentRepository {
 		global $wpdb;
 		$data['updated_at'] = current_time( 'mysql' );
 		$allowed            = array(
-			'name'             => '%s',
-			'description'      => '%s',
-			'head_user_id'     => '%d',
-			'approval_enabled' => '%d',
-			'status'           => '%s',
-			'updated_at'       => '%s',
+			'name'                      => '%s',
+			'description'               => '%s',
+			'head_user_id'              => '%d',
+			'approval_enabled'          => '%d',
+			'can_allocate_deliverables' => '%d',
+			'status'                    => '%s',
+			'updated_at'                => '%s',
 		);
 		$fields             = array();
 		$formats            = array();

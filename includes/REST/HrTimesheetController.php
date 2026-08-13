@@ -159,6 +159,7 @@ final class HrTimesheetController extends RestController {
 			'start_time'   => $this->get_string_param( $request, 'start_time' ),
 			'end_time'     => $this->get_string_param( $request, 'end_time' ),
 			'client_id'    => $this->get_int_param( $request, 'client_id' ),
+			'project_id'   => $request->get_param( 'project_id' ),
 			'task'         => $this->get_string_param( $request, 'task' ),
 			'notes'        => $this->get_string_param( $request, 'notes' ),
 			'entry_type'   => $this->get_string_param( $request, 'entry_type' ),

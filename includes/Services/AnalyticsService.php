@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace ETWA\Services;
 
+use ETWA\Helpers\CalendarHelper;
 use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\RequestHelper;
 use ETWA\Helpers\UserDisplayNames;
@@ -335,13 +336,27 @@ final class AnalyticsService {
 
 		$where_sql = implode( ' AND ', $where_parts );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- dynamic WHERE with prepared params.
+		// Company day-off weekdays (PHP w: 0=Sun…6=Sat) → MySQL DAYOFWEEK (1=Sun…7=Sat).
+		$day_off_mysql = array();
+		foreach ( CalendarHelper::weekday_config() as $php_dow => $status ) {
+			if ( CalendarHelper::STATUS_DAY_OFF === $status ) {
+				$day_off_mysql[] = ( (int) $php_dow ) + 1;
+			}
+		}
+		$day_off_mysql = array_values( array_unique( array_filter( $day_off_mysql, static fn( int $d ): bool => $d >= 1 && $d <= 7 ) ) );
+		if ( ! $day_off_mysql ) {
+			// Fallback: Fri+Sat when calendar has no day-off days configured.
+			$day_off_mysql = array( 6, 7 );
+		}
+		$day_off_in = implode( ',', array_map( 'intval', $day_off_mysql ) );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- dynamic WHERE with prepared params; day-off list is intval-sanitized.
 		$hours_row = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT
 					COALESCE(SUM(CASE WHEN c.code = %s THEN e.regular_hours + e.overtime_hours ELSE 0 END), 0) AS meeting_hours,
 					COALESCE(SUM(CASE WHEN c.code = %s THEN e.regular_hours + e.overtime_hours ELSE 0 END), 0) AS event_hours,
-					COALESCE(SUM(CASE WHEN DAYOFWEEK(e.entry_date) IN (1, 7) AND c.code != %s THEN e.regular_hours + e.overtime_hours ELSE 0 END), 0) AS weekend_hours,
+					COALESCE(SUM(CASE WHEN DAYOFWEEK(e.entry_date) IN ({$day_off_in}) AND c.code != %s THEN e.regular_hours + e.overtime_hours ELSE 0 END), 0) AS weekend_hours,
 					COALESCE(SUM(CASE WHEN h.id IS NOT NULL AND c.code != %s THEN e.regular_hours + e.overtime_hours ELSE 0 END), 0) AS holiday_hours
 				FROM {$entries} e
 				INNER JOIN {$clients} c ON c.id = e.client_id

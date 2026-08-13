@@ -62,6 +62,7 @@
 
 	/* Layout */
 	--etwa-sidebar-width: 248px !important;
+	--etwa-rail-width: 56px !important;
 	--etwa-header-height: 56px !important;
 	--etwa-content-max: 1200px !important;
 

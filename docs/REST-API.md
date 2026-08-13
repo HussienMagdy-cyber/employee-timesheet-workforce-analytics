@@ -161,6 +161,7 @@ Create time entry.
   "start_time": "17:00",
   "end_time": "18:00",
   "client_id": 1,
+  "project_id": 5,
   "task": "Website",
   "notes": "",
   "entry_type": "regular"
@@ -169,6 +170,7 @@ Create time entry.
 
 | Field | Description |
 |-------|-------------|
+| project_id | **Always optional**; omit or null for Social Media work. Must belong to `client_id` when set. Break and All Clients (Moderation) clients do not use projects. |
 | entry_type | `regular` (default), `overtime`, or `compensation`. Required for entries at or after 18:00. |
 
 **Capability:** `etwa_edit_own_timesheet`
@@ -395,6 +397,86 @@ Deactivate client (Break cannot be deactivated).
 | search | string |
 
 Returns active clients for dropdowns.
+
+---
+
+### POST `/clients/merge/preview`
+
+Preview impact of merging secondary clients into a primary client.
+
+```json
+{ "primary_id": 1, "merge_ids": [2, 3] }
+```
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### POST `/clients/merge`
+
+Transactionally merge clients; reassigns entries, scopes, and projects; deactivates merged clients.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### POST `/clients/{id}/convert-to-project/preview`
+
+Preview converting an active client into a project under a parent client. Unlike merge, direct entries and scopes receive the new `project_id`; child projects become sibling projects under the parent (no nesting).
+
+```json
+{ "parent_client_id": 123 }
+```
+
+**Response highlights:** source/parent clients, affected entry/scope/allocation counts, child projects, duplicate name conflicts, unmigratable relationships (requests, draft snapshots), and `can_convert`.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### POST `/clients/{id}/convert-to-project`
+
+Transactionally convert a client to a project under the parent client; deactivates the source client.
+
+```json
+{ "parent_client_id": 123 }
+```
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+## Projects (v1.24+)
+
+### GET `/clients/{client_id}/projects`
+
+List projects for a client (active by default; `include_archived=1` for all).
+
+### POST `/clients/{client_id}/projects`
+
+Create a project under a client.
+
+```json
+{ "name": "Adformatics", "description": "Optional" }
+```
+
+### GET `/projects/{id}`
+
+Project detail with hours summary, recent entries, and related scopes.
+
+### PUT `/projects/{id}`
+
+Update project name/description.
+
+### POST `/projects/{id}/archive`
+
+Archive a project.
+
+### POST `/projects/{id}/export/{excel|csv}`
+
+Export project analytics workbook (Summary, Entries, optional Scopes). Body/query: `preset`, `date_from`, `date_to` (same as client analytics export).
+
+**Capability:** `etwa_export_reports`
 
 ---
 
@@ -850,6 +932,136 @@ Refresh REST and AJAX nonces for long-lived portal sessions (used by `etwa-api.j
 | `etwa_toggle_dark_mode` | Toggle user dark mode preference (`etwa_dark_mode` user meta); returns `{ dark_mode: boolean }` |
 | `etwa_email_preview` | Render branded HTML email preview from posted settings (Email Settings page) |
 | `etwa_send_test_email` | Send test branded email to `recipient_email` (Email Settings page) |
+
+---
+
+## Deliverables
+
+Requires `etwa_view_deliverables` (read), `etwa_manage_deliverable_scopes` (HR/Owner configure), or `etwa_allocate_deliverables` (Business allocate).
+
+Alternatively, members of an **active** department with `can_allocate_deliverables = 1` may view and allocate at runtime (checked via `RoleManager::user_can_view_deliverables()` / `user_can_allocate_deliverables()`). Scope create/edit and type catalog management stay HR/Owner only.
+
+| Method | Route | Cap | Notes |
+|--------|-------|-----|-------|
+| GET/POST | `/deliverable-types` | view / manage | Catalog (used when allocating) |
+| PUT | `/deliverable-types/{id}` | manage | Update |
+| POST | `/deliverable-types/{id}/deactivate` | manage | Soft deactivate |
+| GET | `/deliverables/dashboard` | view | Cross-scope KPI totals (legacy; prefer `/deliverables/dashboard/analytics`) |
+| GET | `/deliverables/dashboard/analytics` | view | Executive analytics dashboard payload |
+| GET | `/deliverables/files` | view | Client Files — clients with ≥1 scope, rollups; optional `client_id`, `search` |
+| GET/POST | `/deliverables/scopes` | view / manage | List with metrics / create |
+| GET/PUT | `/deliverables/scopes/{id}` | view / manage | Scope details |
+| GET | `/deliverables/scopes/{id}/metrics` | view | Metrics only |
+| PUT | `/deliverables/scopes/{id}/contract-lines` | manage | **Retired** — returns 410 (legacy distribution from package era) |
+| POST | `/deliverables/scopes/{scope_id}/patches` | manage | **Retired** — returns 410 |
+| GET/PUT | `/deliverables/patches/{id}` | view / manage | **Retired** — returns 410 |
+| GET/POST | `/deliverables/allocations` | view / allocate | List / create (returns `allocation` + `metrics`) |
+| GET/PUT/DELETE | `/deliverables/allocations/{id}` | view / allocate | Details / update / delete |
+
+Batches are soft-retired. Package/Add-on catalog REST and scope write paths were removed in schema **1.25.0**; historical rows remain in the database for audit.
+
+### Client Files (`GET /deliverables/files`)
+
+Returns clients that have at least one scope (empty clients omitted).
+
+Query: optional `search` (client/scope name/code), optional `client_id` (single file payload).
+
+List response: `{ items: [ { client, totals, scopes } ], total }`.  
+Single file: `{ file: { client, totals, scopes } }`.
+
+`totals` includes `scope_count`, `active_scope_count`, `contract_deliverables`, `planned_qty`, `delivered_qty`, `remaining_qty`, `extra_qty`, `completion_pct`, `effort_score`.
+
+Per-scope convenience fields: `planned_effort` (= `planned_qty` units), `completed_effort` / `effort_score` (weighted allocation effort).
+
+Portal view: `files` (sidebar group Deliverables). Open Scope deep-links to Deliverables detail.
+
+**Deliverables home vs Files:** `Files` is the browse surface (client cards, scope list). **Deliverables** home (no `?scope_id=`) is the analytics dashboard; scope detail + allocate remains at `?scope_id={id}`.
+
+### Dashboard analytics (`GET /deliverables/dashboard/analytics`)
+
+Query (all optional): `client_id`, `scope_id`, `deliverable_type_id`, `status`, `date_from`, `date_to`, `trend` (`week`\|`month`\|`scope`, default `month`), `over_time` (`day`\|`week`\|`month`, default `month`).
+
+Response:
+
+```json
+{
+  "kpis": {
+    "total_scopes": 0,
+    "active_scopes": 0,
+    "completed_scopes": 0,
+    "scopes_with_remaining": 0,
+    "overdue_scopes": 0,
+    "contract_total": 0,
+    "planned_qty": 0,
+    "delivered_qty": 0,
+    "remaining_qty": 0,
+    "extra_qty": 0,
+    "completion_pct": 0,
+    "effort_score": 0
+  },
+  "by_type": [],
+  "completion_trend": [],
+  "deliverables_over_time": [],
+  "effort_trend": [],
+  "scope_performance": { "top": [], "lowest": [], "overdue": [], "exceeded": [] },
+  "client_performance": { "highest_completion": [], "highest_effort": [], "highest_extra": [] },
+  "effort": { "planned": 0, "completed": 0, "pct": 0 },
+  "recent_activity": [],
+  "insights": [],
+  "meta": { "trend": "month", "over_time": "month", "scope_count": 0 }
+}
+```
+
+- **Scopes with Remaining** (`scopes_with_remaining`): active scopes where `remaining_qty > 0`.
+- **Overdue scopes**: `status=active`, `ends_on < today`, `remaining_qty > 0`.
+- **Effort**: planned = sum of scope `planned_qty` (= `contract_deliverables`); completed = weighted allocation effort (`quantity × type.effort_score`).
+
+### Create / update scope body
+
+```json
+{
+  "client_id": 1,
+  "project_id": 5,
+  "name": "August Content Scope",
+  "starts_on": "2026-08-01",
+  "ends_on": "2026-08-31",
+  "contract_deliverables": 20,
+  "description": "Notes",
+  "status": "active"
+}
+```
+
+- `code` is auto-generated on create (`SCP-YYYYMMDD-####`) and ignored on update.
+- `project_id` optional; must belong to `client_id` when set.
+- `contract_deliverables` required on create; must be `>= 0`. HR/Owner sets the **Total Expected Deliverables** directly; Business adds allocation items later.
+- Planned = `contract_deliverables` only. Batch and package/add-on fields are ignored on write.
+
+### Allocation body (multi-item)
+
+```json
+{
+  "scope_id": 1,
+  "task_name": "August Social Media Campaign",
+  "completed_date": "2026-08-09",
+  "notes": "",
+  "items": [
+    { "deliverable_type_id": 1, "quantity": 2, "scope_impact": "normal" },
+    { "deliverable_type_id": 2, "quantity": 2, "scope_impact": "normal" },
+    {
+      "deliverable_type_id": 3,
+      "quantity": 1,
+      "scope_impact": "replacement",
+      "replaced_type_id": 4,
+      "replacement_qty": 1
+    }
+  ]
+}
+```
+
+- `task_name` required; at least one `items` row required.
+- Per item: `deliverable_type_id`, `quantity` > 0, `scope_impact` (`normal`\|`replacement`\|`extra`); when `replacement` also `replaced_type_id` + `replacement_qty`.
+- Duplicate type + impact (+ replaced type for replacements) rows are merged server-side.
+- List/detail responses nest `items[]` and include `total_quantity` + `summary` (e.g. `2 Static, 2 Motion`).
 
 ---
 

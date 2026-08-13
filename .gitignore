@@ -1,4 +1,7 @@
 /vendor/
 composer.lock
+composer.phar
+debug-154178.log
+.cursor/debug-154178.log
 .DS_Store
 Thumbs.db

@@ -73,6 +73,15 @@ final class DepartmentHelper {
 		return true;
 	}
 
+	/**
+	 * True when the user's assigned department is active and grants deliverables access.
+	 * Checked at runtime — no permanent WP capability is granted to employees.
+	 */
+	public static function department_grants_deliverables( int $user_id ): bool {
+		$dept = self::get_employee_department( $user_id );
+		return (bool) ( $dept && $dept->is_active() && $dept->can_allocate_deliverables );
+	}
+
 	public static function get_department_head_id( int $user_id ): ?int {
 		$dept = self::get_employee_department( $user_id );
 		if ( ! $dept || ! $dept->has_head() || ! $dept->approval_enabled || ! $dept->is_active() ) {
@@ -106,11 +115,12 @@ final class DepartmentHelper {
 		}
 		$head = $dept->head_user_id ? get_userdata( $dept->head_user_id ) : null;
 		return array(
-			'id'               => $dept->id,
-			'name'             => $dept->name,
-			'head_user_id'     => $dept->head_user_id,
-			'head_name'        => $head ? $head->display_name : '',
-			'approval_enabled' => $dept->approval_enabled,
+			'id'                        => $dept->id,
+			'name'                      => $dept->name,
+			'head_user_id'              => $dept->head_user_id,
+			'head_name'                 => $head ? $head->display_name : '',
+			'approval_enabled'          => $dept->approval_enabled,
+			'can_allocate_deliverables' => $dept->can_allocate_deliverables,
 		);
 	}
 

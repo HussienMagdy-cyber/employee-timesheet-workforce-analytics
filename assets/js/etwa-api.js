@@ -61,49 +61,12 @@
 		return i18n('sessionExpired', 'Your session expired. Please refresh the page and log in again.');
 	}
 
-	function agentDebugLog(location, message, data, hypothesisId) {
-		const payload = JSON.stringify({
-			sessionId: '154178',
-			location,
-			message,
-			data: data || {},
-			hypothesisId: hypothesisId || 'H5',
-			timestamp: Date.now(),
-			runId: 'pre-fix',
-		});
-		fetch('http://127.0.0.1:7920/ingest/d692f9a8-0e0c-45a7-824f-e64b88eed57e', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '154178' },
-			body: payload,
-		}).catch(() => {});
-		const ajaxUrl = cfg().ajaxUrl || (document.getElementById('etwa-portal-root')?.dataset?.ajaxUrl);
-		if (ajaxUrl) {
-			fetch(ajaxUrl + (ajaxUrl.includes('?') ? '&' : '?') + 'action=etwa_agent_debug_log', {
-				method: 'POST',
-				credentials: 'same-origin',
-				headers: { 'Content-Type': 'application/json' },
-				body: payload,
-			}).catch(() => {});
-		}
-	}
-
 	async function fetchSession() {
 		const response = await fetch(restUrl(SESSION_PATH), {
 			credentials: 'same-origin',
 			headers: { 'X-WP-Nonce': getNonce() },
 		});
 		const data = await response.json().catch(() => ({}));
-
-		// #region agent log
-		agentDebugLog('etwa-api.js:fetchSession', 'fetchSession response', {
-			status: response.status,
-			ok: response.ok,
-			code: data?.code || null,
-			hasMessage: !!data?.message,
-			hasSuccessNonce: !!(data?.success && data?.data?.nonce),
-			nonceLen: getNonce().length,
-		}, 'H4-H5');
-		// #endregion
 
 		if (response.ok && data.success && data.data?.nonce) {
 			setNonce(data.data.nonce);
@@ -144,24 +107,10 @@
 		const data = await response.json().catch(() => ({}));
 
 		if (!response.ok && isAuthError(data, response.status) && !retried) {
-			// #region agent log
-			agentDebugLog('etwa-api.js:api', 'auth error — attempting nonce refresh', {
-				path,
-				status: response.status,
-				code: data?.code || null,
-				nonceLen: getNonce().length,
-			}, 'H4');
-			// #endregion
 			try {
 				await refreshNonce();
 				return api(path, options, true);
 			} catch (err) {
-				// #region agent log
-				agentDebugLog('etwa-api.js:api', 'nonce refresh failed after auth error', {
-					path,
-					errMessage: err?.message || null,
-				}, 'H4-H5');
-				// #endregion
 				return {
 					success: false,
 					message: err.message || sessionExpiredMessage(),

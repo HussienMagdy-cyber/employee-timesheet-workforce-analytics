@@ -19,20 +19,27 @@ final class EntryRepository {
 
 	private string $table;
 	private string $clients_table;
+	private string $projects_table;
 
 	public function __construct() {
 		global $wpdb;
-		$this->table         = $wpdb->prefix . 'etwa_entries';
-		$this->clients_table = $wpdb->prefix . 'etwa_clients';
+		$this->table          = $wpdb->prefix . 'etwa_entries';
+		$this->clients_table  = $wpdb->prefix . 'etwa_clients';
+		$this->projects_table = $wpdb->prefix . 'etwa_projects';
+	}
+
+	private function entry_select_sql(): string {
+		return "SELECT e.*, c.name AS client_name, p.name AS project_name
+			FROM {$this->table} e
+			LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
+			LEFT JOIN {$this->projects_table} p ON p.id = e.project_id";
 	}
 
 	public function find( int $id ): ?Entry {
 		global $wpdb;
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT e.*, c.name AS client_name FROM {$this->table} e
-				LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
-				WHERE e.id = %d",
+				$this->entry_select_sql() . ' WHERE e.id = %d',
 				$id
 			)
 		);
@@ -44,9 +51,7 @@ final class EntryRepository {
 		global $wpdb;
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT e.*, c.name AS client_name FROM {$this->table} e
-				LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
-				WHERE e.timesheet_id = %d ORDER BY e.entry_date ASC, e.start_time ASC",
+				$this->entry_select_sql() . ' WHERE e.timesheet_id = %d ORDER BY e.entry_date ASC, e.start_time ASC',
 				$timesheet_id
 			)
 		);
@@ -65,12 +70,11 @@ final class EntryRepository {
 		int $limit,
 		int $offset,
 		?int $user_id = null,
-		?int $client_id = null
+		?int $client_id = null,
+		?int $project_id = null
 	): array {
 		global $wpdb;
-		$sql    = "SELECT e.*, c.name AS client_name FROM {$this->table} e
-			LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
-			WHERE e.entry_date BETWEEN %s AND %s";
+		$sql    = $this->entry_select_sql() . ' WHERE e.entry_date BETWEEN %s AND %s';
 		$params = array( $date_from, $date_to );
 
 		if ( $user_id ) {
@@ -80,6 +84,10 @@ final class EntryRepository {
 		if ( $client_id ) {
 			$sql     .= ' AND e.client_id = %d';
 			$params[] = $client_id;
+		}
+		if ( $project_id ) {
+			$sql     .= ' AND e.project_id = %d';
+			$params[] = $project_id;
 		}
 		$sql .= ' ORDER BY e.entry_date ASC, e.start_time ASC, e.id ASC';
 

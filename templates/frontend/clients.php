@@ -18,7 +18,7 @@ use ETWA\Repositories\ClientRepository;
 		<div class="etwa-hero-copy">
 			<p class="etwa-eyebrow"><?php esc_html_e( 'Settings', 'etwa' ); ?></p>
 			<h1><?php esc_html_e( 'Manage Clients', 'etwa' ); ?></h1>
-			<p class="etwa-subtitle"><?php esc_html_e( 'Add, edit, or remove clients for the timesheet dropdown. System options (Break, Meeting, Event, Moderation) cannot be removed.', 'etwa' ); ?></p>
+			<p class="etwa-subtitle"><?php esc_html_e( 'Add, edit, merge, convert to project, or manage projects under clients. System options (Break, Meeting, General, Moderation) cannot be removed.', 'etwa' ); ?></p>
 		</div>
 	</div>
 
@@ -35,7 +35,36 @@ use ETWA\Repositories\ClientRepository;
 	</div>
 
 	<div class="etwa-panel">
-		<h2><?php esc_html_e( 'Clients & Break', 'etwa' ); ?></h2>
+		<h2><?php esc_html_e( 'Merge Clients', 'etwa' ); ?></h2>
+		<p class="etwa-muted"><?php esc_html_e( 'Reassign all related data to a primary client and deactivate merged clients.', 'etwa' ); ?></p>
+		<form id="etwa-client-merge-form" class="etwa-form-grid">
+			<label><?php esc_html_e( 'Primary Client', 'etwa' ); ?>
+				<select name="primary_id" id="etwa-merge-primary" required>
+					<option value=""><?php esc_html_e( 'Select…', 'etwa' ); ?></option>
+					<?php foreach ( $clients as $client ) : ?>
+						<?php if ( ! $client->is_active || in_array( strtoupper( $client->code ), ClientRepository::system_codes(), true ) ) { continue; } ?>
+						<option value="<?php echo esc_attr( (string) $client->id ); ?>"><?php echo esc_html( $client->name ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+			<label class="etwa-span-2"><?php esc_html_e( 'Clients to Merge', 'etwa' ); ?>
+				<select name="merge_ids[]" id="etwa-merge-ids" multiple size="5" required>
+					<?php foreach ( $clients as $client ) : ?>
+						<?php if ( ! $client->is_active || in_array( strtoupper( $client->code ), ClientRepository::system_codes(), true ) ) { continue; } ?>
+						<option value="<?php echo esc_attr( (string) $client->id ); ?>"><?php echo esc_html( $client->name ); ?> (<?php echo esc_html( $client->code ); ?>)</option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+			<div class="etwa-span-2">
+				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-merge-preview"><?php esc_html_e( 'Preview Merge', 'etwa' ); ?></button>
+				<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Merge Clients', 'etwa' ); ?></button>
+			</div>
+		</form>
+		<div id="etwa-merge-preview-output" class="etwa-muted" hidden></div>
+	</div>
+
+	<div class="etwa-panel">
+		<h2><?php esc_html_e( 'Clients', 'etwa' ); ?></h2>
 		<table class="etwa-table etwa-clients-table">
 			<thead>
 				<tr>
@@ -71,6 +100,10 @@ use ETWA\Repositories\ClientRepository;
 						</td>
 						<td class="etwa-actions-cell">
 							<?php if ( ! $is_system ) : ?>
+								<button type="button" class="etwa-link etwa-manage-projects" data-client-id="<?php echo esc_attr( (string) $client->id ); ?>" data-client-name="<?php echo esc_attr( $client->name ); ?>"><?php esc_html_e( 'Projects', 'etwa' ); ?></button>
+								<?php if ( $client->is_active ) : ?>
+									<button type="button" class="etwa-link etwa-convert-client" data-client-id="<?php echo esc_attr( (string) $client->id ); ?>" data-client-name="<?php echo esc_attr( $client->name ); ?>"><?php esc_html_e( 'Convert to Project', 'etwa' ); ?></button>
+								<?php endif; ?>
 								<button type="button" class="etwa-link etwa-edit-client"><?php esc_html_e( 'Edit', 'etwa' ); ?></button>
 								<?php if ( $client->is_active ) : ?>
 									<button type="button" class="etwa-link etwa-deactivate-client"><?php esc_html_e( 'Deactivate', 'etwa' ); ?></button>
@@ -102,6 +135,59 @@ use ETWA\Repositories\ClientRepository;
 					<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Save Changes', 'etwa' ); ?></button>
 				</div>
 			</form>
+		</div>
+	</div>
+
+	<div class="etwa-modal" id="etwa-projects-modal" hidden aria-hidden="true" role="dialog" aria-labelledby="etwa-projects-title">
+		<div class="etwa-modal-content etwa-modal-wide">
+			<button type="button" class="etwa-modal-close-btn etwa-modal-close" aria-label="<?php esc_attr_e( 'Close', 'etwa' ); ?>">&times;</button>
+			<h3 id="etwa-projects-title"><?php esc_html_e( 'Projects', 'etwa' ); ?></h3>
+			<p class="etwa-muted" id="etwa-projects-client-label"></p>
+			<form id="etwa-project-form" class="etwa-form-grid">
+				<input type="hidden" name="client_id" id="etwa-project-client-id" value="" />
+				<label><?php esc_html_e( 'Project Name', 'etwa' ); ?><input type="text" name="name" required /></label>
+				<label class="etwa-span-2"><?php esc_html_e( 'Description', 'etwa' ); ?><textarea name="description" rows="2"></textarea></label>
+				<div class="etwa-span-2">
+					<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Add Project', 'etwa' ); ?></button>
+				</div>
+			</form>
+			<table class="etwa-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Name', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Status', 'etwa' ); ?></th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="etwa-projects-body">
+					<tr><td colspan="3"><?php esc_html_e( 'Loading…', 'etwa' ); ?></td></tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="etwa-modal" id="etwa-convert-client-modal" hidden aria-hidden="true" role="dialog" aria-labelledby="etwa-convert-client-title">
+		<div class="etwa-modal-content etwa-modal-wide">
+			<button type="button" class="etwa-modal-close-btn etwa-modal-close" aria-label="<?php esc_attr_e( 'Close', 'etwa' ); ?>">&times;</button>
+			<h3 id="etwa-convert-client-title"><?php esc_html_e( 'Convert Client to Project', 'etwa' ); ?></h3>
+			<p class="etwa-muted" id="etwa-convert-source-label"></p>
+			<form id="etwa-convert-client-form" class="etwa-form-grid">
+				<input type="hidden" name="source_client_id" id="etwa-convert-source-id" value="" />
+				<label class="etwa-span-2"><?php esc_html_e( 'Parent Client', 'etwa' ); ?>
+					<select name="parent_client_id" id="etwa-convert-parent-id" required>
+						<option value=""><?php esc_html_e( 'Select…', 'etwa' ); ?></option>
+						<?php foreach ( $clients as $client ) : ?>
+							<?php if ( ! $client->is_active || in_array( strtoupper( $client->code ), ClientRepository::system_codes(), true ) ) { continue; } ?>
+							<option value="<?php echo esc_attr( (string) $client->id ); ?>"><?php echo esc_html( $client->name ); ?> (<?php echo esc_html( $client->code ); ?>)</option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<div class="etwa-span-2">
+					<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-convert-preview"><?php esc_html_e( 'Preview Conversion', 'etwa' ); ?></button>
+					<button type="submit" class="etwa-btn etwa-btn-primary" id="etwa-convert-submit" disabled><?php esc_html_e( 'Convert to Project', 'etwa' ); ?></button>
+				</div>
+			</form>
+			<div id="etwa-convert-preview-output" class="etwa-muted" hidden></div>
 		</div>
 	</div>
 </div>

@@ -26,7 +26,7 @@
 
 	function renderRows() {
 		if (!departments.length) {
-			return `<tr><td colspan="6" class="etwa-empty-cell">${cfg.i18n?.noDepartments || 'No departments yet.'}</td></tr>`;
+			return `<tr><td colspan="7" class="etwa-empty-cell">${cfg.i18n?.noDepartments || 'No departments yet.'}</td></tr>`;
 		}
 		return departments
 			.map(
@@ -35,6 +35,7 @@
 			<td>${d.head_name || `<span class="etwa-muted">${cfg.i18n?.noDepartmentHead || 'No Department Head'}</span>`}</td>
 			<td>${d.employee_count || 0}</td>
 			<td>${d.approval_enabled ? cfg.i18n?.yes || 'Yes' : cfg.i18n?.no || 'No'}</td>
+			<td>${d.can_allocate_deliverables ? cfg.i18n?.yes || 'Yes' : cfg.i18n?.no || 'No'}</td>
 			<td>${d.status_label || d.status}</td>
 			<td class="etwa-actions-cell">
 				<button type="button" class="etwa-link etwa-edit-dept">${cfg.i18n?.edit || 'Edit'}</button>
@@ -53,6 +54,7 @@
 		$('#etwa-dept-description').val(dept?.description || '');
 		$('#etwa-dept-head').html(headOptions(dept?.head_user_id || ''));
 		$('#etwa-dept-approval').prop('checked', dept ? !!dept.approval_enabled : true);
+		$('#etwa-dept-deliverables').prop('checked', dept ? !!dept.can_allocate_deliverables : false);
 		$('#etwa-dept-status').val(dept?.status || 'active');
 		$('#etwa-department-modal-title').text(dept ? cfg.i18n?.editDepartment || 'Edit Department' : cfg.i18n?.addDepartment || 'Add Department');
 		$modal.removeAttr('hidden').attr('aria-hidden', 'false');
@@ -113,6 +115,7 @@
 				description: $('#etwa-dept-description').val().trim(),
 				head_user_id: $('#etwa-dept-head').val() || null,
 				approval_enabled: $('#etwa-dept-approval').is(':checked') ? 1 : 0,
+				can_allocate_deliverables: $('#etwa-dept-deliverables').is(':checked') ? 1 : 0,
 				status: $('#etwa-dept-status').val(),
 			};
 			const method = id ? 'PUT' : 'POST';
