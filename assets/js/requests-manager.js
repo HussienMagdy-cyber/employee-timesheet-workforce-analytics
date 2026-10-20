@@ -6,7 +6,7 @@
 	const app = $('#etwa-requests-center-app');
 	if (!app.length || (!cfg.canManageVacation && !cfg.canApproveDept)) return;
 
-	const canExport = app.data('can-export') === 1;
+	const canExport = !!cfg.canExport;
 
 	let employees = [];
 	let vacPage = 1;
@@ -124,6 +124,10 @@
 		return source === 'vacation' && (slot === 'hr' || (!slot && cfg.canManageVacation));
 	}
 
+	function permissionHrNeedsDeduction(meta) {
+		return meta && (meta.permissionDeduction === '1' || meta.permissionDeduction === true);
+	}
+
 	function reloadActiveTab() {
 		const tab = getActiveTab();
 		if (tab === 'vacation') loadVacationRequests();
@@ -185,6 +189,14 @@
 			return;
 		}
 
+		if (tab === 'permission' && cfg.canManageVacation) {
+			ui.error(
+				cfg.i18n?.permissionBulkHrDays ||
+					'Approve permission requests individually so you can enter deduction days when required.'
+			);
+			return;
+		}
+
 		ui.confirm(cfg.i18n?.confirmApproveRequest || 'Approve selected requests?', cfg.i18n?.approve || 'Approve').then((ok) => {
 			if (ok) run('');
 		});
@@ -211,10 +223,12 @@
 			buttons.push(`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-source="${source}" data-slot="department">${cfg.i18n?.approveAsDepartment || 'Approve (Department)'}</button>`);
 		}
 		if (r.can_approve_as_hr) {
-			const dayAttrs =
-				source === 'vacation'
-					? ` data-needs-days="1" data-start="${r.start_date || ''}" data-end="${r.end_date || ''}"`
-					: '';
+			let dayAttrs = '';
+			if (source === 'vacation') {
+				dayAttrs = ` data-needs-days="1" data-start="${r.start_date || ''}" data-end="${r.end_date || ''}"`;
+			} else if (r.request_type === 'permission' && r.requires_deduction) {
+				dayAttrs = ` data-needs-days="1" data-permission-deduction="1" data-default-days="${r.default_deduction_days || 0.25}"`;
+			}
 			buttons.push(
 				`<button type="button" class="etwa-btn etwa-btn-primary etwa-btn-sm etwa-approve-request" data-id="${r.id}" data-source="${source}" data-slot="hr"${dayAttrs}>${cfg.i18n?.approveAsHr || 'Approve (HR)'}</button>`
 			);
@@ -323,6 +337,10 @@
 				const data = res.data || {};
 				const items = data.items || [];
 
+				if (type === 'permission') {
+					renderPermissionUsageHr(data.permission_usage);
+				}
+
 				if (!items.length) {
 					$(bodySelector).html(
 						`<tr><td colspan="${colSpan}" class="etwa-empty-cell">${cfg.i18n?.noRequests || 'No requests found.'}</td></tr>`
@@ -417,6 +435,39 @@
 		);
 	}
 
+	function renderPermissionUsageHr(usage) {
+		const panel = $('#etwa-perm-req-usage-summary');
+		if (!usage) {
+			panel.attr('hidden', 'hidden');
+			return;
+		}
+		panel.removeAttr('hidden');
+		$('#etwa-perm-req-usage-count').text(
+			usage.permissions_label || `Permissions This Month: ${usage.approved_count} / ${usage.free_allowance}`
+		);
+		$('#etwa-perm-req-usage-free').text(
+			usage.free_remaining_label || `Permissions Remaining: ${usage.free_remaining}`
+		);
+		$('#etwa-perm-req-usage-deducted').text(
+			usage.vacation_deducted_label || `Vacation Deducted: ${Number(usage.vacation_deducted || 0).toFixed(2)} day`
+		);
+	}
+
+	function revokePermission(id) {
+		ui.confirm(cfg.i18n?.confirmRevokePermission || 'Revoke this approved permission? Any vacation deduction will be restored.', cfg.i18n?.revoke || 'Revoke').then((ok) => {
+			if (!ok) return;
+			api(`requests/${id}`, { method: 'DELETE' })
+				.then((res) => {
+					if (!res.success) throw new Error(res.message);
+					ui.success(cfg.i18n?.permissionRevoked || 'Permission revoked.');
+					reloadActiveTab();
+					refreshAllBadges();
+					$('#etwa-request-detail-modal').attr('hidden', 'hidden');
+				})
+				.catch((err) => ui.error(err.message));
+		});
+	}
+
 	function loadHolidayWorkRequests() {
 		loadGenericRequests(
 			'holiday_work',
@@ -443,7 +494,9 @@
 		}
 
 		const needsDays =
-			meta.needsDays != null ? !!meta.needsDays : vacationHrNeedsDays(source, slot);
+			meta.needsDays != null
+				? !!meta.needsDays
+				: vacationHrNeedsDays(source, slot) || permissionHrNeedsDeduction(meta);
 
 		const perform = (notes, days) => {
 			submitReview(id, status, source, slot, notes, days)
@@ -482,7 +535,17 @@
 			ui.promptDaysToDeduct({
 				startDate: meta.startDate || '',
 				endDate: meta.endDate || '',
-				api,
+				api: permissionHrNeedsDeduction(meta) ? null : api,
+				defaultDays: meta.defaultDays != null ? meta.defaultDays : undefined,
+				title: permissionHrNeedsDeduction(meta)
+					? cfg.i18n?.permissionDeductionTitle || 'Permission Deduction'
+					: undefined,
+				help: permissionHrNeedsDeduction(meta)
+					? cfg.i18n?.permissionDeductionHelp ||
+							'This permission exceeds the monthly allowance. Enter how many vacation days to deduct.'
+					: undefined,
+				label: permissionHrNeedsDeduction(meta) ? cfg.i18n?.deductionDays || 'Deduction Days' : undefined,
+				skipDaysBetween: permissionHrNeedsDeduction(meta),
 			}).then((days) => {
 				if (days == null) return;
 				perform('', days);
@@ -541,6 +604,47 @@
 						<dt>${cfg.i18n?.permissionType || 'Permission Type'}</dt><dd>${r.permission_type_label || ''}</dd>
 						<dt>${cfg.i18n?.reason || 'Reason'}</dt><dd>${r.reason_label || r.reason || ''}</dd>
 					`;
+					if (r.monthly_position) {
+						details += `<dt>${cfg.i18n?.monthlyPosition || 'Monthly Position'}</dt><dd>#${r.monthly_position}</dd>`;
+					}
+					if (r.status === 'pending' && r.is_free_permission) {
+						details += `<dt>${cfg.i18n?.vacationDeducted || 'Vacation Deducted'}</dt><dd>${cfg.i18n?.freePermission || 'Permission — No vacation deduction'}</dd>`;
+					} else if (r.status === 'pending' && r.requires_deduction) {
+						const usage = r.permission_usage || {};
+						details += `<dt>${cfg.i18n?.monthlyUsage || 'Monthly Usage'}</dt><dd>
+							${cfg.i18n?.monthlyPermissionUsage || 'Monthly Permission Usage'}: ${usage.approved_count != null ? usage.approved_count + 1 : r.monthly_position || '—'}<br />
+							${cfg.i18n?.freePermissions || 'Permissions'}: ${usage.free_allowance || 2}<br />
+							${cfg.i18n?.deductionDays || 'Deduction Days'}: ${Number(r.default_deduction_days || 0.25).toFixed(2)} (${cfg.i18n?.defaultLabel || 'default'})
+						</dd>`;
+					} else if (
+						(r.annual_deducted != null && Number(r.annual_deducted) > 0) ||
+						(r.unpaid_deducted != null && Number(r.unpaid_deducted) > 0) ||
+						(r.balance_deducted != null && Number(r.balance_deducted) > 0)
+					) {
+						const annual = Number(r.annual_deducted ?? r.balance_deducted ?? 0);
+						const unpaid = Number(r.unpaid_deducted ?? 0);
+						const parts = [];
+						if (annual > 0) {
+							parts.push(
+								`${cfg.i18n?.annualLeave || 'Annual'}: ${annual.toFixed(2)} ${cfg.i18n?.days || 'day'}`
+							);
+						}
+						if (unpaid > 0) {
+							parts.push(
+								`${cfg.i18n?.unpaidLeave || 'Unpaid'}: ${unpaid.toFixed(2)} ${cfg.i18n?.days || 'day'}`
+							);
+						}
+						details += `<dt>${cfg.i18n?.vacationDeducted || 'Vacation Deducted'}</dt><dd>${parts.join('<br />')}</dd>`;
+					} else if (r.status === 'approved') {
+						details += `<dt>${cfg.i18n?.vacationDeducted || 'Vacation Deducted'}</dt><dd>${cfg.i18n?.freePermission || 'Permission — No vacation deduction'}</dd>`;
+					}
+					if (r.permission_usage) {
+						details += `<dt>${cfg.i18n?.monthlyUsage || 'Monthly Usage'}</dt><dd>
+							${r.permission_usage.permissions_label || ''}<br />
+							${r.permission_usage.free_remaining_label || ''}<br />
+							${r.permission_usage.vacation_deducted_label || ''}
+						</dd>`;
+					}
 				}
 
 				if (r.request_type !== 'permission' && source !== 'vacation') {
@@ -555,43 +659,70 @@
 				details += `<p class="etwa-muted">${cfg.i18n?.attachedFilesFuture || 'Attached files — coming soon.'}</p>`;
 
 				$('#etwa-request-detail-body').html(details);
-				$('#etwa-request-detail-actions').html(
-					r.status === 'pending' ? reviewActions(r, source) : ''
-				);
+				let actionHtml = r.status === 'pending' ? reviewActions(r, source) : '';
+				if (r.request_type === 'permission' && r.status === 'approved' && cfg.canManageVacation) {
+					actionHtml += `<button type="button" class="etwa-btn etwa-btn-secondary etwa-revoke-permission" data-id="${r.id}">${cfg.i18n?.revoke || 'Revoke'}</button>`;
+				}
+				$('#etwa-request-detail-actions').html(actionHtml);
 				$('#etwa-request-detail-modal').removeAttr('hidden').attr('aria-hidden', 'false');
 			})
 			.catch((err) => ui.error(err.message));
 	}
 
+	function downloadExportFile(data) {
+		if (data.file_url) {
+			window.location.href = data.file_url;
+			return;
+		}
+		if (data.url) {
+			window.open(data.url, '_blank');
+			return;
+		}
+		if (!data.content) {
+			throw new Error(cfg.i18n?.error || 'Something went wrong.');
+		}
+		const blob = Uint8Array.from(atob(data.content), (c) => c.charCodeAt(0));
+		const url = URL.createObjectURL(new Blob([blob], { type: data.mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = data.filename || 'export.xlsx';
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function exportRequests(type) {
-		if (!canExport) return;
+		if (!canExport) {
+			ui.error(cfg.i18n?.exportForbidden || 'You cannot export requests.');
+			return;
+		}
 		const prefixMap = {
 			vacation: 'etwa-vac-req',
 			wfh: 'etwa-wfh-req',
 			permission: 'etwa-perm-req',
 			holiday_work: 'etwa-holiday-req',
 		};
+		const exportIdMap = {
+			vacation: 'etwa-vac-req-export',
+			wfh: 'etwa-wfh-req-export',
+			permission: 'etwa-perm-req-export',
+			holiday_work: 'etwa-holiday-req-export',
+		};
 		const prefix = prefixMap[type] || 'etwa-perm-req';
 		const params = buildParams(1, prefix);
 		if (type !== 'vacation') params.set('request_type', type);
 
 		const path = type === 'vacation' ? 'vacations/requests/export' : 'requests/export';
-		ui.info(cfg.i18n?.exporting || 'Exporting…');
+		const $btn = $(`#${exportIdMap[type] || 'etwa-perm-req-export'}`);
+		ui.setButtonLoading($btn[0], true, cfg.i18n?.exporting || 'Exporting…');
 
 		api(`${path}?${params.toString()}`)
 			.then((res) => {
-				if (!res.success) throw new Error(res.message);
-				const data = res.data || {};
-				const blob = Uint8Array.from(atob(data.content || ''), (c) => c.charCodeAt(0));
-				const url = URL.createObjectURL(new Blob([blob], { type: data.mime }));
-				const a = document.createElement('a');
-				a.href = url;
-				a.download = data.filename || 'export.xlsx';
-				a.click();
-				URL.revokeObjectURL(url);
+				if (!res.success) throw new Error(res.message || res.code || cfg.i18n?.error || 'Something went wrong.');
+				downloadExportFile(res.data || {});
 				ui.success(cfg.i18n?.exportReady || 'Export ready.');
 			})
-			.catch((err) => ui.error(err.message));
+			.catch((err) => ui.error(err.message))
+			.finally(() => ui.setButtonLoading($btn[0], false));
 	}
 
 	function switchTab(tab) {
@@ -675,10 +806,13 @@
 
 		app.on('click', '.etwa-approve-request', function () {
 			const $btn = $(this);
+			const defaultDaysRaw = $btn.attr('data-default-days');
 			reviewRequest($btn.data('id'), 'approved', $btn.data('source'), $btn.data('slot') || '', {
 				needsDays: $btn.attr('data-needs-days') === '1',
 				startDate: $btn.attr('data-start') || '',
 				endDate: $btn.attr('data-end') || '',
+				permissionDeduction: $btn.attr('data-permission-deduction') === '1',
+				defaultDays: defaultDaysRaw != null && defaultDaysRaw !== '' ? parseFloat(defaultDaysRaw) : undefined,
 			});
 		});
 
@@ -692,6 +826,9 @@
 
 		$('#etwa-request-detail-modal').on('click', '.etwa-modal-close', function () {
 			$('#etwa-request-detail-modal').attr('hidden', 'hidden').attr('aria-hidden', 'true');
+		});
+		$('#etwa-request-detail-modal').on('click', '.etwa-revoke-permission', function () {
+			revokePermission($(this).data('id'));
 		});
 
 		app.on('change', '.etwa-bulk-select', updateBulkToolbar);

@@ -12,6 +12,7 @@ namespace ETWA\Services;
 use ETWA\Helpers\DateRangeHelper;
 use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\UserDisplayNames;
+use ETWA\Models\Project;
 use ETWA\Repositories\ClientRepository;
 use ETWA\Repositories\ClientScopeRepository;
 use ETWA\Repositories\ProjectRepository;
@@ -389,15 +390,21 @@ final class ClientAnalyticsService {
 			return new WP_Error( 'not_found', __( 'Project not found.', 'etwa' ), array( 'status' => 404 ) );
 		}
 
-		$client = $this->clients->find( (int) $project->client_id );
-		if ( ! $client ) {
+		$client = $project->client_id ? $this->clients->find( (int) $project->client_id ) : null;
+		if ( $project->client_id && ! $client ) {
 			return new WP_Error( 'not_found', __( 'Client not found.', 'etwa' ), array( 'status' => 404 ) );
 		}
 
+		$parent = $project->parent_project_id ? $this->projects->find( (int) $project->parent_project_id ) : null;
+		$ids    = $this->analytics_project_ids( $project );
+		$in     = $this->in_clause( $ids );
+
 		global $wpdb;
-		$entries = $wpdb->prefix . 'etwa_entries';
+		$entries  = $wpdb->prefix . 'etwa_entries';
+		$projects = $wpdb->prefix . 'etwa_projects';
 
 		$summary = $wpdb->get_row(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- project_id IN uses %d placeholders.
 			$wpdb->prepare(
 				"SELECT
 					COALESCE(SUM(regular_hours + overtime_hours), 0) AS total_hours,
@@ -406,6 +413,15 @@ final class ClientAnalyticsService {
 					COUNT(DISTINCT user_id) AS employee_count,
 					MAX(entry_date) AS last_activity
 				FROM {$entries}
+				WHERE project_id IN ({$in['placeholders']}) AND entry_date BETWEEN %s AND %s",
+				...array_merge( $in['ids'], array( $date_from, $date_to ) )
+			)
+		);
+
+		$direct_hours = (float) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(regular_hours + overtime_hours), 0)
+				FROM {$entries}
 				WHERE project_id = %d AND entry_date BETWEEN %s AND %s",
 				$project_id,
 				$date_from,
@@ -413,38 +429,117 @@ final class ClientAnalyticsService {
 			)
 		);
 
-		$recent_rows = $wpdb->get_results(
+		$employee_rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- project_id IN uses %d placeholders.
 			$wpdb->prepare(
-				"SELECT e.*, c.name AS client_name
-				FROM {$entries} e
-				LEFT JOIN {$wpdb->prefix}etwa_clients c ON c.id = e.client_id
-				WHERE e.project_id = %d AND e.entry_date BETWEEN %s AND %s
-				ORDER BY e.entry_date DESC, e.start_time DESC
-				LIMIT 20",
-				$project_id,
-				$date_from,
-				$date_to
+				"SELECT user_id,
+					SUM(regular_hours) AS regular_hours,
+					SUM(overtime_hours) AS overtime_hours,
+					SUM(regular_hours + overtime_hours) AS total_hours
+				FROM {$entries}
+				WHERE project_id IN ({$in['placeholders']}) AND entry_date BETWEEN %s AND %s
+				GROUP BY user_id
+				ORDER BY total_hours DESC",
+				...array_merge( $in['ids'], array( $date_from, $date_to ) )
 			)
 		);
 
+		$user_ids  = array_map( fn( $row ) => (int) $row->user_id, $employee_rows ?: array() );
+		$names     = UserDisplayNames::map( $user_ids );
+		$employees = array();
+		foreach ( $employee_rows ?: array() as $row ) {
+			$user_id     = (int) $row->user_id;
+			$employees[] = array(
+				'user_id'        => $user_id,
+				'display_name'   => UserDisplayNames::get( $names, $user_id ) ?: __( 'Unknown', 'etwa' ),
+				'total_hours'    => round( (float) $row->total_hours, 2 ),
+				'regular_hours'  => round( (float) $row->regular_hours, 2 ),
+				'overtime_hours' => round( (float) $row->overtime_hours, 2 ),
+				'combined_hours' => round( (float) $row->regular_hours + (float) $row->overtime_hours, 2 ),
+			);
+		}
+
+		$recent_rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IN placeholders are %d tokens.
+			$wpdb->prepare(
+				"SELECT e.*, c.name AS client_name, p.name AS project_name
+				FROM {$entries} e
+				LEFT JOIN {$wpdb->prefix}etwa_clients c ON c.id = e.client_id
+				LEFT JOIN {$projects} p ON p.id = e.project_id
+				WHERE e.project_id IN ({$in['placeholders']}) AND e.entry_date BETWEEN %s AND %s
+				ORDER BY e.entry_date DESC, e.start_time DESC
+				LIMIT 20",
+				...array_merge( $in['ids'], array( $date_from, $date_to ) )
+			)
+		);
+
+		$child_breakdown = array();
+		if ( $project->is_standalone() && ! $project->parent_project_id ) {
+			$breakdown_ids = array( (int) $project->id );
+			foreach ( $this->projects->list_children( (int) $project->id, false ) as $child ) {
+				$breakdown_ids[] = (int) $child->id;
+			}
+			$breakdown_ids = array_values( array_unique( $breakdown_ids ) );
+			if ( count( $breakdown_ids ) > 1 ) {
+				$in = $this->in_clause( $breakdown_ids );
+				$child_rows = $wpdb->get_results(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IN placeholders are %d tokens.
+					$wpdb->prepare(
+						"SELECT p.id AS project_id, p.name, p.parent_project_id,
+						COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
+					FROM {$projects} p
+					LEFT JOIN {$entries} e ON e.project_id = p.id AND e.entry_date BETWEEN %s AND %s
+					WHERE p.id IN ({$in['placeholders']})
+					GROUP BY p.id
+					ORDER BY CASE WHEN p.id = %d THEN 0 ELSE 1 END, total_hours DESC, p.name ASC",
+						...array_merge( array( $date_from, $date_to ), $in['ids'], array( $project_id ) )
+					)
+				);
+				foreach ( $child_rows ?: array() as $row ) {
+					$child_breakdown[] = array(
+						'project_id'  => (int) $row->project_id,
+						'name'        => (int) $row->project_id === $project_id
+							? sprintf(
+								/* translators: %s: parent project name */
+								__( '%s (direct)', 'etwa' ),
+								(string) $row->name
+							)
+							: (string) $row->name,
+						'is_direct'   => (int) $row->project_id === $project_id,
+						'total_hours' => round( (float) $row->total_hours, 2 ),
+					);
+				}
+			}
+		}
+
 		$related_scopes = array();
-		foreach ( $this->scopes->list( array( 'project_id' => $project_id ) ) as $scope ) {
-			$related_scopes[] = $scope->to_array();
+		foreach ( $ids as $sid ) {
+			foreach ( $this->scopes->list( array( 'project_id' => $sid ) ) as $scope ) {
+				$related_scopes[] = $scope->to_array();
+			}
 		}
 
 		$regular  = round( (float) ( $summary->regular_hours ?? 0 ), 2 );
 		$overtime = round( (float) ( $summary->overtime_hours ?? 0 ), 2 );
+		$combined = round( $regular + $overtime, 2 );
 
 		return array(
 			'project'    => $project->to_array(),
-			'client'     => $client->to_array(),
+			'client'     => $client ? $client->to_array() : null,
+			'parent_project' => $parent ? $parent->to_array() : null,
+			'includes_children' => count( $ids ) > 1,
+			'analytics_project_ids' => $ids,
 			'summary'    => array(
-				'total_hours'    => round( $regular + $overtime, 2 ),
+				'total_hours'    => $combined,
 				'regular_hours'  => $regular,
 				'overtime_hours' => $overtime,
+				'direct_hours'   => round( $direct_hours, 2 ),
+				'child_hours'    => round( max( 0, $combined - $direct_hours ), 2 ),
 				'employee_count' => (int) ( $summary->employee_count ?? 0 ),
 				'last_activity'  => $summary->last_activity ?? null,
 			),
+			'employees'  => $employees,
+			'child_breakdown' => $child_breakdown,
 			'recent_entries' => array_map(
 				static fn( $row ) => \ETWA\Models\Entry::from_row( $row )->to_api_array(),
 				$recent_rows ?: array()
@@ -454,6 +549,89 @@ final class ClientAnalyticsService {
 				'date_from' => $date_from,
 				'date_to'   => $date_to,
 			),
+		);
+	}
+
+	/**
+	 * Active standalone parent projects with rolled-up sub-project hours.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function list_standalone_parents( string $date_from, string $date_to ): array {
+		global $wpdb;
+		$entries  = $wpdb->prefix . 'etwa_entries';
+		$projects = $wpdb->prefix . 'etwa_projects';
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.id, p.name, p.status,
+					COALESCE(h.total_hours, 0) AS total_hours,
+					COALESCE(h.regular_hours, 0) AS regular_hours,
+					COALESCE(h.overtime_hours, 0) AS overtime_hours,
+					COALESCE(h.employee_count, 0) AS employee_count,
+					h.last_activity
+				FROM {$projects} p
+				LEFT JOIN (
+					SELECT COALESCE(pr.parent_project_id, pr.id) AS root_id,
+						SUM(e.regular_hours + e.overtime_hours) AS total_hours,
+						SUM(e.regular_hours) AS regular_hours,
+						SUM(e.overtime_hours) AS overtime_hours,
+						COUNT(DISTINCT e.user_id) AS employee_count,
+						MAX(e.entry_date) AS last_activity
+					FROM {$entries} e
+					INNER JOIN {$projects} pr ON pr.id = e.project_id
+					WHERE pr.client_id IS NULL
+						AND e.entry_date BETWEEN %s AND %s
+					GROUP BY root_id
+				) h ON h.root_id = p.id
+				WHERE p.client_id IS NULL AND p.parent_project_id IS NULL AND p.status = %s
+				ORDER BY total_hours DESC, p.name ASC",
+				$date_from,
+				$date_to,
+				Project::STATUS_ACTIVE
+			)
+		);
+
+		$items = array();
+		foreach ( $rows ?: array() as $row ) {
+			$items[] = array(
+				'id'             => (int) $row->id,
+				'name'           => (string) $row->name,
+				'status'         => (string) $row->status,
+				'total_hours'    => round( (float) $row->total_hours, 2 ),
+				'regular_hours'  => round( (float) $row->regular_hours, 2 ),
+				'overtime_hours' => round( (float) $row->overtime_hours, 2 ),
+				'employee_count' => (int) $row->employee_count,
+				'last_activity'  => $row->last_activity ?: null,
+			);
+		}
+
+		return $items;
+	}
+
+	/** @return int[] */
+	private function analytics_project_ids( Project $project ): array {
+		$ids = array( (int) $project->id );
+		if ( $project->is_standalone() && ! $project->parent_project_id ) {
+			foreach ( $this->projects->list_children( (int) $project->id, false ) as $child ) {
+				$ids[] = (int) $child->id;
+			}
+		}
+		return $ids;
+	}
+
+	/**
+	 * @param int[] $ids
+	 * @return array{placeholders:string,ids:int[]}
+	 */
+	private function in_clause( array $ids ): array {
+		$ids = array_values( array_unique( array_filter( array_map( 'intval', $ids ) ) ) );
+		if ( ! $ids ) {
+			$ids = array( 0 );
+		}
+		return array(
+			'placeholders' => implode( ',', array_fill( 0, count( $ids ), '%d' ) ),
+			'ids'          => $ids,
 		);
 	}
 

@@ -64,6 +64,7 @@ final class ClientAnalyticsPage {
 				echo '<div class="notice notice-error"><p>' . esc_html( $list->get_error_message() ) . '</p></div>';
 				$list = array( 'items' => array(), 'total' => 0, 'page' => 1, 'per_page' => 25 );
 			}
+			$standalone_projects = $service->list_standalone_parents( $date_from, $date_to );
 			include ETWA_PLUGIN_DIR . 'templates/admin/client-analytics-list.php';
 		}
 

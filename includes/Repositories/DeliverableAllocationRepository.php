@@ -38,7 +38,7 @@ final class DeliverableAllocationRepository {
 	}
 
 	/**
-	 * @param array{scope_id?:int,patch_id?:int|null,scope_impact?:string,deliverable_type_id?:int,scope_ids?:int[],date_from?:string,date_to?:string,limit?:int} $filters
+	 * @param array{scope_id?:int,scope_impact?:string,deliverable_type_id?:int,scope_ids?:int[],date_from?:string,date_to?:string,limit?:int} $filters
 	 * @return DeliverableAllocation[]
 	 */
 	public function list( array $filters = array() ): array {
@@ -50,14 +50,6 @@ final class DeliverableAllocationRepository {
 		if ( ! empty( $filters['scope_id'] ) ) {
 			$where[]  = "{$alias}.scope_id = %d";
 			$params[] = (int) $filters['scope_id'];
-		}
-		if ( array_key_exists( 'patch_id', $filters ) ) {
-			if ( null === $filters['patch_id'] ) {
-				$where[] = "{$alias}.patch_id IS NULL";
-			} else {
-				$where[]  = "{$alias}.patch_id = %d";
-				$params[] = (int) $filters['patch_id'];
-			}
 		}
 		if ( ! empty( $filters['date_from'] ) ) {
 			$where[]  = "{$alias}.completed_date >= %s";
@@ -129,19 +121,13 @@ final class DeliverableAllocationRepository {
 		global $wpdb;
 		$now = current_time( 'mysql' );
 		$row = array(
-			'scope_id'            => (int) $data['scope_id'],
-			'patch_id'            => ( isset( $data['patch_id'] ) && null !== $data['patch_id'] && '' !== $data['patch_id'] ) ? (int) $data['patch_id'] : null,
-			'task_name'           => (string) ( $data['task_name'] ?? '' ),
-			'deliverable_type_id' => null,
-			'quantity'            => null,
-			'scope_impact'        => null,
-			'replaced_type_id'    => null,
-			'replacement_qty'     => null,
-			'completed_date'      => (string) $data['completed_date'],
-			'notes'               => (string) ( $data['notes'] ?? '' ),
-			'allocated_by'        => (int) $data['allocated_by'],
-			'created_at'          => $now,
-			'updated_at'          => $now,
+			'scope_id'       => (int) $data['scope_id'],
+			'task_name'      => (string) ( $data['task_name'] ?? '' ),
+			'completed_date' => (string) $data['completed_date'],
+			'notes'          => (string) ( $data['notes'] ?? '' ),
+			'allocated_by'   => (int) $data['allocated_by'],
+			'created_at'     => $now,
+			'updated_at'     => $now,
 		);
 		$wpdb->insert( $this->table, $row );
 		$id = (int) $wpdb->insert_id;
@@ -157,7 +143,6 @@ final class DeliverableAllocationRepository {
 	public function update( int $id, array $data ): bool {
 		global $wpdb;
 		$allowed = array(
-			'patch_id',
 			'task_name',
 			'completed_date',
 			'notes',
@@ -169,11 +154,7 @@ final class DeliverableAllocationRepository {
 				continue;
 			}
 			$payload[ $key ] = $data[ $key ];
-			if ( 'patch_id' === $key ) {
-				$formats[] = '%d';
-			} else {
-				$formats[] = '%s';
-			}
+			$formats[]       = '%s';
 		}
 		$updated = false !== $wpdb->update( $this->table, $payload, array( 'id' => $id ), $formats, array( '%d' ) );
 

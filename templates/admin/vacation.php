@@ -16,9 +16,10 @@ use ETWA\Helpers\RoleManager;
 $context   = $context ?? 'frontend';
 $in_portal = 'frontend' === $context;
 $can_delete = current_user_can( RoleManager::CAP_LOCK_PERIODS );
+$can_delete_leave = current_user_can( RoleManager::CAP_MANAGE_VACATION );
 $can_export = current_user_can( RoleManager::CAP_EXPORT );
 ?>
-<div class="etwa-page-shell etwa-app etwa-vacation-app<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>" id="etwa-vacation-app" data-can-delete="<?php echo $can_delete ? '1' : '0'; ?>" data-can-export="<?php echo $can_export ? '1' : '0'; ?>">
+<div class="etwa-page-shell etwa-app etwa-vacation-app<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>" id="etwa-vacation-app" data-can-delete="<?php echo $can_delete ? '1' : '0'; ?>" data-can-delete-leave="<?php echo $can_delete_leave ? '1' : '0'; ?>" data-can-export="<?php echo $can_export ? '1' : '0'; ?>">
 	<?php if ( ! $in_portal ) : ?>
 		<div class="etwa-hero">
 			<div class="etwa-hero-copy">

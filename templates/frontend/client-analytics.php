@@ -54,6 +54,7 @@ if ( $client_id > 0 ) {
 }
 
 $list = $service->list_clients( $date_from, $date_to, $page, 25, $search );
+$standalone_projects = $service->list_standalone_parents( $date_from, $date_to );
 if ( is_wp_error( $list ) ) {
 	echo '<div class="etwa-portal-message"><p>' . esc_html( $list->get_error_message() ) . '</p></div>';
 	$list = array( 'items' => array(), 'total' => 0, 'page' => 1, 'per_page' => 25 );

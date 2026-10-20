@@ -2,7 +2,7 @@
 
 All tables use the WordPress table prefix (e.g. `wp_etwa_*`).
 
-**Current schema version:** `1.24.0` (stored in option `etwa_db_version`)
+**Current schema version:** `1.39.0` (stored in option `etwa_db_version`)
 
 ## etwa_timesheets
 
@@ -45,8 +45,9 @@ Individual time entries (date-based, not fixed weekly rows).
 | entry_date | DATE | Entry date |
 | start_time | TIME | Start (30-min intervals) |
 | end_time | TIME | End |
-| client_id | BIGINT FK | Client reference |
+| client_id | BIGINT FK NULL | Client reference (null for standalone project entries, v1.27+) |
 | project_id | BIGINT FK NULL | Optional project (v1.24+) |
+| prospect_id | BIGINT FK NULL | Prospect reference for pre-client work (v1.30+). Mutually exclusive with client/project. |
 | task | VARCHAR(255) | Task description |
 | notes | TEXT | Optional notes |
 | duration_minutes | INT | Total duration |
@@ -84,14 +85,38 @@ Individual time entries (date-based, not fixed weekly rows).
 
 ---
 
-## etwa_projects (v1.24+)
+## etwa_prospects (v1.30+)
 
-Projects belong to exactly one client.
+Lightweight potential-client records. Employees can log timesheet entries against an **Open** prospect. Historical `etwa_entries.prospect_id` is kept after Won/Lost and after Convert to Client (entries are not rewritten onto the new client).
 
 | Column | Type | Description |
 |--------|------|-------------|
 | id | BIGINT PK | Auto increment |
-| client_id | BIGINT FK | Parent client |
+| name | VARCHAR(191) | Prospect name |
+| status | VARCHAR(20) | `open`, `won`, `lost` |
+| source | VARCHAR(50) NULL | Lead source (v1.31+): `referrals`, `social_media`, `direct_contact`, `campaigns`, `events` |
+| prospect_start_date | DATE NULL | User-managed start date (v1.31+); independent of `created_at` |
+| won_lost_at | DATETIME NULL | Set when status becomes won or lost |
+| lost_reason | TEXT NULL | Required when status is `lost` |
+| converted_client_id | BIGINT FK NULL UNIQUE | Client created from this prospect; null until converted |
+| converted_at | DATETIME NULL | Conversion timestamp |
+| created_at | DATETIME | Record created timestamp (not the prospect start date) |
+
+**Indexes:** UNIQUE(converted_client_id), status, source, prospect_start_date
+
+Conversion is explicit: Open → Won → Convert to Client. Duplicate conversion is blocked by the unique client pointer and a `converted_client_id IS NULL` update.
+
+---
+
+## etwa_projects (v1.24+)
+
+Client Projects belong to exactly one client (`client_id` set). Standalone Workspace Projects (v1.27+) have `client_id` NULL and may optionally nest one level via `parent_project_id`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| client_id | BIGINT FK NULL | Parent client; NULL = standalone/internal project (v1.27+) |
+| parent_project_id | BIGINT FK NULL | Parent standalone project; NULL = top-level (v1.27+) |
 | name | VARCHAR(191) | Project name |
 | description | TEXT NULL | Optional description |
 | status | VARCHAR(20) | `active`, `archived` |
@@ -136,6 +161,51 @@ Employee department assignment is stored in user meta (`etwa_department_id`).
 
 ---
 
+## etwa_super_clients (Product Brands)
+
+Brand profiles belonging to a Product (super client).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| super_client_id | BIGINT | Parent Product (`etwa_clients.id` with `client_type = super`) |
+| name | VARCHAR(191) | Brand name |
+| industry | VARCHAR(191) | Industry key |
+| agency | VARCHAR(20) | `direct` or `agency` |
+| agency_name | VARCHAR(191) | Required when agency = `agency` |
+| is_active | TINYINT(1) | Active flag |
+| created_at / updated_at | DATETIME | Timestamps |
+
+## etwa_super_client_units (v1.39+)
+
+Department Product Tab access. Visibility is configured from the **Department** page; employees inherit access from their department assignment.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| super_client_id | BIGINT PK | Product Tab (super client) enabled for the department |
+| department_id | BIGINT PK | Department (`etwa_departments.id`) that may access the Product Tab |
+
+Owner/HR with `etwa_manage_settings` can view all Product Tabs. Employees see only tabs enabled for their department.
+
+## etwa_super_client_requests
+
+Single combined Product request record (Step 1 + Step 2).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT PK | Auto increment |
+| super_client_id | BIGINT | Parent Product |
+| brand_id | BIGINT | Brand (`etwa_super_clients.id`) |
+| request_type | VARCHAR(30) | `tmm_initiated` or `client_initiated` |
+| service_category | VARCHAR(30) | `storytelling` or `sm_content` |
+| service | VARCHAR(191) | Service description |
+| contact_name / contact_email / contact_phone | VARCHAR | Step 2 submission/receipt contact |
+| invoice_number | VARCHAR(100) | Step 2 invoice number |
+| status | VARCHAR(20) | `pending`, `published`, or `cancelled` (v1.39+). Existing pre-1.39 rows are migrated to `published`. |
+| created_at / updated_at | DATETIME | Timestamps |
+
+---
+
 ## etwa_overtime
 
 Separate overtime approval workflow.
@@ -169,7 +239,7 @@ Key-value configuration store.
 | setting_value | LONGTEXT | Serialized value |
 | autoload | TINYINT(1) | Load on boot |
 
-**Default keys:** work_day_start, work_day_end, time_interval_minutes, min_overtime_minutes, overtime_round_minutes, available_hours_week, hr_email, owner_email, email_cc_owner, autosave_interval
+**Default keys:** work_day_start, work_day_end, time_interval_minutes, available_hours_week, hr_email, owner_email, email_cc_owner, overtime_cost_multiplier, enable_audit_logs, vacation_dual_approval, calendar_weekdays, deliverable_expiration_thresholds
 
 ---
 
@@ -225,14 +295,14 @@ Implemented in `ETWA\Helpers\VacationHelper::annual_pool()`. Only **Annual Leave
 | Column | Type | Description |
 |--------|------|-------------|
 | id | BIGINT PK | Auto increment |
-| slug | VARCHAR(50) UNIQUE | annual, sick, emergency, compensatory, unpaid |
+| slug | VARCHAR(50) UNIQUE | annual, sick, emergency, unpaid |
 | name | VARCHAR(191) | Display name |
 | tracks_allocation | TINYINT(1) | 1 = annual only (v1.4.1+) |
 | sort_order | INT | UI order |
 | is_active | TINYINT(1) | Active flag |
 | created_at | DATETIME | Created |
 
-**Seeded types:** Annual Leave, Sick Leave, Emergency Leave, Compensatory Leave, Unpaid Leave
+**Seeded types:** Annual Leave, Sick Leave, Emergency Leave, Unpaid Leave (Compensatory Leave deactivated in v1.36.0)
 
 ---
 
@@ -381,20 +451,15 @@ etwa_departments
 
 etwa_clients
   └── etwa_client_scopes (1:N)
-        ├── contract_deliverables (Planned total — sole HR/Owner input for expected qty)
+        ├── contract_deliverables (Planned total)
         ├── project_id (optional → etwa_projects)
-        ├── etwa_scope_contract_lines (legacy type distribution from package era; read-only)
-        ├── etwa_scope_addons (legacy add-on snapshots; read-only)
-        ├── etwa_scope_patches (retired — retained for audit; product UI/API no longer writes)
-        │     └── etwa_scope_patch_lines (legacy)
         └── etwa_deliverable_allocations (1:N)
               └── etwa_deliverable_allocation_items (1:N) → etwa_deliverable_types
 
-etwa_packages (deprecated catalog — retained for audit, v1.25.0+)
-etwa_addons (deprecated catalog — retained for audit, v1.25.0+)
+etwa_prospects
+  ├── converted_client_id → etwa_clients (optional, unique)
+  └── etwa_entries.prospect_id (1:N, historical hours stay on the prospect)
 ```
-
-Batches/patches are **soft-retired** as of schema `1.23.0` (planning folded into `contract_deliverables`; tables retained).
 
 ## etwa_deliverable_types
 
@@ -411,82 +476,23 @@ Configurable deliverable catalog (not hardcoded). Used when **allocating** deliv
 | is_active | TINYINT(1) | Active flag |
 | created_at / updated_at | DATETIME | Timestamps |
 
-## etwa_packages *(deprecated — v1.25.0)*
-
-Retained for historical audit only. No REST or UI writes after v1.25.0.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | BIGINT PK | Auto increment |
-| name | VARCHAR(191) | Package name |
-| description | TEXT | Optional |
-| total_deliverables | DECIMAL(10,2) | Base allowance (not a type mix) |
-| duration_days | INT NULL | Optional duration |
-| billing_period | VARCHAR(50) NULL | monthly / quarterly / yearly / custom |
-| status | VARCHAR(20) | active / inactive |
-| created_by | BIGINT | WP user |
-| created_at / updated_at | DATETIME | Timestamps |
-
-## etwa_addons *(deprecated — v1.25.0)*
-
-Retained for historical audit only. No REST or UI writes after v1.25.0.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | BIGINT PK | Auto increment |
-| name | VARCHAR(191) | Add-on name |
-| description | TEXT | Optional |
-| quantity | DECIMAL(10,2) | Allowance added to Scope |
-| deliverable_type_id | BIGINT NULL | Optional restricted type |
-| unit_price | DECIMAL(12,2) NULL | Optional commercial price |
-| status | VARCHAR(20) | active / inactive |
-| created_by | BIGINT | WP user |
-| created_at / updated_at | DATETIME | Timestamps |
-
-## etwa_scope_addons *(deprecated — v1.25.0)*
-
-Legacy snapshot of add-ons applied to scopes during the package era. Retained for audit; no new rows after v1.25.0.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | BIGINT PK | Auto increment |
-| scope_id | BIGINT | Parent scope |
-| addon_id | BIGINT NULL | Soft reference to catalog |
-| addon_snapshot | LONGTEXT JSON | Frozen add-on config |
-| quantity | DECIMAL(10,2) | Applied quantity |
-| deliverable_type_id | BIGINT NULL | Restricted type if specialized |
-| sort_order | INT | UI order |
-| created_at / updated_at | DATETIME | Timestamps |
-
 ## etwa_client_scopes
 
 | Column | Type | Description |
 |--------|------|-------------|
 | id | BIGINT PK | Auto increment |
 | client_id | BIGINT | → etwa_clients |
-| project_id | BIGINT NULL | Optional → etwa_projects (v1.24+) |
+| project_id | BIGINT NULL | Optional → etwa_projects |
 | name | VARCHAR(191) | Scope name |
 | code | VARCHAR(50) | Auto-generated (`SCP-YYYYMMDD-####`); read-only after create |
 | description | TEXT | Notes |
 | status | VARCHAR(20) | active, closed, archived |
 | starts_on / ends_on | DATE NULL | Optional date range |
 | contract_deliverables | DECIMAL(10,2) | Total expected deliverables (Planned total) |
-| patch_count | INT | Retired (kept at 0 after 1.23.0 migration) |
-| expected_per_patch | DECIMAL(10,2) | Retired (kept at 0 after 1.23.0 migration) |
-| package_id | BIGINT NULL | **Deprecated** — legacy soft reference (v1.25.0+) |
-| package_snapshot | LONGTEXT JSON | **Deprecated** — frozen package config from package era |
 | created_by | BIGINT | WP user |
 | created_at / updated_at | DATETIME | Timestamps |
 
-**Planned total** = `contract_deliverables` only. HR/Owner sets this directly on scope create/edit; Business records actual work via allocations.
-
-## Scope distribution / etwa_scope_contract_lines *(legacy)*
-
-`etwa_scope_contract_lines` stored the Scope deliverable mix during the package era. Retained for audit; write API returns 410 after v1.25.0. Metrics Planned uses the scalar `contract_deliverables`, not the line sum.
-
-## Retired batch tables
-
-`etwa_scope_patches` / `etwa_scope_patch_lines` and allocation `patch_id` are retained for audit. Product UI and write APIs no longer create batches (patch routes return 410). Migration 1.23.0 folds `patch_count × expected_per_patch` into `contract_deliverables`.
+**Planned total** = `contract_deliverables`. HR/Owner sets this on scope create/edit; Business records actual work via allocations.
 
 ## etwa_deliverable_allocations
 
@@ -496,12 +502,11 @@ Parent allocation header (shared task metadata). Child quantities live in `etwa_
 |--------|------|-------------|
 | id | BIGINT PK | Auto increment |
 | scope_id | BIGINT | Scope |
-| patch_id | BIGINT NULL | Historical batch attribution only (ignored on new writes) |
 | task_name | VARCHAR(255) | Task / campaign name |
 | completed_date | DATE | Completion date |
 | notes | TEXT | Optional notes |
 | allocated_by | BIGINT | Actor |
-| deliverable_type_id / quantity / scope_impact / replaced_* | legacy NULL | Retained for pre-1.21 rows; new writes leave NULL |
+| created_at / updated_at | DATETIME | Timestamps |
 
 ## etwa_deliverable_allocation_items
 
@@ -522,7 +527,7 @@ Parent allocation header (shared task metadata). Child quantities live in `etwa_
 - Remaining = max(0, planned − completed excluding Extra)
 - Completion % may exceed 100%
 - Effort = Σ (item.quantity × type.effort_score)
-- Type breakdown is from allocation items; legacy contractual mix may exist in `etwa_scope_contract_lines` for old scopes
+- Type breakdown is from allocation items
 - Extra Deliverables = overflow beyond Planned
 
 ## User meta (profiles & preferences)
@@ -548,6 +553,8 @@ erDiagram
     USERS ||--o{ ETWA_TIMESHEETS : owns
     ETWA_TIMESHEETS ||--o{ ETWA_ENTRIES : contains
     ETWA_CLIENTS ||--o{ ETWA_ENTRIES : billed_to
+    ETWA_PROSPECTS ||--o{ ETWA_ENTRIES : pre_client_work
+    ETWA_PROSPECTS ||--o| ETWA_CLIENTS : converts_to
     ETWA_ENTRIES ||--o| ETWA_OVERTIME : generates
     ETWA_TIMESHEETS ||--o{ ETWA_OVERTIME : includes
 
@@ -566,7 +573,15 @@ erDiagram
 
 | Version | Notable change |
 |---------|----------------|
-| 1.25.0 | Package/Add-on catalog removed from active scope logic; backfill `contract_deliverables` from `package_snapshot` where zero; deprecated tables/columns retained |
+| 1.39.0 | Product Tab allowed units (`etwa_super_client_units`); request `status` (`pending` / `published` / `cancelled`); existing requests marked `published` |
+| 1.36.0 | Soft-deactivate Compensatory Leave (`is_active = 0`); removed from default seed |
+| 1.31.0 | Prospect `source` and `prospect_start_date` (nullable; existing rows unchanged) |
+| 1.30.0 | Prospects (`etwa_prospects`); nullable `etwa_entries.prospect_id` for pre-client work |
+| 1.29.0 | Removed `etwa_clients.parent_project_id` (nested-client feature); existing nested clients detached before column drop |
+| 1.28.0 | Optional `etwa_clients.parent_project_id` so an existing Client can sit under a standalone Parent Project (removed in 1.29.0) |
+| 1.27.0 | Standalone (clientless) projects; optional `parent_project_id`; `etwa_entries.client_id` nullable for internal project entries |
+| 1.26.0 | Permanent removal of packages, patches/batches, contract lines, content-calendar orphan tables; legacy scope/allocation columns dropped |
+| 1.25.0 | Package logic retired from active scope flow; backfill `contract_deliverables` from snapshots |
 | 1.24.0 | Projects on scopes; deliverable notification log |
 | 1.23.0 | Packages & Add-ons (superseded by 1.25.0 rollback); batch planning soft-retired |
 | 1.22.0 | Version marker (content calendar tables may exist on upgraded sites but are unused) |

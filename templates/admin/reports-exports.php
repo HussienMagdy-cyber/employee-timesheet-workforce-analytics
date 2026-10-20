@@ -46,9 +46,19 @@ $can_view_analytics  = $can_view_analytics ?? false;
 			<section class="etwa-panel etwa-report-card" data-report="client">
 				<header class="etwa-report-card-head">
 					<h2><?php esc_html_e( 'Client Report', 'etwa' ); ?></h2>
-					<p><?php esc_html_e( 'Detailed activity and hours for a selected client, with period totals.', 'etwa' ); ?></p>
+					<p><?php esc_html_e( 'Detailed activity and hours for one client or all clients, with period totals.', 'etwa' ); ?></p>
 				</header>
 				<button type="button" class="etwa-btn etwa-btn-primary etwa-report-export-btn" data-report="client">
+					<?php esc_html_e( 'Export to Excel', 'etwa' ); ?>
+				</button>
+			</section>
+
+			<section class="etwa-panel etwa-report-card" data-report="prospect">
+				<header class="etwa-report-card-head">
+					<h2><?php esc_html_e( 'Prospect Report', 'etwa' ); ?></h2>
+					<p><?php esc_html_e( 'Hours and activity for one prospect.', 'etwa' ); ?></p>
+				</header>
+				<button type="button" class="etwa-btn etwa-btn-primary etwa-report-export-btn" data-report="prospect">
 					<?php esc_html_e( 'Export to Excel', 'etwa' ); ?>
 				</button>
 			</section>
@@ -61,6 +71,28 @@ $can_view_analytics  = $can_view_analytics ?? false;
 					<p><?php esc_html_e( 'Employee hours, hourly costs, and labor costs for a selected client.', 'etwa' ); ?></p>
 				</header>
 				<button type="button" class="etwa-btn etwa-btn-primary etwa-report-export-btn" data-report="client_labor_cost">
+					<?php esc_html_e( 'Export to Excel', 'etwa' ); ?>
+				</button>
+			</section>
+		<?php endif; ?>
+
+		<?php if ( $can_view_analytics ) : ?>
+			<section class="etwa-panel etwa-report-card" data-report="parent_project">
+				<header class="etwa-report-card-head">
+					<h2><?php esc_html_e( 'Parent Project Report', 'etwa' ); ?></h2>
+					<p><?php esc_html_e( 'Detailed hours, employees, sub-projects, and entries for a selected standalone parent project.', 'etwa' ); ?></p>
+				</header>
+				<button type="button" class="etwa-btn etwa-btn-primary etwa-report-export-btn" data-report="parent_project">
+					<?php esc_html_e( 'Export to Excel', 'etwa' ); ?>
+				</button>
+			</section>
+
+			<section class="etwa-panel etwa-report-card" data-report="all_parent_projects_comparison">
+				<header class="etwa-report-card-head">
+					<h2><?php esc_html_e( 'All Parent Projects Comparison', 'etwa' ); ?></h2>
+					<p><?php esc_html_e( 'Compare rolled-up hours and employee activity across all standalone parent projects.', 'etwa' ); ?></p>
+				</header>
+				<button type="button" class="etwa-btn etwa-btn-primary etwa-report-export-btn" data-report="all_parent_projects_comparison">
 					<?php esc_html_e( 'Export to Excel', 'etwa' ); ?>
 				</button>
 			</section>
@@ -117,25 +149,25 @@ $can_view_analytics  = $can_view_analytics ?? false;
 				</div>
 
 				<div id="etwa-comparison-results" class="etwa-comparison-results" hidden>
-					<div class="etwa-comparison-charts etwa-analytics-grid zwei-col" id="etwa-comparison-charts">
+					<div class="etwa-comparison-charts" id="etwa-comparison-charts">
 						<article class="etwa-panel etwa-analytics-chart-panel">
 							<h3><?php esc_html_e( 'Total Hours by Client', 'etwa' ); ?></h3>
 							<div class="etwa-chart-wrap" data-chart="comparison-hours">
-								<canvas id="etwa-comparison-chart-hours" height="220"></canvas>
+								<canvas id="etwa-comparison-chart-hours" height="280"></canvas>
 							</div>
 						</article>
 						<?php if ( $can_view_labor_cost ) : ?>
 							<article class="etwa-panel etwa-analytics-chart-panel">
 								<h3><?php esc_html_e( 'Labor Cost by Client', 'etwa' ); ?></h3>
 								<div class="etwa-chart-wrap" data-chart="comparison-cost">
-									<canvas id="etwa-comparison-chart-cost" height="220"></canvas>
+									<canvas id="etwa-comparison-chart-cost" height="280"></canvas>
 								</div>
 							</article>
 						<?php endif; ?>
-						<article class="etwa-panel etwa-analytics-chart-panel<?php echo $can_view_labor_cost ? '' : ' etwa-span-2'; ?>">
+						<article class="etwa-panel etwa-analytics-chart-panel">
 							<h3><?php esc_html_e( 'Employee Allocation by Client', 'etwa' ); ?></h3>
 							<div class="etwa-chart-wrap" data-chart="comparison-employees">
-								<canvas id="etwa-comparison-chart-employees" height="220"></canvas>
+								<canvas id="etwa-comparison-chart-employees" height="280"></canvas>
 							</div>
 						</article>
 					</div>

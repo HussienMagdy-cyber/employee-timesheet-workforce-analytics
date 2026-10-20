@@ -188,6 +188,10 @@ Navigation URLs are built by `PortalNav::view_url()`.
 
 ### Portal tabs by role
 
+Employee / Dept Head groups: **My work**, **Requests**, **Team**, **Deliverables**, **Account**.
+
+HR / Owner groups: **HR**, **Time & Leave**, **Work Management**, **Analytics**, **Administration**, **Account**, **Logs**.
+
 | Tab ID | Label | Roles |
 |--------|-------|-------|
 | `timesheet` | My Timesheet | Employee, Dept Head |
@@ -195,19 +199,21 @@ Navigation URLs are built by `PortalNav::view_url()`.
 | `requests` | Requests | Employee, Dept Head |
 | `dept-dashboard` | Department Dashboard | Dept Head (assigned) |
 | `requests-hr` | Team Requests / Requests | Dept Head, HR, Owner |
-| `hr` | HR Dashboard | HR, Owner |
-| `reports` | Reports & Exports | HR, Owner |
+| `hr` | HR Dashboard | HR, Owner (group: HR) |
+| `holidays` | Holidays | HR, Owner (group: Time & Leave) |
+| `vacations` | Vacations | HR, Owner (group: Time & Leave) |
+| `clients` | Clients & Workspace | HR, Owner (group: Work Management) |
+| `prospects` | Prospects | HR, Owner (group: Work Management) |
 | `files` | Files | View deliverables (HR/Owner/Dept Head; dept-flagged employees) |
 | `deliverables` | Deliverables | Analytics dashboard home; scope detail / allocate via `?scope_id=` |
-| `client-analytics` | Client Analytics | HR, Owner |
-| `employees` | Employees | HR, Owner |
-| `departments` | Departments | HR, Owner |
-| `holidays` | Holidays | HR, Owner |
-| `vacations` | Vacations | HR, Owner |
-| `logs` | Logs | HR, Owner |
-| `analytics` | Analytics | Owner |
-| `clients` | Clients | Owner |
-| `my-profile` | My Profile | All logged-in portal users |
+| `analytics` | Overview | HR, Owner (group: Analytics) |
+| `client-analytics` | Client Analytics | HR, Owner (group: Analytics) |
+| `prospect-analytics` | Prospect Analytics | HR, Owner (group: Analytics) |
+| `reports` | Reports & Exports | HR, Owner (group: Analytics) |
+| `employees` | Employees | HR, Owner (group: Administration) |
+| `departments` | Departments | HR, Owner (group: Administration) |
+| `logs` | Logs | HR, Owner (top-level) |
+| `my-profile` | My Profile | All logged-in portal users (group: Account) |
 
 ### UI theming
 
@@ -276,7 +282,7 @@ Unified leave and permission requests (replaces standalone “My Vacation” tab
 
 ### Vacations & leave
 
-- **Single annual pool** per employee; sick/emergency/compensatory deduct from it; unpaid does not
+- **Single annual pool** per employee; sick/emergency deduct from it; unpaid does not
 - HR sets allocation, reviews requests, manual records, calendar, analytics
 - See README vacation section for workflow details
 
@@ -286,7 +292,7 @@ Unified leave and permission requests (replaces standalone “My Vacation” tab
 
 | Module | Audience | Description |
 |--------|----------|-------------|
-| Client Analytics | HR, Owner | Per-client Regular / OT / Combined / Compensation KPIs and employee breakdown |
+| Client Analytics | HR, Owner | Per-client hours plus **Workspace Projects** (standalone parent analytics, including sub-project hour rollup) |
 | Owner Analytics | Owner | Workforce KPIs, departments, insights |
 | Reports & Exports | HR, Owner | Centralized Excel reports and live All Clients Comparison dashboard |
 
@@ -320,6 +326,7 @@ Entry-level exports and aggregated report workbooks include a **Project** column
 ### Clients & holidays
 
 - **Clients:** billable entities for timesheet entries (+ system **Break** and **Moderation** clients)
+- **Workspace Projects:** standalone Parent Projects may nest Sub-projects (`etwa_projects.parent_project_id`). Client Projects stay on `etwa_projects.client_id`.
 - **Holidays:** company calendar affecting leave calculations
 
 ### Audit & debug logs
@@ -393,7 +400,7 @@ Standard response envelope:
 
 ## Database
 
-Schema version tracked in option `etwa_db_version` (current: **1.25.0**). Migrations in `Schema::maybe_upgrade()`.
+Schema version tracked in option `etwa_db_version` (current: **1.28.0**). Migrations in `Schema::maybe_upgrade()`.
 
 **Reference:** [docs/DATABASE-SCHEMA.md](DATABASE-SCHEMA.md)
 
@@ -419,11 +426,8 @@ Stored in `etwa_settings` table (`SettingsRepository`).
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `work_week_start` / `work_week_end` | sunday / thursday | Work week boundaries |
 | `work_day_start` / `work_day_end` | 10:00 / 18:00 | Standard hours |
 | `time_interval_minutes` | 30 | Entry slot size |
-| `min_overtime_minutes` | 30 | OT threshold |
-| `overtime_round_minutes` | 30 | OT rounding |
 | `available_hours_week` | 40 | Expected weekly hours |
 | `overtime_cost_multiplier` | 1.0 | Cost calculation (1× = same rate as regular) |
 | `hr_email` / `owner_email` | admin_email | Report recipients |
@@ -535,8 +539,7 @@ Hook-driven emails for workflow events. Subjects and message text are defined in
 
 | Source | Recipient | Content |
 |--------|-----------|---------|
-| `EmailService::send_report()` | HR (+ CC Owner if enabled) | Plain message + Excel attachment |
-| Cron `etwa_weekly_report_email` | Same as above | Previous work week export |
+| `EmailService::send_report()` | HR (+ CC Owner if enabled) | Plain message + Excel attachment (manual from HR dashboard) |
 | Cron `etwa_daily_reminder` | Employees missing submit/approve | Timesheet reminder for current week |
 | Cron `etwa_deliverable_expiration_check` | Daily (08:30) | Scope expiration alerts to HR/Owner (7/3/1 day thresholds) |
 
@@ -626,7 +629,6 @@ employee-timesheet-workforce-analytics/
 
 | Cron hook | Schedule | Purpose |
 |-----------|----------|---------|
-| `etwa_weekly_report_email` | Weekly (Friday 08:00) | Email workforce export to HR |
 | `etwa_daily_reminder` | Daily (09:00) | Timesheet reminders to employees who have not submitted |
 | `etwa_deliverable_expiration_check` | Daily (08:30) | Scope expiration alerts (HR/Owner) |
 

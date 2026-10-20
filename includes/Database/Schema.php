@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Schema {
 
-	public const VERSION = '1.25.0';
+	public const VERSION = '1.39.0';
 
 	public static function create_tables(): void {
 		global $wpdb;
@@ -54,7 +54,7 @@ final class Schema {
 			entry_date date NOT NULL,
 			start_time time NOT NULL,
 			end_time time NOT NULL,
-			client_id bigint(20) unsigned NOT NULL,
+			client_id bigint(20) unsigned DEFAULT NULL,
 			task varchar(255) NOT NULL DEFAULT '',
 			notes text DEFAULT NULL,
 			duration_minutes int(11) NOT NULL DEFAULT 0,
@@ -140,6 +140,7 @@ final class Schema {
 		dbDelta( $sql_overtime );
 		dbDelta( $sql_settings );
 		dbDelta( $sql_audit );
+		dbDelta( self::prospects_sql( $p, $charset ) );
 		dbDelta( self::holidays_sql( $p, $charset ) );
 		dbDelta( self::leave_types_sql( $p, $charset ) );
 		dbDelta( self::vacation_transactions_sql( $p, $charset ) );
@@ -150,9 +151,9 @@ final class Schema {
 		foreach ( self::deliverables_sql_statements( $p, $charset ) as $sql ) {
 			dbDelta( $sql );
 		}
-		foreach ( self::packages_sql_statements( $p, $charset ) as $sql ) {
-			dbDelta( $sql );
-		}
+		dbDelta( self::super_client_accounts_sql( $p, $charset ) );
+		dbDelta( self::super_client_requests_sql( $p, $charset ) );
+		dbDelta( self::super_client_units_sql( $p, $charset ) );
 	}
 
 	private static function leave_types_sql( string $p, string $charset ): string {
@@ -204,6 +205,9 @@ final class Schema {
 			reason text DEFAULT NULL,
 			status varchar(20) NOT NULL DEFAULT 'pending',
 			notes text DEFAULT NULL,
+			source varchar(30) DEFAULT NULL,
+			source_request_id bigint(20) unsigned DEFAULT NULL,
+			balance_deducted decimal(8,2) NOT NULL DEFAULT 0.00,
 			created_by bigint(20) unsigned NOT NULL DEFAULT 0,
 			updated_by bigint(20) unsigned DEFAULT NULL,
 			created_at datetime NOT NULL,
@@ -214,7 +218,9 @@ final class Schema {
 			KEY status (status),
 			KEY start_date (start_date),
 			KEY end_date (end_date),
-			KEY user_status (user_id, status)
+			KEY user_status (user_id, status),
+			KEY source_request (source_request_id),
+			KEY source (source)
 		) {$charset};";
 	}
 
@@ -294,8 +300,7 @@ final class Schema {
 			array( 'slug' => 'annual', 'name' => __( 'Annual Leave', 'etwa' ), 'tracks_allocation' => 1, 'sort_order' => 1 ),
 			array( 'slug' => 'sick', 'name' => __( 'Sick Leave', 'etwa' ), 'tracks_allocation' => 1, 'sort_order' => 2 ),
 			array( 'slug' => 'emergency', 'name' => __( 'Emergency Leave', 'etwa' ), 'tracks_allocation' => 1, 'sort_order' => 3 ),
-			array( 'slug' => 'compensatory', 'name' => __( 'Compensatory Leave', 'etwa' ), 'tracks_allocation' => 1, 'sort_order' => 4 ),
-			array( 'slug' => 'unpaid', 'name' => __( 'Unpaid Leave', 'etwa' ), 'tracks_allocation' => 0, 'sort_order' => 5 ),
+			array( 'slug' => 'unpaid', 'name' => __( 'Unpaid Leave', 'etwa' ), 'tracks_allocation' => 0, 'sort_order' => 4 ),
 		);
 
 		foreach ( $defaults as $type ) {
@@ -306,7 +311,7 @@ final class Schema {
 	public static function migrate_annual_pool_leave_types(): void {
 		global $wpdb;
 		$table = $wpdb->prefix . 'etwa_leave_types';
-		$pool_only = array( 'sick', 'emergency', 'compensatory' );
+		$pool_only = array( 'sick', 'emergency' );
 
 		foreach ( $pool_only as $slug ) {
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -484,7 +489,546 @@ final class Schema {
 			self::upgrade_retire_packages_from_scope_logic_v1250();
 		}
 
+		if ( version_compare( (string) $installed, '1.26.0', '<' ) ) {
+			self::upgrade_legacy_feature_cleanup_v1260();
+		}
+
+		if ( version_compare( (string) $installed, '1.27.0', '<' ) ) {
+			self::upgrade_standalone_projects_v1270();
+		}
+
+		if ( version_compare( (string) $installed, '1.28.0', '<' ) ) {
+			self::upgrade_client_parent_project_v1280();
+		}
+
+		if ( version_compare( (string) $installed, '1.29.0', '<' ) ) {
+			self::upgrade_remove_client_nested_projects_v1290();
+		}
+
+		if ( version_compare( (string) $installed, '1.30.0', '<' ) ) {
+			self::upgrade_prospects_v1300();
+		}
+
+		if ( version_compare( (string) $installed, '1.31.0', '<' ) ) {
+			self::upgrade_prospects_v1310();
+		}
+
+		if ( version_compare( (string) $installed, '1.32.0', '<' ) ) {
+			self::upgrade_super_clients_v1320();
+		}
+
+		if ( version_compare( (string) $installed, '1.33.0', '<' ) ) {
+			self::upgrade_super_client_brands_v1330();
+		}
+
+		if ( version_compare( (string) $installed, '1.34.0', '<' ) ) {
+			self::upgrade_super_client_brand_agency_name_v1340();
+		}
+
+		if ( version_compare( (string) $installed, '1.35.0', '<' ) ) {
+			self::upgrade_super_client_request_date_index_v1350();
+		}
+
+		if ( version_compare( (string) $installed, '1.36.0', '<' ) ) {
+			self::deactivate_compensatory_leave_v1360();
+		}
+
+		if ( version_compare( (string) $installed, '1.37.0', '<' ) ) {
+			self::upgrade_permission_leave_v1370();
+		}
+
+		if ( version_compare( (string) $installed, '1.38.0', '<' ) ) {
+			self::upgrade_permission_balance_only_v1380();
+		}
+
+		if ( version_compare( (string) $installed, '1.39.0', '<' ) ) {
+			self::upgrade_product_tab_units_and_request_status_v1390();
+		}
+
 		update_option( 'etwa_db_version', self::VERSION );
+	}
+
+	private static function prospects_sql( string $p, string $charset ): string {
+		return "CREATE TABLE {$p}etwa_prospects (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			name varchar(191) NOT NULL,
+			status varchar(20) NOT NULL DEFAULT 'open',
+			source varchar(50) DEFAULT NULL,
+			prospect_start_date date DEFAULT NULL,
+			won_lost_at datetime DEFAULT NULL,
+			lost_reason text DEFAULT NULL,
+			converted_client_id bigint(20) unsigned DEFAULT NULL,
+			converted_at datetime DEFAULT NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY converted_client_id (converted_client_id),
+			KEY status (status),
+			KEY source (source),
+			KEY prospect_start_date (prospect_start_date)
+		) {$charset};";
+	}
+
+	/**
+	 * Prospects table plus nullable prospect_id on entries.
+	 * Additive only: existing entry rows are left unchanged.
+	 */
+	private static function upgrade_prospects_v1300(): void {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( self::prospects_sql( $wpdb->prefix, $wpdb->get_charset_collate() ) );
+
+		$entries = $wpdb->prefix . 'etwa_entries';
+		self::add_column_if_missing( $entries, 'prospect_id', 'bigint(20) unsigned DEFAULT NULL' );
+		self::add_index_if_missing( $entries, 'prospect_id', 'prospect_id' );
+	}
+
+	/**
+	 * Prospect source and user-managed start date.
+	 * Additive only: existing prospect rows keep NULL values; created_at is unchanged.
+	 */
+	private static function upgrade_prospects_v1310(): void {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'etwa_prospects';
+		self::add_column_if_missing( $table, 'source', 'varchar(50) DEFAULT NULL' );
+		self::add_column_if_missing( $table, 'prospect_start_date', 'date DEFAULT NULL' );
+		self::add_index_if_missing( $table, 'source', 'source' );
+		self::add_index_if_missing( $table, 'prospect_start_date', 'prospect_start_date' );
+	}
+
+	/**
+	 * Super Client promotion flag on clients plus child-account and request tables.
+	 * Additive only: existing clients remain standard type.
+	 */
+	private static function upgrade_super_clients_v1320(): void {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$clients = $wpdb->prefix . 'etwa_clients';
+		self::add_column_if_missing( $clients, 'client_type', "varchar(20) NOT NULL DEFAULT 'standard'" );
+		self::add_index_if_missing( $clients, 'client_type', 'client_type' );
+
+		$charset = $wpdb->get_charset_collate();
+		dbDelta( self::super_client_accounts_sql( $wpdb->prefix, $charset ) );
+		dbDelta( self::super_client_requests_sql( $wpdb->prefix, $charset ) );
+	}
+
+	private static function super_client_accounts_sql( string $p, string $charset ): string {
+		return "CREATE TABLE {$p}etwa_super_clients (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			super_client_id bigint(20) unsigned NOT NULL,
+			name varchar(191) NOT NULL,
+			industry varchar(191) NOT NULL DEFAULT '',
+			agency varchar(20) NOT NULL DEFAULT 'direct',
+			agency_name varchar(191) NOT NULL DEFAULT '',
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY super_client_id (super_client_id),
+			KEY is_active (is_active)
+		) {$charset};";
+	}
+
+	private static function super_client_requests_sql( string $p, string $charset ): string {
+		return "CREATE TABLE {$p}etwa_super_client_requests (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			super_client_id bigint(20) unsigned NOT NULL,
+			brand_id bigint(20) unsigned NOT NULL,
+			request_type varchar(30) NOT NULL,
+			service_category varchar(30) NOT NULL,
+			service varchar(191) NOT NULL,
+			contact_name varchar(191) NOT NULL DEFAULT '',
+			contact_email varchar(191) NOT NULL DEFAULT '',
+			contact_phone varchar(50) NOT NULL DEFAULT '',
+			invoice_number varchar(100) NOT NULL DEFAULT '',
+			status varchar(20) NOT NULL DEFAULT 'pending',
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY super_client_id (super_client_id),
+			KEY brand_id (brand_id),
+			KEY super_request_created (super_client_id, created_at),
+			KEY super_request_type (super_client_id, request_type),
+			KEY super_service_category (super_client_id, service_category),
+			KEY super_request_status (super_client_id, status)
+		) {$charset};";
+	}
+
+	private static function super_client_units_sql( string $p, string $charset ): string {
+		return "CREATE TABLE {$p}etwa_super_client_units (
+			super_client_id bigint(20) unsigned NOT NULL,
+			department_id bigint(20) unsigned NOT NULL,
+			PRIMARY KEY  (super_client_id, department_id),
+			KEY department_id (department_id)
+		) {$charset};";
+	}
+
+	/**
+	 * Department Product Tab access plus request status workflow.
+	 * Additive: existing request rows are marked published (they were complete one-step records).
+	 */
+	private static function upgrade_product_tab_units_and_request_status_v1390(): void {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset  = $wpdb->get_charset_collate();
+		$requests = $wpdb->prefix . 'etwa_super_client_requests';
+
+		dbDelta( self::super_client_units_sql( $wpdb->prefix, $charset ) );
+
+		$status_was_missing = self::table_exists( $requests ) && ! self::column_exists( $requests, 'status' );
+		if ( self::table_exists( $requests ) ) {
+			self::add_column_if_missing( $requests, 'status', "varchar(20) NOT NULL DEFAULT 'pending'" );
+			self::add_index_if_missing( $requests, 'super_request_status', 'super_client_id, status' );
+			dbDelta( self::super_client_requests_sql( $wpdb->prefix, $charset ) );
+		}
+
+		if ( $status_was_missing ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->query( "UPDATE {$requests} SET status = 'published' WHERE status = 'pending' OR status = ''" );
+		}
+	}
+
+	/**
+	 * Restructure Super Client child rows as Brands and simplify requests.
+	 * Additive migration: preserves existing brand/request rows where possible.
+	 */
+	private static function upgrade_super_client_brand_agency_name_v1340(): void {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$brands = $wpdb->prefix . 'etwa_super_clients';
+		if ( self::table_exists( $brands ) ) {
+			self::add_column_if_missing( $brands, 'agency_name', "varchar(191) NOT NULL DEFAULT ''" );
+			dbDelta( self::super_client_accounts_sql( $wpdb->prefix, $wpdb->get_charset_collate() ) );
+		}
+	}
+
+	private static function upgrade_super_client_request_date_index_v1350(): void {
+		global $wpdb;
+
+		$requests = $wpdb->prefix . 'etwa_super_client_requests';
+		if ( self::table_exists( $requests ) ) {
+			self::add_index_if_missing( $requests, 'super_request_created', 'super_client_id, created_at' );
+		}
+	}
+
+	/**
+	 * Soft-remove Compensatory Leave from leave-type pickers.
+	 * Keeps the row so historical vacation requests remain valid.
+	 */
+	private static function deactivate_compensatory_leave_v1360(): void {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'etwa_leave_types';
+		if ( ! self::table_exists( $table ) ) {
+			return;
+		}
+
+		$wpdb->update(
+			$table,
+			array( 'is_active' => 0 ),
+			array( 'slug' => 'compensatory' ),
+			array( '%d' ),
+			array( '%s' )
+		);
+	}
+
+	private static function upgrade_super_client_brands_v1330(): void {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$brands   = $wpdb->prefix . 'etwa_super_clients';
+		$requests = $wpdb->prefix . 'etwa_super_client_requests';
+
+		if ( self::table_exists( $brands ) ) {
+			self::add_column_if_missing( $brands, 'industry', "varchar(191) NOT NULL DEFAULT ''" );
+			self::add_column_if_missing( $brands, 'agency', "varchar(20) NOT NULL DEFAULT 'direct'" );
+
+			// Prefer legacy brand column as the display name when present.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			if ( self::column_exists( $brands, 'brand' ) ) {
+				$wpdb->query(
+					"UPDATE {$brands} SET name = brand WHERE brand IS NOT NULL AND brand != ''"
+				);
+			}
+
+			self::drop_index_if_exists( $brands, 'super_client_code' );
+			foreach ( array( 'code', 'brand', 'contact_name', 'contact_email', 'contact_phone' ) as $column ) {
+				self::drop_column_if_exists( $brands, $column );
+			}
+
+			dbDelta( self::super_client_accounts_sql( $wpdb->prefix, $wpdb->get_charset_collate() ) );
+		}
+
+		if ( self::table_exists( $requests ) ) {
+			if ( self::column_exists( $requests, 'child_client_id' ) && ! self::column_exists( $requests, 'brand_id' ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$wpdb->query(
+					"ALTER TABLE {$requests} CHANGE child_client_id brand_id bigint(20) unsigned NOT NULL"
+				);
+				self::drop_index_if_exists( $requests, 'child_client_id' );
+				self::add_index_if_missing( $requests, 'brand_id', 'brand_id' );
+			}
+
+			self::add_column_if_missing( $requests, 'service', "varchar(191) NOT NULL DEFAULT ''" );
+
+			if ( self::column_exists( $requests, 'service_type' ) ) {
+				$labels = \ETWA\Helpers\SuperClientRequestHelper::legacy_service_type_labels();
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$rows = $wpdb->get_results( "SELECT id, service_type FROM {$requests} WHERE service_type != ''" );
+				foreach ( $rows ?: array() as $row ) {
+					$key = (string) $row->service_type;
+					$service = $labels[ $key ] ?? $key;
+					$wpdb->update(
+						$requests,
+						array( 'service' => $service ),
+						array( 'id' => (int) $row->id )
+					);
+				}
+				self::drop_column_if_exists( $requests, 'service_type' );
+			}
+
+			foreach ( array( 'brand', 'agency' ) as $column ) {
+				self::drop_column_if_exists( $requests, $column );
+			}
+
+			dbDelta( self::super_client_requests_sql( $wpdb->prefix, $wpdb->get_charset_collate() ) );
+		}
+	}
+
+	private static function column_exists( string $table, string $column ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration metadata.
+		$exists = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(1) FROM INFORMATION_SCHEMA.COLUMNS
+				WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+				DB_NAME,
+				$table,
+				$column
+			)
+		);
+
+		return (int) $exists > 0;
+	}
+
+	/**
+	 * Standalone (clientless) projects and optional parent/child project hierarchy.
+	 * Additive only: no existing row values are rewritten.
+	 */
+	private static function upgrade_standalone_projects_v1270(): void {
+		global $wpdb;
+
+		$entries  = $wpdb->prefix . 'etwa_entries';
+		$projects = $wpdb->prefix . 'etwa_projects';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+		$wpdb->query( "ALTER TABLE {$entries} MODIFY client_id bigint(20) unsigned DEFAULT NULL" );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+		$wpdb->query( "ALTER TABLE {$projects} MODIFY client_id bigint(20) unsigned DEFAULT NULL" );
+
+		self::add_column_if_missing( $projects, 'parent_project_id', 'bigint(20) unsigned DEFAULT NULL' );
+		self::add_index_if_missing( $projects, 'parent_project_id', 'parent_project_id' );
+	}
+
+	/**
+	 * Optional Parent Project pointer on an existing Client row.
+	 * Additive only: no existing row values are rewritten.
+	 */
+	private static function upgrade_client_parent_project_v1280(): void {
+		global $wpdb;
+
+		$clients = $wpdb->prefix . 'etwa_clients';
+		self::add_column_if_missing( $clients, 'parent_project_id', 'bigint(20) unsigned DEFAULT NULL' );
+		self::add_index_if_missing( $clients, 'parent_project_id', 'parent_project_id' );
+	}
+
+	/**
+	 * Remove nested-client pointer from clients; detach existing rows first.
+	 */
+	private static function upgrade_remove_client_nested_projects_v1290(): void {
+		global $wpdb;
+
+		$clients = $wpdb->prefix . 'etwa_clients';
+		if ( ! self::table_exists( $clients ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+		$wpdb->query( "UPDATE {$clients} SET parent_project_id = NULL WHERE parent_project_id IS NOT NULL" );
+
+		self::drop_index_if_exists( $clients, 'parent_project_id' );
+		self::drop_column_if_exists( $clients, 'parent_project_id' );
+	}
+
+	/**
+	 * Permanently remove packages, patches/batches, contract lines, content-calendar tables,
+	 * and related scope/allocation columns. Runs after historical upgrade chain completes.
+	 */
+	private static function upgrade_legacy_feature_cleanup_v1260(): void {
+		global $wpdb;
+
+		$p = $wpdb->prefix;
+
+		foreach (
+			array(
+				$p . 'etwa_scope_addons',
+				$p . 'etwa_addons',
+				$p . 'etwa_packages',
+				$p . 'etwa_scope_patch_lines',
+				$p . 'etwa_scope_patches',
+				$p . 'etwa_scope_contract_lines',
+			) as $table
+		) {
+			self::drop_table_if_exists( $table );
+		}
+
+		self::drop_orphan_etwa_tables();
+
+		$scopes  = $p . 'etwa_client_scopes';
+		$allocs  = $p . 'etwa_deliverable_allocations';
+		$scope_columns = array( 'patch_count', 'expected_per_patch', 'package_id', 'package_snapshot' );
+		foreach ( $scope_columns as $column ) {
+			self::drop_column_if_exists( $scopes, $column );
+		}
+
+		$alloc_columns = array(
+			'patch_id',
+			'deliverable_type_id',
+			'quantity',
+			'scope_impact',
+			'replaced_type_id',
+			'replacement_qty',
+		);
+		foreach ( $alloc_columns as $column ) {
+			self::drop_column_if_exists( $allocs, $column );
+		}
+
+		$settings = $p . 'etwa_settings';
+		foreach (
+			array(
+				'autosave_interval',
+				'min_overtime_minutes',
+				'overtime_round_minutes',
+				'dark_mode_default',
+				'work_week_start',
+				'work_week_end',
+			) as $key
+		) {
+			$wpdb->delete( $settings, array( 'setting_key' => $key ), array( '%s' ) );
+		}
+	}
+
+	/** Drop etwa_* tables not part of the current schema (e.g. removed content-calendar). */
+	private static function drop_orphan_etwa_tables(): void {
+		global $wpdb;
+
+		$allowed = array(
+			$wpdb->prefix . 'etwa_timesheets',
+			$wpdb->prefix . 'etwa_entries',
+			$wpdb->prefix . 'etwa_clients',
+			$wpdb->prefix . 'etwa_projects',
+			$wpdb->prefix . 'etwa_overtime',
+			$wpdb->prefix . 'etwa_settings',
+			$wpdb->prefix . 'etwa_audit_logs',
+			$wpdb->prefix . 'etwa_holidays',
+			$wpdb->prefix . 'etwa_leave_types',
+			$wpdb->prefix . 'etwa_vacation_transactions',
+			$wpdb->prefix . 'etwa_vacation_records',
+			$wpdb->prefix . 'etwa_vacation_requests',
+			$wpdb->prefix . 'etwa_requests',
+			$wpdb->prefix . 'etwa_departments',
+			$wpdb->prefix . 'etwa_deliverable_types',
+			$wpdb->prefix . 'etwa_client_scopes',
+			$wpdb->prefix . 'etwa_deliverable_allocations',
+			$wpdb->prefix . 'etwa_deliverable_allocation_items',
+			$wpdb->prefix . 'etwa_notification_log',
+		);
+		$allowed_map = array_fill_keys( $allowed, true );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- SHOW TABLES pattern.
+		$tables = $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $wpdb->prefix . 'etwa_' ) . '%' ) );
+		foreach ( $tables ?: array() as $table ) {
+			if ( ! isset( $allowed_map[ $table ] ) ) {
+				self::drop_table_if_exists( $table );
+			}
+		}
+	}
+
+	private static function drop_table_if_exists( string $table ): void {
+		global $wpdb;
+		if ( ! self::table_exists( $table ) ) {
+			return;
+		}
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- DDL migration.
+		$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+	}
+
+	private static function table_exists( string $table ): bool {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- SHOW TABLES.
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		return $found === $table;
+	}
+
+	private static function drop_index_if_exists( string $table, string $index_name ): void {
+		global $wpdb;
+
+		if ( ! self::table_exists( $table ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration metadata.
+		$exists = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(1) FROM INFORMATION_SCHEMA.STATISTICS
+				WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s",
+				DB_NAME,
+				$table,
+				$index_name
+			)
+		);
+
+		if ( (int) $exists <= 0 ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- DDL migration.
+		$wpdb->query( "ALTER TABLE {$table} DROP INDEX {$index_name}" );
+	}
+
+	private static function drop_column_if_exists( string $table, string $column ): void {
+		global $wpdb;
+
+		if ( ! self::table_exists( $table ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration metadata.
+		$exists = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(1) FROM INFORMATION_SCHEMA.COLUMNS
+				WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+				DB_NAME,
+				$table,
+				$column
+			)
+		);
+
+		if ( (int) $exists <= 0 ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- DDL migration.
+		$wpdb->query( "ALTER TABLE {$table} DROP COLUMN {$column}" );
 	}
 
 	/**
@@ -530,8 +1074,10 @@ final class Schema {
 		}
 
 		// Soft-retire historical batch rows (tables retained for audit).
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "UPDATE {$patches} SET status = 'void' WHERE status <> 'void'" );
+		if ( self::table_exists( $patches ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->query( "UPDATE {$patches} SET status = 'void' WHERE status <> 'void'" );
+		}
 	}
 
 	/**
@@ -593,7 +1139,7 @@ final class Schema {
 
 	/**
 	 * Backfill contract_deliverables from package snapshots before package logic is retired from active scope flow.
-	 * Package/add-on tables and columns are retained for historical audit only.
+	 * Legacy package tables/columns are removed by upgrade_legacy_feature_cleanup_v1260().
 	 */
 	private static function upgrade_retire_packages_from_scope_logic_v1250(): void {
 		global $wpdb;
@@ -649,32 +1195,45 @@ final class Schema {
 
 		self::add_column_if_missing( $allocs, 'task_name', "varchar(255) NOT NULL DEFAULT ''" );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
-		$wpdb->query( "ALTER TABLE {$allocs} MODIFY deliverable_type_id bigint(20) unsigned DEFAULT NULL" );
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
-		$wpdb->query( "ALTER TABLE {$allocs} MODIFY quantity decimal(10,2) DEFAULT NULL" );
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
-		$wpdb->query( "ALTER TABLE {$allocs} MODIFY scope_impact varchar(20) DEFAULT NULL" );
+		if ( self::column_exists( $allocs, 'deliverable_type_id' ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+			$wpdb->query( "ALTER TABLE {$allocs} MODIFY deliverable_type_id bigint(20) unsigned DEFAULT NULL" );
+		}
+		if ( self::column_exists( $allocs, 'quantity' ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+			$wpdb->query( "ALTER TABLE {$allocs} MODIFY quantity decimal(10,2) DEFAULT NULL" );
+		}
+		if ( self::column_exists( $allocs, 'scope_impact' ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration DDL.
+			$wpdb->query( "ALTER TABLE {$allocs} MODIFY scope_impact varchar(20) DEFAULT NULL" );
+		}
 
-		$now = current_time( 'mysql' );
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration backfill.
-		$wpdb->query(
-			$wpdb->prepare(
-				"INSERT INTO {$items} (
-					allocation_id, deliverable_type_id, quantity, scope_impact,
-					replaced_type_id, replacement_qty, sort_order, created_at, updated_at
+		if (
+			self::table_exists( $items )
+			&& self::column_exists( $allocs, 'deliverable_type_id' )
+			&& self::column_exists( $allocs, 'quantity' )
+			&& self::column_exists( $allocs, 'scope_impact' )
+		) {
+			$now = current_time( 'mysql' );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- migration backfill.
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO {$items} (
+						allocation_id, deliverable_type_id, quantity, scope_impact,
+						replaced_type_id, replacement_qty, sort_order, created_at, updated_at
+					)
+					SELECT a.id, a.deliverable_type_id, a.quantity, COALESCE(a.scope_impact, 'normal'),
+						a.replaced_type_id, a.replacement_qty, 0, %s, %s
+					FROM {$allocs} a
+					WHERE a.deliverable_type_id IS NOT NULL
+						AND NOT EXISTS (
+							SELECT 1 FROM {$items} i WHERE i.allocation_id = a.id
+						)",
+					$now,
+					$now
 				)
-				SELECT a.id, a.deliverable_type_id, a.quantity, COALESCE(a.scope_impact, 'normal'),
-					a.replaced_type_id, a.replacement_qty, 0, %s, %s
-				FROM {$allocs} a
-				WHERE a.deliverable_type_id IS NOT NULL
-					AND NOT EXISTS (
-						SELECT 1 FROM {$items} i WHERE i.allocation_id = a.id
-					)",
-				$now,
-				$now
-			)
-		);
+			);
+		}
 	}
 
 	private static function upgrade_deliverables_contract_totals_v1190(): void {
@@ -686,28 +1245,32 @@ final class Schema {
 		self::add_column_if_missing( $scopes, 'contract_deliverables', 'decimal(10,2) NOT NULL DEFAULT 0.00' );
 		self::add_column_if_missing( $scopes, 'patch_count', 'int(11) NOT NULL DEFAULT 0' );
 		self::add_column_if_missing( $scopes, 'expected_per_patch', 'decimal(10,2) NOT NULL DEFAULT 0.00' );
-		self::add_column_if_missing( $patches, 'expected_qty', 'decimal(10,2) NOT NULL DEFAULT 0.00' );
+		if ( self::table_exists( $patches ) ) {
+			self::add_column_if_missing( $patches, 'expected_qty', 'decimal(10,2) NOT NULL DEFAULT 0.00' );
+		}
 
 		$patch_lines = $wpdb->prefix . 'etwa_scope_patch_lines';
-		// Backfill patch expected_qty from legacy type deltas when still zero.
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$zero_patches = $wpdb->get_results( "SELECT id FROM {$patches} WHERE expected_qty <= 0" );
-		foreach ( $zero_patches ?: array() as $patch_row ) {
-			$pid = (int) $patch_row->id;
-			$sum = (float) $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT COALESCE(SUM(ABS(qty_delta)), 0) FROM {$patch_lines} WHERE patch_id = %d",
-					$pid
-				)
-			);
-			if ( $sum > 0 ) {
-				$wpdb->update(
-					$patches,
-					array( 'expected_qty' => $sum ),
-					array( 'id' => $pid ),
-					array( '%f' ),
-					array( '%d' )
+		if ( self::table_exists( $patches ) && self::table_exists( $patch_lines ) ) {
+			// Backfill patch expected_qty from legacy type deltas when still zero.
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$zero_patches = $wpdb->get_results( "SELECT id FROM {$patches} WHERE expected_qty <= 0" );
+			foreach ( $zero_patches ?: array() as $patch_row ) {
+				$pid = (int) $patch_row->id;
+				$sum = (float) $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT COALESCE(SUM(ABS(qty_delta)), 0) FROM {$patch_lines} WHERE patch_id = %d",
+						$pid
+					)
 				);
+				if ( $sum > 0 ) {
+					$wpdb->update(
+						$patches,
+						array( 'expected_qty' => $sum ),
+						array( 'id' => $pid ),
+						array( '%f' ),
+						array( '%d' )
+					);
+				}
 			}
 		}
 
@@ -716,7 +1279,7 @@ final class Schema {
 		foreach ( $scope_rows ?: array() as $scope ) {
 			$scope_id = (int) $scope->id;
 			$contract = (float) $scope->contract_deliverables;
-			if ( $contract <= 0 ) {
+			if ( $contract <= 0 && self::table_exists( $lines ) ) {
 				$sum = (float) $wpdb->get_var(
 					$wpdb->prepare( "SELECT COALESCE(SUM(planned_qty), 0) FROM {$lines} WHERE scope_id = %d", $scope_id )
 				);
@@ -733,7 +1296,7 @@ final class Schema {
 
 			$patch_count = (int) $scope->patch_count;
 			$expected    = (float) $scope->expected_per_patch;
-			if ( $patch_count <= 0 ) {
+			if ( $patch_count <= 0 && self::table_exists( $patches ) ) {
 				$active = (int) $wpdb->get_var(
 					$wpdb->prepare(
 						"SELECT COUNT(1) FROM {$patches} WHERE scope_id = %d AND status = %s",
@@ -785,6 +1348,7 @@ final class Schema {
 			"CREATE TABLE {$p}etwa_client_scopes (
 				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				client_id bigint(20) unsigned NOT NULL,
+				project_id bigint(20) unsigned DEFAULT NULL,
 				name varchar(191) NOT NULL,
 				code varchar(50) DEFAULT NULL,
 				description text DEFAULT NULL,
@@ -792,10 +1356,6 @@ final class Schema {
 				starts_on date DEFAULT NULL,
 				ends_on date DEFAULT NULL,
 				contract_deliverables decimal(10,2) NOT NULL DEFAULT 0.00,
-				patch_count int(11) NOT NULL DEFAULT 0,
-				expected_per_patch decimal(10,2) NOT NULL DEFAULT 0.00,
-				package_id bigint(20) unsigned DEFAULT NULL,
-				package_snapshot longtext DEFAULT NULL,
 				created_by bigint(20) unsigned NOT NULL DEFAULT 0,
 				created_at datetime NOT NULL,
 				updated_at datetime NOT NULL,
@@ -803,59 +1363,12 @@ final class Schema {
 				KEY client_id (client_id),
 				KEY status (status),
 				KEY client_status (client_id, status),
-				KEY package_id (package_id)
-			) {$charset};",
-			"CREATE TABLE {$p}etwa_scope_contract_lines (
-				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-				scope_id bigint(20) unsigned NOT NULL,
-				deliverable_type_id bigint(20) unsigned NOT NULL,
-				planned_qty decimal(10,2) NOT NULL DEFAULT 0.00,
-				notes text DEFAULT NULL,
-				created_at datetime NOT NULL,
-				updated_at datetime NOT NULL,
-				PRIMARY KEY  (id),
-				UNIQUE KEY scope_type (scope_id, deliverable_type_id),
-				KEY deliverable_type_id (deliverable_type_id)
-			) {$charset};",
-			"CREATE TABLE {$p}etwa_scope_patches (
-				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-				scope_id bigint(20) unsigned NOT NULL,
-				name varchar(191) NOT NULL,
-				code varchar(50) DEFAULT NULL,
-				description text DEFAULT NULL,
-				status varchar(20) NOT NULL DEFAULT 'draft',
-				expected_qty decimal(10,2) NOT NULL DEFAULT 0.00,
-				effective_on date DEFAULT NULL,
-				created_by bigint(20) unsigned NOT NULL DEFAULT 0,
-				created_at datetime NOT NULL,
-				updated_at datetime NOT NULL,
-				PRIMARY KEY  (id),
-				KEY scope_id (scope_id),
-				KEY status (status),
-				KEY scope_status (scope_id, status)
-			) {$charset};",
-			"CREATE TABLE {$p}etwa_scope_patch_lines (
-				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-				patch_id bigint(20) unsigned NOT NULL,
-				deliverable_type_id bigint(20) unsigned NOT NULL,
-				qty_delta decimal(10,2) NOT NULL DEFAULT 0.00,
-				notes text DEFAULT NULL,
-				created_at datetime NOT NULL,
-				updated_at datetime NOT NULL,
-				PRIMARY KEY  (id),
-				UNIQUE KEY patch_type (patch_id, deliverable_type_id),
-				KEY deliverable_type_id (deliverable_type_id)
+				KEY project_id (project_id)
 			) {$charset};",
 			"CREATE TABLE {$p}etwa_deliverable_allocations (
 				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				scope_id bigint(20) unsigned NOT NULL,
-				patch_id bigint(20) unsigned DEFAULT NULL,
 				task_name varchar(255) NOT NULL DEFAULT '',
-				deliverable_type_id bigint(20) unsigned DEFAULT NULL,
-				quantity decimal(10,2) DEFAULT NULL,
-				scope_impact varchar(20) DEFAULT NULL,
-				replaced_type_id bigint(20) unsigned DEFAULT NULL,
-				replacement_qty decimal(10,2) DEFAULT NULL,
 				completed_date date NOT NULL,
 				notes text DEFAULT NULL,
 				allocated_by bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -863,12 +1376,7 @@ final class Schema {
 				updated_at datetime NOT NULL,
 				PRIMARY KEY  (id),
 				KEY scope_id (scope_id),
-				KEY patch_id (patch_id),
-				KEY deliverable_type_id (deliverable_type_id),
-				KEY scope_impact (scope_impact),
-				KEY completed_date (completed_date),
-				KEY scope_type (scope_id, deliverable_type_id),
-				KEY scope_patch (scope_id, patch_id)
+				KEY completed_date (completed_date)
 			) {$charset};",
 			"CREATE TABLE {$p}etwa_deliverable_allocation_items (
 				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -1507,6 +2015,98 @@ final class Schema {
 
 		self::add_column_if_missing( $table, 'draft_saved_at', 'datetime DEFAULT NULL' );
 		self::add_column_if_missing( $table, 'draft_snapshot', 'longtext DEFAULT NULL' );
+	}
+
+	public static function upgrade_permission_leave_v1370(): void {
+		global $wpdb;
+		$table = $wpdb->prefix . 'etwa_vacation_records';
+
+		self::add_column_if_missing( $table, 'source', 'varchar(30) DEFAULT NULL' );
+		self::add_column_if_missing( $table, 'source_request_id', 'bigint(20) unsigned DEFAULT NULL' );
+		self::add_column_if_missing( $table, 'balance_deducted', 'decimal(8,2) NOT NULL DEFAULT 0.00' );
+		self::add_index_if_missing( $table, 'source_request', 'source_request_id' );
+		self::add_index_if_missing( $table, 'source', 'source' );
+	}
+
+	/**
+	 * Migrate legacy permission-linked vacation records to request-level balance tracking.
+	 * Removes leave records that incorrectly locked timesheet days.
+	 */
+	public static function upgrade_permission_balance_only_v1380(): void {
+		global $wpdb;
+
+		$records_table = $wpdb->prefix . 'etwa_vacation_records';
+		$requests_table = $wpdb->prefix . 'etwa_requests';
+		$transactions_table = $wpdb->prefix . 'etwa_vacation_transactions';
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, source_request_id, balance_deducted FROM {$records_table}
+				WHERE source = %s AND source_request_id IS NOT NULL",
+				\ETWA\Helpers\PermissionHelper::RECORD_SOURCE
+			)
+		);
+
+		if ( ! $rows ) {
+			return;
+		}
+
+		foreach ( $rows as $row ) {
+			$request_id = (int) $row->source_request_id;
+			$record_id  = (int) $row->id;
+			if ( $request_id <= 0 || $record_id <= 0 ) {
+				continue;
+			}
+
+			$request = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT id, extra_data FROM {$requests_table} WHERE id = %d",
+					$request_id
+				)
+			);
+			if ( ! $request ) {
+				$wpdb->delete( $records_table, array( 'id' => $record_id ), array( '%d' ) );
+				continue;
+			}
+
+			$extra = \ETWA\Helpers\RequestHelper::decode_extra_data( (string) ( $request->extra_data ?? '' ) );
+
+			if ( empty( $extra[ \ETWA\Helpers\PermissionHelper::EXTRA_PERMISSION_TRANSACTION_ID ] ) ) {
+				$usage = $wpdb->get_row(
+					$wpdb->prepare(
+						"SELECT id, days FROM {$transactions_table}
+						WHERE record_id = %d AND transaction_type = 'usage' LIMIT 1",
+						$record_id
+					)
+				);
+				if ( $usage ) {
+					$extra[ \ETWA\Helpers\PermissionHelper::EXTRA_PERMISSION_TRANSACTION_ID ] = (int) $usage->id;
+					$extra[ \ETWA\Helpers\PermissionHelper::EXTRA_BALANCE_DEDUCTED ]           = abs( (float) $usage->days );
+					$wpdb->update(
+						$transactions_table,
+						array( 'record_id' => null ),
+						array( 'id' => (int) $usage->id ),
+						array( '%d' ),
+						array( '%d' )
+					);
+				} elseif ( (float) $row->balance_deducted > 0 ) {
+					$extra[ \ETWA\Helpers\PermissionHelper::EXTRA_BALANCE_DEDUCTED ] = (float) $row->balance_deducted;
+				}
+			}
+
+			$extra[ \ETWA\Helpers\PermissionHelper::EXTRA_BALANCE_SYNCED ] = true;
+			unset( $extra[ \ETWA\Helpers\PermissionHelper::EXTRA_VACATION_RECORD_ID ] );
+
+			$wpdb->update(
+				$requests_table,
+				array( 'extra_data' => wp_json_encode( $extra ) ),
+				array( 'id' => $request_id ),
+				array( '%s' ),
+				array( '%d' )
+			);
+
+			$wpdb->delete( $records_table, array( 'id' => $record_id ), array( '%d' ) );
+		}
 	}
 
 	private static function add_column_if_missing( string $table, string $column, string $definition ): void {

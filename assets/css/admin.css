@@ -56,6 +56,19 @@
 	box-shadow: var(--etwa-shadow) !important;
 }
 
+a.etwa-kpi-card {
+	text-decoration: none !important;
+	color: inherit !important;
+	cursor: pointer !important;
+	transition: box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+
+a.etwa-kpi-card:hover,
+a.etwa-kpi-card:focus-visible {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+	transform: translateY(-1px) !important;
+}
+
 .etwa-kpi-label {
 	display: block !important;
 	font-size: 12px !important;
@@ -106,17 +119,15 @@
 .etwa-status-approved { background: #d1fae5 !important; color: #065f46 !important; }
 .etwa-status-rejected { background: #fee2e2 !important; color: #991b1b !important; }
 .etwa-status-draft { background: #e0e7ff !important; color: #3730a3 !important; }
+.etwa-status-open { background: #e0e7ff !important; color: #3730a3 !important; }
+.etwa-status-won { background: #d1fae5 !important; color: #065f46 !important; }
+.etwa-status-lost { background: #fee2e2 !important; color: #991b1b !important; }
 
 .etwa-footer-actions {
 	display: flex !important;
 	align-items: center !important;
 	gap: 12px !important;
 	margin-top: 16px !important;
-}
-
-.etwa-autosave-status {
-	color: var(--etwa-muted) !important;
-	font-size: 13px !important;
 }
 
 .etwa-form-grid {
@@ -242,6 +253,14 @@
 
 .etwa-tab-panel.active {
 	display: block !important;
+}
+
+.etwa-project-child td:first-child {
+	padding-left: 28px;
+}
+
+.etwa-project-grandchild td:first-child {
+	padding-left: 48px;
 }
 
 .etwa-analytics-grid,
@@ -796,4 +815,283 @@ body.etwa-modal-open {
 	background: #fffbeb !important;
 	border: 1px solid #fde68a !important;
 	color: #92400e !important;
+}
+
+/* ——— Workspace layout ——— */
+#etwa-clients-app {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 4px !important;
+}
+
+#etwa-clients-app .etwa-hero {
+	margin-bottom: 20px !important;
+}
+
+#etwa-clients-app .etwa-workspace-tabs {
+	flex-wrap: wrap !important;
+	gap: 8px !important;
+	margin-bottom: 20px !important;
+	padding: 4px !important;
+}
+
+#etwa-clients-app .etwa-tab {
+	padding: 9px 16px !important;
+}
+
+#etwa-clients-app .etwa-panel {
+	padding: 22px 24px !important;
+	margin-bottom: 18px !important;
+}
+
+#etwa-clients-app .etwa-panel-intro {
+	margin: 0 0 18px !important;
+}
+
+#etwa-clients-app .etwa-panel-intro h2,
+#etwa-clients-app .etwa-workspace-card h3 {
+	margin: 0 0 6px !important;
+	font-size: 1.15rem !important;
+	font-weight: 700 !important;
+	letter-spacing: -0.02em !important;
+	line-height: 1.3 !important;
+}
+
+#etwa-clients-app .etwa-workspace-card h3 {
+	font-size: 0.95rem !important;
+	font-weight: 650 !important;
+	text-transform: none !important;
+}
+
+#etwa-clients-app .etwa-panel-intro .etwa-muted,
+#etwa-clients-app .etwa-workspace-card > .etwa-muted {
+	margin: 0 0 14px !important;
+	max-width: 62ch !important;
+	line-height: 1.5 !important;
+}
+
+#etwa-clients-app .etwa-workspace-layout {
+	display: grid !important;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+	gap: 16px !important;
+}
+
+#etwa-clients-app .etwa-workspace-card {
+	background: #f8fafc !important;
+	border: 1px solid var(--etwa-border) !important;
+	border-radius: 14px !important;
+	padding: 18px 18px 16px !important;
+	min-width: 0 !important;
+}
+
+#etwa-clients-app .etwa-workspace-tree {
+	grid-column: 1 / -1 !important;
+	padding: 18px 0 0 !important;
+	background: transparent !important;
+	border: 0 !important;
+}
+
+#etwa-clients-app .etwa-form-grid {
+	gap: 12px 16px !important;
+}
+
+#etwa-clients-app .etwa-form-grid label {
+	gap: 7px !important;
+	font-size: 13px !important;
+	color: var(--etwa-muted) !important;
+	font-weight: 600 !important;
+}
+
+#etwa-clients-app .etwa-form-grid input,
+#etwa-clients-app .etwa-form-grid select,
+#etwa-clients-app .etwa-form-grid textarea {
+	width: 100% !important;
+	margin-top: 0 !important;
+	padding: 10px 12px !important;
+	border-radius: 10px !important;
+}
+
+#etwa-clients-app .etwa-form-actions {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: center !important;
+	gap: 10px !important;
+	padding-top: 4px !important;
+}
+
+#etwa-clients-app .etwa-workspace-hint {
+	margin: 0 !important;
+	min-height: 1.4em !important;
+	font-size: 13px !important;
+}
+
+#etwa-clients-app .etwa-table-wrap {
+	margin-top: 4px !important;
+}
+
+#etwa-clients-app .etwa-table tbody td {
+	padding: 13px 16px !important;
+}
+
+#etwa-clients-app .etwa-actions-cell {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	align-items: center !important;
+	justify-content: flex-end !important;
+	gap: 8px 12px !important;
+	white-space: nowrap !important;
+}
+
+#etwa-clients-app .etwa-link {
+	padding: 4px 0 !important;
+	line-height: 1.2 !important;
+}
+
+#etwa-clients-app .etwa-project-parent td:first-child .etwa-tree-name {
+	font-weight: 700 !important;
+}
+
+#etwa-clients-app a.etwa-tree-name {
+	text-decoration: none !important;
+	color: inherit !important;
+}
+
+#etwa-clients-app a.etwa-tree-name:hover {
+	color: var(--etwa-primary) !important;
+	text-decoration: underline !important;
+}
+
+#etwa-clients-app .etwa-project-child td:first-child,
+#etwa-clients-app .etwa-project-grandchild td:first-child {
+	position: relative !important;
+}
+
+#etwa-clients-app .etwa-project-child td:first-child {
+	padding-left: 36px !important;
+}
+
+#etwa-clients-app .etwa-project-grandchild td:first-child,
+#etwa-clients-app .etwa-tree-empty td {
+	padding-left: 56px !important;
+}
+
+#etwa-clients-app .etwa-project-child td:first-child::before,
+#etwa-clients-app .etwa-project-grandchild td:first-child::before {
+	content: "" !important;
+	position: absolute !important;
+	left: 16px !important;
+	top: 50% !important;
+	width: 12px !important;
+	height: 1px !important;
+	background: var(--etwa-border) !important;
+}
+
+#etwa-clients-app .etwa-project-grandchild td:first-child::before {
+	left: 36px !important;
+}
+
+#etwa-clients-app .etwa-type-pill {
+	display: inline-flex !important;
+	align-items: center !important;
+	padding: 3px 9px !important;
+	border-radius: 999px !important;
+	font-size: 11px !important;
+	font-weight: 650 !important;
+	letter-spacing: 0.01em !important;
+	background: #eef2ff !important;
+	color: #3730a3 !important;
+	white-space: nowrap !important;
+}
+
+#etwa-clients-app .etwa-type-parent {
+	background: #dbeafe !important;
+	color: #1e40af !important;
+}
+
+#etwa-clients-app .etwa-type-sub {
+	background: #f1f5f9 !important;
+	color: #334155 !important;
+}
+
+#etwa-clients-app .etwa-type-client {
+	background: #ecfdf5 !important;
+	color: #047857 !important;
+}
+
+#etwa-clients-app .etwa-type-client-project {
+	background: #fff7ed !important;
+	color: #c2410c !important;
+}
+
+#etwa-clients-app .etwa-tree-empty td {
+	color: var(--etwa-muted) !important;
+	font-size: 13px !important;
+	font-style: italic !important;
+}
+
+#etwa-clients-app .etwa-workspace-preview {
+	margin-top: 14px !important;
+	padding: 12px 14px !important;
+	border-radius: 10px !important;
+	background: #f8fafc !important;
+	border: 1px solid var(--etwa-border) !important;
+	line-height: 1.5 !important;
+}
+
+#etwa-clients-app .etwa-badge {
+	display: inline-flex !important;
+	padding: 3px 9px !important;
+	border-radius: 999px !important;
+	font-size: 11px !important;
+	font-weight: 650 !important;
+	background: #f1f5f9 !important;
+	color: var(--etwa-muted) !important;
+}
+
+.etwa-dark #etwa-clients-app .etwa-workspace-card,
+.etwa-dark #etwa-clients-app .etwa-workspace-preview {
+	background: #111111 !important;
+}
+
+.etwa-dark #etwa-clients-app .etwa-type-pill {
+	background: #1e1b4b !important;
+	color: #c7d2fe !important;
+}
+
+.etwa-dark #etwa-clients-app .etwa-type-parent {
+	background: #172554 !important;
+	color: #93c5fd !important;
+}
+
+.etwa-dark #etwa-clients-app .etwa-type-sub {
+	background: #171717 !important;
+	color: #d4d4d4 !important;
+}
+
+.etwa-dark #etwa-clients-app .etwa-type-client {
+	background: #052e1c !important;
+	color: #6ee7b7 !important;
+}
+
+.etwa-dark #etwa-clients-app .etwa-type-client-project {
+	background: #431407 !important;
+	color: #fdba74 !important;
+}
+
+@media (max-width: 900px) {
+	#etwa-clients-app .etwa-workspace-layout {
+		grid-template-columns: 1fr !important;
+	}
+
+	#etwa-clients-app .etwa-workspace-tree {
+		grid-column: auto !important;
+	}
+
+	#etwa-clients-app .etwa-panel {
+		padding: 18px 16px !important;
+	}
+
+	#etwa-clients-app .etwa-actions-cell {
+		justify-content: flex-start !important;
+	}
 }

@@ -15,6 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class DateRangeHelper {
 
+	public const PRESET_ALL_TIME      = 'all_time';
+	public const PRESET_TODAY         = 'today';
 	public const PRESET_THIS_WEEK     = 'this_week';
 	public const PRESET_THIS_MONTH    = 'this_month';
 	public const PRESET_LAST_MONTH    = 'last_month';
@@ -26,6 +28,21 @@ final class DateRangeHelper {
 	/** @return array<string,string> preset id => label */
 	public static function preset_labels(): array {
 		return array(
+			self::PRESET_THIS_WEEK     => __( 'This Week', 'etwa' ),
+			self::PRESET_THIS_MONTH    => __( 'This Month', 'etwa' ),
+			self::PRESET_LAST_MONTH    => __( 'Last Month', 'etwa' ),
+			self::PRESET_LAST_3_MONTHS => __( 'Last 3 Months', 'etwa' ),
+			self::PRESET_LAST_6_MONTHS => __( 'Last 6 Months', 'etwa' ),
+			self::PRESET_THIS_YEAR     => __( 'This Year', 'etwa' ),
+			self::PRESET_CUSTOM        => __( 'Custom Range', 'etwa' ),
+		);
+	}
+
+	/** @return array<string,string> preset id => label */
+	public static function prospect_analytics_preset_labels(): array {
+		return array(
+			self::PRESET_ALL_TIME      => __( 'All Time', 'etwa' ),
+			self::PRESET_TODAY         => __( 'Today', 'etwa' ),
 			self::PRESET_THIS_WEEK     => __( 'This Week', 'etwa' ),
 			self::PRESET_THIS_MONTH    => __( 'This Month', 'etwa' ),
 			self::PRESET_LAST_MONTH    => __( 'Last Month', 'etwa' ),
@@ -59,7 +76,13 @@ final class DateRangeHelper {
 			$to     = $range['date_to'];
 		}
 
-		$labels = self::preset_labels();
+		$labels = array_merge(
+			self::preset_labels(),
+			array(
+				self::PRESET_ALL_TIME => __( 'All Time', 'etwa' ),
+				self::PRESET_TODAY    => __( 'Today', 'etwa' ),
+			)
+		);
 		$label  = $custom
 			? self::format_custom_label( $from, $to )
 			: ( $labels[ $preset ] ?? $labels[ self::PRESET_THIS_MONTH ] );
@@ -75,6 +98,20 @@ final class DateRangeHelper {
 	/** @return array{preset:string,date_from:string,date_to:string} */
 	private static function range_for_preset( string $preset, \DateTimeImmutable $today ): array {
 		switch ( $preset ) {
+			case self::PRESET_ALL_TIME:
+				return array(
+					'preset'     => $preset,
+					'date_from'  => '2000-01-01',
+					'date_to'    => $today->format( 'Y-m-d' ),
+				);
+
+			case self::PRESET_TODAY:
+				return array(
+					'preset'     => $preset,
+					'date_from'  => $today->format( 'Y-m-d' ),
+					'date_to'    => $today->format( 'Y-m-d' ),
+				);
+
 			case self::PRESET_THIS_WEEK:
 				$week = DateHelper::get_work_week_for_date( $today->format( 'Y-m-d' ) );
 				return array(
@@ -127,7 +164,12 @@ final class DateRangeHelper {
 
 	public static function sanitize_preset( ?string $preset ): string {
 		$preset = sanitize_key( (string) $preset );
-		$valid  = array_keys( self::preset_labels() );
+		$valid  = array_unique(
+			array_merge(
+				array_keys( self::preset_labels() ),
+				array( self::PRESET_ALL_TIME, self::PRESET_TODAY )
+			)
+		);
 		return in_array( $preset, $valid, true ) ? $preset : self::PRESET_THIS_MONTH;
 	}
 

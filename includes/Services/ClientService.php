@@ -47,15 +47,24 @@ final class ClientService {
 
 		$id = $this->clients->create(
 			array(
-				'name'       => $name,
-				'code'       => $code,
-				'department' => sanitize_text_field( (string) ( $data['department'] ?? 'General' ) ),
-				'is_active'  => 1,
+				'name'        => $name,
+				'code'        => $code,
+				'department'  => sanitize_text_field( (string) ( $data['department'] ?? 'General' ) ),
+				'is_active'   => 1,
+				'client_type' => Client::TYPE_STANDARD,
 			)
 		);
+		if ( $id <= 0 ) {
+			return new WP_Error( 'create_failed', __( 'Could not create this client.', 'etwa' ), array( 'status' => 500 ) );
+		}
+
+		$client = $this->clients->find( $id );
+		if ( ! $client ) {
+			return new WP_Error( 'create_failed', __( 'Could not create this client.', 'etwa' ), array( 'status' => 500 ) );
+		}
 
 		$this->audit->log( 'create', 'client', $id, null, array( 'name' => $name, 'code' => $code ) );
-		return $this->clients->find( $id );
+		return $client;
 	}
 
 	/** @param array<string,mixed> $data */
@@ -105,6 +114,16 @@ final class ClientService {
 		if ( ! user_can( $user_id, RoleManager::CAP_MANAGE_SETTINGS ) ) {
 			return new WP_Error( 'forbidden', __( 'Cannot manage clients.', 'etwa' ), array( 'status' => 403 ) );
 		}
+
+		$client = $this->clients->find( $client_id );
+		if ( $client && $client->is_super() ) {
+			return new WP_Error(
+				'invalid',
+				__( 'Products cannot be deactivated directly. Demote to a standard client first.', 'etwa' ),
+				array( 'status' => 400 )
+			);
+		}
+
 		if ( ! $this->clients->deactivate( $client_id ) ) {
 			return new WP_Error( 'invalid', __( 'Cannot deactivate this client.', 'etwa' ), array( 'status' => 400 ) );
 		}
@@ -124,6 +143,14 @@ final class ClientService {
 
 		if ( $this->clients->is_system_client( $client ) ) {
 			return new WP_Error( 'invalid', __( 'System clients cannot be deleted.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		if ( $client->is_super() ) {
+			return new WP_Error(
+				'invalid',
+				__( 'Products cannot be deleted. Demote to a standard client first.', 'etwa' ),
+				array( 'status' => 400 )
+			);
 		}
 
 		if ( $this->clients->entry_count( $client_id ) > 0 ) {

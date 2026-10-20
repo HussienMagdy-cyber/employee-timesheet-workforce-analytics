@@ -93,12 +93,8 @@ final class DeliverableTypeRepository {
 		$p = $wpdb->prefix;
 		$q = $wpdb->prepare(
 			"SELECT (
-				(SELECT COUNT(1) FROM {$p}etwa_scope_contract_lines WHERE deliverable_type_id = %d) +
-				(SELECT COUNT(1) FROM {$p}etwa_scope_patch_lines WHERE deliverable_type_id = %d) +
-				(SELECT COUNT(1) FROM {$p}etwa_deliverable_allocations WHERE deliverable_type_id = %d OR replaced_type_id = %d)
+				(SELECT COUNT(1) FROM {$p}etwa_deliverable_allocation_items WHERE deliverable_type_id = %d OR replaced_type_id = %d)
 			)",
-			$id,
-			$id,
 			$id,
 			$id
 		);

@@ -14,7 +14,6 @@ use ETWA\Models\DeliverableAllocation;
 use ETWA\Repositories\ClientScopeRepository;
 use ETWA\Repositories\DeliverableAllocationRepository;
 use ETWA\Repositories\DeliverableTypeRepository;
-use ETWA\Repositories\ScopePatchRepository;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -26,13 +25,12 @@ final class DeliverableAllocationService {
 	public function __construct(
 		private DeliverableAllocationRepository $allocations = new DeliverableAllocationRepository(),
 		private ClientScopeRepository $scopes = new ClientScopeRepository(),
-		private ScopePatchRepository $patches = new ScopePatchRepository(),
 		private DeliverableTypeRepository $types = new DeliverableTypeRepository(),
 		private DeliverableMetricsService $metrics = new DeliverableMetricsService(),
 	) {}
 
 	/**
-	 * @param array{scope_id?:int,patch_id?:int|null,scope_impact?:string,deliverable_type_id?:int} $filters
+	 * @param array{scope_id?:int,scope_impact?:string,deliverable_type_id?:int} $filters
 	 * @return array<int,array<string,mixed>>|WP_Error
 	 */
 	public function list( int $user_id, array $filters ): array|WP_Error {
@@ -110,7 +108,6 @@ final class DeliverableAllocationService {
 		$merged = array_merge(
 			array(
 				'scope_id'       => $existing->scope_id,
-				'patch_id'       => $existing->patch_id,
 				'task_name'      => $existing->task_name,
 				'completed_date' => $existing->completed_date,
 				'notes'          => $existing->notes,
@@ -196,9 +193,6 @@ final class DeliverableAllocationService {
 			return new WP_Error( 'invalid', __( 'At least one deliverable item is required.', 'etwa' ), array( 'status' => 400 ) );
 		}
 
-		// Batches retired — ignore patch_id on new writes; historical values remain on existing rows.
-		$patch_id = null;
-
 		$completed = sanitize_text_field( (string) ( $data['completed_date'] ?? current_time( 'Y-m-d' ) ) );
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $completed ) ) {
 			return new WP_Error( 'invalid', __( 'Invalid completed date.', 'etwa' ), array( 'status' => 400 ) );
@@ -206,7 +200,6 @@ final class DeliverableAllocationService {
 
 		return array(
 			'scope_id'       => $scope_id,
-			'patch_id'       => $patch_id,
 			'task_name'      => $task_name,
 			'completed_date' => $completed,
 			'notes'          => sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) ),

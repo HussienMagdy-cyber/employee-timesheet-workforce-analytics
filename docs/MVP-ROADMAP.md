@@ -12,7 +12,7 @@
 - [x] Employee dashboard (entries, draft, submit)
 - [x] REST API for timesheets & entries
 - [x] Audit logging
-- [x] Autosave via AJAX
+- [x] Entry CRUD via REST API
 
 **Deploy:** Activate plugin, assign roles, add clients, test employee flow.
 

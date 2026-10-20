@@ -16,8 +16,11 @@ use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\EntryTypeHelper;
 use ETWA\Helpers\UserDisplayNames;
 use ETWA\Models\Entry;
+use ETWA\Models\Prospect;
 use ETWA\Repositories\ClientRepository;
 use ETWA\Repositories\EntryRepository;
+use ETWA\Repositories\ProjectRepository;
+use ETWA\Repositories\ProspectRepository;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,12 +34,18 @@ final class ReportingService {
 	public const REPORT_CLIENT_LABOR_COST      = 'client_labor_cost';
 	public const REPORT_EMPLOYEE_HOURS_BY_CLIENT = 'employee_hours_by_client';
 	public const REPORT_ALL_CLIENTS_COMPARISON   = 'all_clients_comparison';
+	public const REPORT_PARENT_PROJECT           = 'parent_project';
+	public const REPORT_ALL_PARENT_PROJECTS_COMPARISON = 'all_parent_projects_comparison';
+	public const REPORT_PROSPECT                 = 'prospect';
 
 	private const CHUNK_SIZE = 500;
 
 	public function __construct(
 		private EntryRepository $entries = new EntryRepository(),
 		private ClientRepository $clients = new ClientRepository(),
+		private ProjectRepository $projects = new ProjectRepository(),
+		private ClientAnalyticsService $client_analytics = new ClientAnalyticsService(),
+		private ProspectRepository $prospects = new ProspectRepository(),
 	) {}
 
 	/**
@@ -119,12 +128,29 @@ final class ReportingService {
 	 * @return array<string,mixed>|WP_Error
 	 */
 	public function get_client_report( int $client_id, string $date_from, string $date_to ): array|WP_Error {
-		$client = $this->validate_client_id( $client_id );
-		if ( is_wp_error( $client ) ) {
-			return $client;
+		$all_clients = $client_id <= 0;
+
+		if ( $all_clients ) {
+			$client = array(
+				'id'         => 0,
+				'name'       => __( 'All Clients', 'etwa' ),
+				'code'       => '',
+				'department' => '',
+			);
+		} else {
+			$client = $this->validate_client_id( $client_id );
+			if ( is_wp_error( $client ) ) {
+				return $client;
+			}
 		}
 
-		$rows    = $this->fetch_entry_rows( $date_from, $date_to, null, $client_id );
+		$rows    = $this->fetch_entry_rows(
+			$date_from,
+			$date_to,
+			null,
+			$all_clients ? null : $client_id,
+			$all_clients
+		);
 		$summary = $this->summarize_entry_rows( $rows );
 
 		if ( EmployeeCostHelper::can_view_labor_cost() ) {
@@ -132,12 +158,44 @@ final class ReportingService {
 		}
 
 		return array(
-			'report_type' => self::REPORT_CLIENT,
+			'report_type'       => self::REPORT_CLIENT,
+			'all_clients'       => $all_clients,
+			'range'             => array(
+				'date_from' => $date_from,
+				'date_to'   => $date_to,
+			),
+			'client'            => $client,
+			'rows'              => $rows,
+			'summary'           => $summary,
+			'client_summaries'  => $all_clients ? $this->summarize_rows_by_client( $rows ) : array(),
+		);
+	}
+
+	/**
+	 * Single-prospect activity report with entry-level detail.
+	 *
+	 * @return array<string,mixed>|WP_Error
+	 */
+	public function get_prospect_report( int $prospect_id, string $date_from, string $date_to ): array|WP_Error {
+		$prospect = $this->validate_prospect_id( $prospect_id );
+		if ( is_wp_error( $prospect ) ) {
+			return $prospect;
+		}
+
+		$rows    = $this->fetch_entry_rows( $date_from, $date_to, null, null, false, $prospect_id );
+		$summary = $this->summarize_entry_rows( $rows );
+
+		if ( EmployeeCostHelper::can_view_labor_cost() ) {
+			$summary['total_labor_cost_egp'] = $this->calculate_labor_cost_from_rows( $rows );
+		}
+
+		return array(
+			'report_type' => self::REPORT_PROSPECT,
 			'range'       => array(
 				'date_from' => $date_from,
 				'date_to'   => $date_to,
 			),
-			'client'      => $client,
+			'prospect'    => $prospect,
 			'rows'        => $rows,
 			'summary'     => $summary,
 		);
@@ -215,7 +273,7 @@ final class ReportingService {
 		$project_rows_raw = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT e.project_id,
-					COALESCE(p.name, %s) AS project_name,
+					CASE WHEN e.project_id IS NULL OR e.project_id = 0 THEN %s ELSE p.name END AS project_name,
 					COALESCE(SUM(e.regular_hours), 0) AS regular_hours,
 					COALESCE(SUM(e.overtime_hours), 0) AS overtime_hours,
 					COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
@@ -293,17 +351,24 @@ final class ReportingService {
 		$clients_table = $wpdb->prefix . 'etwa_clients';
 		$projects_table = $wpdb->prefix . 'etwa_projects';
 
-		$sql    = "SELECT e.user_id, e.client_id, c.name AS client_name, e.project_id,
-				COALESCE(p.name, %s) AS project_name,
+		$prospects_table = $wpdb->prefix . 'etwa_prospects';
+
+		$sql    = "SELECT e.user_id, e.client_id, COALESCE(c.name, pr.name, '') AS client_name, e.project_id,
+				CASE
+					WHEN e.prospect_id IS NOT NULL AND e.prospect_id != 0 THEN %s
+					WHEN e.project_id IS NULL OR e.project_id = 0 THEN %s
+					ELSE p.name
+				END AS project_name,
 				COALESCE(SUM(e.regular_hours), 0) AS regular_hours,
 				COALESCE(SUM(e.overtime_hours), 0) AS overtime_hours,
 				COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
 			FROM {$entries_table} e
-			INNER JOIN {$clients_table} c ON c.id = e.client_id
+			LEFT JOIN {$clients_table} c ON c.id = e.client_id
 			LEFT JOIN {$projects_table} p ON p.id = e.project_id
+			LEFT JOIN {$prospects_table} pr ON pr.id = e.prospect_id
 			WHERE e.entry_date BETWEEN %s AND %s
-				AND c.code != %s";
-		$params = array( ProjectService::unassigned_label(), $date_from, $date_to, ClientRepository::BREAK_CODE );
+				AND (c.id IS NULL OR c.code != %s)";
+		$params = array( __( 'Prospect', 'etwa' ), ProjectService::unassigned_label(), $date_from, $date_to, ClientRepository::BREAK_CODE );
 
 		if ( $user_id ) {
 			$sql     .= ' AND e.user_id = %d';
@@ -314,7 +379,7 @@ final class ReportingService {
 			$params[] = $client_id;
 		}
 
-		$sql .= ' GROUP BY e.user_id, e.client_id, e.project_id ORDER BY e.user_id ASC, total_hours DESC';
+		$sql .= ' GROUP BY e.user_id, e.client_id, e.project_id, e.prospect_id ORDER BY e.user_id ASC, total_hours DESC';
 
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
 
@@ -357,6 +422,83 @@ final class ReportingService {
 			'rows'              => $rows,
 			'employee_summary'  => $employee_summary['rows'],
 			'client_columns'    => $employee_summary['client_columns'],
+		);
+	}
+
+	/**
+	 * Parent project detail report (standalone top-level project with sub-project rollup).
+	 *
+	 * @return array<string,mixed>|WP_Error
+	 */
+	public function get_parent_project_report( int $parent_project_id, string $date_from, string $date_to ): array|WP_Error {
+		$error = $this->validate_parent_project_id( $parent_project_id );
+		if ( is_wp_error( $error ) ) {
+			return $error;
+		}
+
+		$detail = $this->client_analytics->get_project_detail( $parent_project_id, $date_from, $date_to );
+		if ( is_wp_error( $detail ) ) {
+			return $detail;
+		}
+
+		$detail['report_type'] = self::REPORT_PARENT_PROJECT;
+		return $detail;
+	}
+
+	/**
+	 * Comparison of all standalone parent projects for management reporting.
+	 *
+	 * @return array<string,mixed>|WP_Error
+	 */
+	public function get_all_parent_projects_comparison_report( string $date_from, string $date_to ): array {
+		$parents = $this->client_analytics->list_standalone_parents( $date_from, $date_to );
+
+		$grand_regular  = 0.0;
+		$grand_overtime = 0.0;
+		$grand_hours    = 0.0;
+		$grand_employees = 0;
+
+		foreach ( $parents as $parent ) {
+			$grand_regular  += (float) ( $parent['regular_hours'] ?? 0 );
+			$grand_overtime += (float) ( $parent['overtime_hours'] ?? 0 );
+			$grand_hours    += (float) ( $parent['total_hours'] ?? 0 );
+			$grand_employees += (int) ( $parent['employee_count'] ?? 0 );
+		}
+
+		$grand_regular  = round( $grand_regular, 2 );
+		$grand_overtime = round( $grand_overtime, 2 );
+		$grand_hours    = round( $grand_hours, 2 );
+
+		$rows = array();
+		foreach ( $parents as $parent ) {
+			$total_hours = (float) ( $parent['total_hours'] ?? 0 );
+			$rows[]      = array(
+				'project_id'       => (int) ( $parent['id'] ?? 0 ),
+				'project_name'     => (string) ( $parent['name'] ?? '' ),
+				'sub_project_count' => $this->projects->count_children( (int) ( $parent['id'] ?? 0 ), true ),
+				'employee_count'   => (int) ( $parent['employee_count'] ?? 0 ),
+				'regular_hours'    => (float) ( $parent['regular_hours'] ?? 0 ),
+				'overtime_hours'   => (float) ( $parent['overtime_hours'] ?? 0 ),
+				'total_hours'      => $total_hours,
+				'last_activity'    => $parent['last_activity'] ?? null,
+				'pct_total_hours'  => $grand_hours > 0 ? round( ( $total_hours / $grand_hours ) * 100, 1 ) : 0.0,
+			);
+		}
+
+		return array(
+			'report_type' => self::REPORT_ALL_PARENT_PROJECTS_COMPARISON,
+			'range'       => array(
+				'date_from' => $date_from,
+				'date_to'   => $date_to,
+			),
+			'rows'        => $rows,
+			'summary'     => array(
+				'project_count'      => count( $rows ),
+				'total_employees'    => $grand_employees,
+				'total_regular_hours'  => $grand_regular,
+				'total_overtime_hours' => $grand_overtime,
+				'total_hours'        => $grand_hours,
+			),
 		);
 	}
 
@@ -424,7 +566,7 @@ final class ReportingService {
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- dynamic WHERE only.
 		$allocation_sql = "SELECT c.id AS client_id, c.name AS client_name, e.project_id,
-				COALESCE(p.name, %s) AS project_name, e.user_id,
+				CASE WHEN e.project_id IS NULL OR e.project_id = 0 THEN %s ELSE p.name END AS project_name, e.user_id,
 				COALESCE(SUM(e.regular_hours), 0) AS regular_hours,
 				COALESCE(SUM(e.overtime_hours), 0) AS overtime_hours,
 				COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours
@@ -440,7 +582,7 @@ final class ReportingService {
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- dynamic WHERE only.
 		$project_sql = "SELECT c.id AS client_id, c.name AS client_name, e.project_id,
-				COALESCE(p.name, %s) AS project_name,
+				CASE WHEN e.project_id IS NULL OR e.project_id = 0 THEN %s ELSE p.name END AS project_name,
 				COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours,
 				COUNT(DISTINCT e.user_id) AS employee_count
 			FROM {$entries_table} e
@@ -563,6 +705,64 @@ final class ReportingService {
 		);
 	}
 
+	/** @return true|WP_Error */
+	private function validate_parent_project_id( int $project_id ): bool|WP_Error {
+		if ( $project_id <= 0 ) {
+			return new WP_Error( 'invalid_project', __( 'Please select a parent project.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		$project = $this->projects->find( $project_id );
+		if ( ! $project || ! $project->is_active() || ! $project->is_standalone() || $project->parent_project_id ) {
+			return new WP_Error( 'invalid_project', __( 'Please select a valid parent project.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * @return array<string,mixed>|WP_Error
+	 */
+	private function validate_prospect_id( int $prospect_id ): array|WP_Error {
+		if ( $prospect_id <= 0 ) {
+			return new WP_Error( 'invalid_prospect', __( 'Please select a prospect.', 'etwa' ), array( 'status' => 400 ) );
+		}
+
+		$prospect = $this->prospects->find( $prospect_id );
+		if ( ! $prospect ) {
+			return new WP_Error( 'not_found', __( 'Prospect not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		$converted_name = '';
+		if ( $prospect->converted_client_id ) {
+			$client         = $this->clients->find( (int) $prospect->converted_client_id );
+			$converted_name = $client ? $client->name : '';
+		}
+
+		$created = substr( $prospect->created_at, 0, 10 );
+		$closed  = $prospect->won_lost_at ? substr( $prospect->won_lost_at, 0, 10 ) : '';
+
+		return array(
+			'id'                    => (int) $prospect->id,
+			'name'                  => $prospect->name,
+			'status'                => $prospect->status,
+			'status_label'          => $this->prospect_status_label( $prospect->status ),
+			'created_at'            => $created,
+			'created_label'         => DateHelper::format_date( $created ),
+			'won_lost_at'           => $closed,
+			'won_lost_label'        => Prospect::STATUS_OPEN === $prospect->status ? '—' : ( DateHelper::format_date( $closed ) ?: '—' ),
+			'converted_client_id'   => (int) ( $prospect->converted_client_id ?? 0 ),
+			'converted_client_name' => $converted_name,
+		);
+	}
+
+	private function prospect_status_label( string $status ): string {
+		return match ( $status ) {
+			Prospect::STATUS_WON  => __( 'Won', 'etwa' ),
+			Prospect::STATUS_LOST => __( 'Lost', 'etwa' ),
+			default               => __( 'Open', 'etwa' ),
+		};
+	}
+
 	/**
 	 * @return array<int,array<string,mixed>>
 	 */
@@ -570,7 +770,9 @@ final class ReportingService {
 		string $date_from,
 		string $date_to,
 		?int $user_id,
-		?int $client_id
+		?int $client_id,
+		bool $clients_only = false,
+		?int $prospect_id = null
 	): array {
 		global $wpdb;
 		$entries_table    = $wpdb->prefix . 'etwa_entries';
@@ -581,10 +783,11 @@ final class ReportingService {
 		$offset  = 0;
 
 		do {
-			$sql    = "SELECT e.*, c.name AS client_name, p.name AS project_name, t.status AS timesheet_status
+			$sql    = "SELECT e.*, c.name AS client_name, p.name AS project_name, pr.name AS prospect_name, t.status AS timesheet_status
 				FROM {$entries_table} e
 				LEFT JOIN {$clients_table} c ON c.id = e.client_id
 				LEFT JOIN {$wpdb->prefix}etwa_projects p ON p.id = e.project_id
+				LEFT JOIN {$wpdb->prefix}etwa_prospects pr ON pr.id = e.prospect_id
 				LEFT JOIN {$timesheets_table} t ON t.id = e.timesheet_id
 				WHERE e.entry_date BETWEEN %s AND %s";
 			$params = array( $date_from, $date_to );
@@ -593,9 +796,15 @@ final class ReportingService {
 				$sql     .= ' AND e.user_id = %d';
 				$params[] = $user_id;
 			}
-			if ( $client_id ) {
+			if ( $prospect_id ) {
+				$sql     .= ' AND e.prospect_id = %d';
+				$params[] = $prospect_id;
+			} elseif ( $client_id ) {
 				$sql     .= ' AND e.client_id = %d';
 				$params[] = $client_id;
+			} elseif ( $clients_only ) {
+				$sql     .= ' AND e.client_id IS NOT NULL AND UPPER(COALESCE(c.code, \'\')) != %s';
+				$params[] = ClientRepository::BREAK_CODE;
 			}
 
 			$sql     .= ' ORDER BY e.entry_date ASC, e.start_time ASC, e.id ASC LIMIT %d OFFSET %d';
@@ -636,9 +845,13 @@ final class ReportingService {
 			'date'              => $entry->entry_date,
 			'day'               => $day_info['name'],
 			'client_id'         => $entry->client_id,
-			'client_name'       => $entry->client_name ?? '',
+			'client_name'       => $entry->display_target_name(),
+			'prospect_id'       => $entry->prospect_id,
+			'prospect_name'     => $entry->prospect_name ?? '',
 			'project_id'        => $entry->project_id,
-			'project_name'      => $entry->project_id ? ( $entry->project_name ?? '' ) : ProjectService::unassigned_label(),
+			'project_name'      => $entry->project_id
+				? ( $entry->project_name ?? '' )
+				: ( $entry->client_id ? ProjectService::unassigned_label() : '' ),
 			'activity'          => $entry->task,
 			'entry_type'        => $entry->entry_type,
 			'entry_type_label'  => EntryTypeHelper::label( $entry->entry_type ),
@@ -672,6 +885,57 @@ final class ReportingService {
 			'total_overtime_hours' => round( $overtime, 2 ),
 			'total_hours'          => round( $regular + $overtime, 2 ),
 		);
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function summarize_rows_by_client( array $rows ): array {
+		$by_client = array();
+
+		foreach ( $rows as $row ) {
+			$client_id = (int) ( $row['client_id'] ?? 0 );
+			if ( $client_id <= 0 ) {
+				continue;
+			}
+
+			if ( ! isset( $by_client[ $client_id ] ) ) {
+				$by_client[ $client_id ] = array(
+					'client_id'        => $client_id,
+					'client_name'      => (string) ( $row['client_name'] ?? '' ),
+					'employee_ids'     => array(),
+					'regular_hours'    => 0.0,
+					'overtime_hours'   => 0.0,
+					'total_hours'      => 0.0,
+				);
+			}
+
+			$by_client[ $client_id ]['regular_hours']  += (float) $row['regular_hours'];
+			$by_client[ $client_id ]['overtime_hours'] += (float) $row['overtime_hours'];
+			$by_client[ $client_id ]['total_hours']    += (float) $row['total_hours'];
+			$by_client[ $client_id ]['employee_ids'][ (int) $row['employee_id'] ] = true;
+		}
+
+		$summaries = array();
+		foreach ( $by_client as $summary ) {
+			$summaries[] = array(
+				'client_id'       => $summary['client_id'],
+				'client_name'     => $summary['client_name'],
+				'employee_count'  => count( $summary['employee_ids'] ),
+				'regular_hours'   => round( $summary['regular_hours'], 2 ),
+				'overtime_hours'  => round( $summary['overtime_hours'], 2 ),
+				'total_hours'     => round( $summary['total_hours'], 2 ),
+			);
+		}
+
+		usort(
+			$summaries,
+			fn( $a, $b ) => ( $b['total_hours'] ?? 0 ) <=> ( $a['total_hours'] ?? 0 )
+				?: strcmp( (string) ( $a['client_name'] ?? '' ), (string) ( $b['client_name'] ?? '' ) )
+		);
+
+		return $summaries;
 	}
 
 	/**

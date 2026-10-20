@@ -41,9 +41,18 @@ $counts          = $counts ?? array(
 	</div>
 
 	<div class="etwa-kpi-grid">
-		<div class="etwa-kpi-card"><span class="etwa-kpi-label"><?php esc_html_e( 'Employees', 'etwa' ); ?></span><strong class="etwa-kpi-value"><?php echo esc_html( (string) count( $employees ) ); ?></strong></div>
-		<div class="etwa-kpi-card"><span class="etwa-kpi-label"><?php esc_html_e( 'Pending Reports', 'etwa' ); ?></span><strong class="etwa-kpi-value etwa-accent"><?php echo esc_html( (string) ( $counts['pending'] ?? 0 ) ); ?></strong></div>
-		<div class="etwa-kpi-card"><span class="etwa-kpi-label"><?php esc_html_e( 'Approved Reports', 'etwa' ); ?></span><strong class="etwa-kpi-value"><?php echo esc_html( (string) ( $counts['approved'] ?? 0 ) ); ?></strong></div>
+		<a class="etwa-kpi-card" href="#etwa-tab-employees" data-hr-tab="employees">
+			<span class="etwa-kpi-label"><?php esc_html_e( 'Employees', 'etwa' ); ?></span>
+			<strong class="etwa-kpi-value"><?php echo esc_html( (string) count( $employees ) ); ?></strong>
+		</a>
+		<a class="etwa-kpi-card" href="#etwa-tab-pending" data-hr-tab="pending">
+			<span class="etwa-kpi-label"><?php esc_html_e( 'Pending Reports', 'etwa' ); ?></span>
+			<strong class="etwa-kpi-value etwa-accent"><?php echo esc_html( (string) ( $counts['pending'] ?? 0 ) ); ?></strong>
+		</a>
+		<a class="etwa-kpi-card" href="#etwa-tab-all-reports" data-hr-tab="all-reports" data-hr-status="approved">
+			<span class="etwa-kpi-label"><?php esc_html_e( 'Approved Reports', 'etwa' ); ?></span>
+			<strong class="etwa-kpi-value"><?php echo esc_html( (string) ( $counts['approved'] ?? 0 ) ); ?></strong>
+		</a>
 	</div>
 
 	<div class="etwa-tabs etwa-hr-tabs">

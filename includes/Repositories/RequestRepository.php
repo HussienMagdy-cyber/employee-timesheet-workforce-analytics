@@ -202,4 +202,63 @@ final class RequestRepository {
 		global $wpdb;
 		return false !== $wpdb->delete( $this->table, array( 'id' => $id ), array( '%d' ) );
 	}
+
+	public function count_approved_permissions_in_month( int $user_id, int $year, int $month, ?int $exclude_id = null ): int {
+		global $wpdb;
+
+		$sql    = "SELECT COUNT(*) FROM {$this->table}
+			WHERE user_id = %d
+			AND request_type = %s
+			AND status = %s
+			AND MONTH(COALESCE(work_date, request_date)) = %d
+			AND YEAR(COALESCE(work_date, request_date)) = %d";
+		$params = array(
+			$user_id,
+			\ETWA\Helpers\RequestHelper::TYPE_PERMISSION,
+			\ETWA\Helpers\RequestHelper::STATUS_APPROVED,
+			$month,
+			$year,
+		);
+
+		if ( $exclude_id ) {
+			$sql     .= ' AND id != %d';
+			$params[] = $exclude_id;
+		}
+
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, ...$params ) );
+	}
+
+	public function sum_permission_balance_deducted_in_month( int $user_id, int $year, int $month ): float {
+		global $wpdb;
+
+		$rows = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT extra_data FROM {$this->table}
+				WHERE user_id = %d
+				AND request_type = %s
+				AND status = %s
+				AND MONTH(COALESCE(work_date, request_date)) = %d
+				AND YEAR(COALESCE(work_date, request_date)) = %d",
+				$user_id,
+				\ETWA\Helpers\RequestHelper::TYPE_PERMISSION,
+				\ETWA\Helpers\RequestHelper::STATUS_APPROVED,
+				$month,
+				$year
+			)
+		);
+
+		$sum = 0.0;
+		foreach ( $rows ?: array() as $extra_json ) {
+			if ( ! is_string( $extra_json ) || '' === $extra_json ) {
+				continue;
+			}
+			$extra = json_decode( $extra_json, true );
+			if ( ! is_array( $extra ) ) {
+				continue;
+			}
+			$sum += (float) ( $extra[ \ETWA\Helpers\PermissionHelper::EXTRA_BALANCE_DEDUCTED ] ?? 0 );
+		}
+
+		return round( $sum, 2 );
+	}
 }

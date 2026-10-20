@@ -109,6 +109,20 @@ final class AuditLogRepository {
 		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->table}" );
 	}
 
+	/** @return string[] */
+	public function distinct_entity_types(): array {
+		global $wpdb;
+
+		$col = $wpdb->get_col( "SELECT DISTINCT entity_type FROM {$this->table} ORDER BY entity_type ASC" );
+
+		return array_values(
+			array_filter(
+				array_map( 'strval', $col ?: array() ),
+				static fn( string $type ) => '' !== $type
+			)
+		);
+	}
+
 	/** @return object[] */
 	public function recent( int $limit = 50, ?string $entity_type = null ): array {
 		return $this->find( $limit, 0, $entity_type );

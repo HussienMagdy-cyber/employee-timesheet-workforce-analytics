@@ -11,7 +11,6 @@ namespace ETWA\Admin;
 
 use ETWA\Admin\Pages\AuditLogsPage;
 use ETWA\Admin\Pages\ClientAnalyticsPage;
-use ETWA\Admin\Pages\ClientsPage;
 use ETWA\Admin\Pages\DeliverablesPage;
 use ETWA\Admin\Pages\DepartmentDashboardPage;
 use ETWA\Admin\Pages\DepartmentsPage;
@@ -22,6 +21,8 @@ use ETWA\Admin\Pages\FilesPage;
 use ETWA\Admin\Pages\HolidaysPage;
 use ETWA\Admin\Pages\HRDashboard;
 use ETWA\Admin\Pages\OwnerAnalytics;
+use ETWA\Admin\Pages\ProspectAnalyticsPage;
+use ETWA\Admin\Pages\ProspectsPage;
 use ETWA\Admin\Pages\ReportsPage;
 use ETWA\Admin\Pages\RequestsPage;
 use ETWA\Admin\Pages\SettingsPage;
@@ -123,6 +124,24 @@ final class AdminMenu {
 			RoleManager::CAP_MANAGE_VACATION,
 			'etwa-vacations',
 			array( new VacationPage(), 'render' )
+		);
+
+		add_submenu_page(
+			'etwa-dashboard',
+			__( 'Prospects', 'etwa' ),
+			__( 'Prospects', 'etwa' ),
+			RoleManager::CAP_MANAGE_SETTINGS,
+			'etwa-prospects',
+			array( new ProspectsPage(), 'render' )
+		);
+
+		add_submenu_page(
+			'etwa-dashboard',
+			__( 'Prospects Analytics', 'etwa' ),
+			__( 'Prospects Analytics', 'etwa' ),
+			RoleManager::CAP_ANALYTICS,
+			'etwa-prospect-analytics',
+			array( new ProspectAnalyticsPage(), 'render' )
 		);
 
 		add_submenu_page(
@@ -245,6 +264,10 @@ final class AdminMenu {
 			$script = 'requests-manager';
 		} elseif ( str_contains( $hook, 'etwa-vacations' ) ) {
 			$script = 'vacation-manager';
+		} elseif ( str_contains( $hook, 'etwa-prospect-analytics' ) ) {
+			$script = 'prospect-analytics';
+		} elseif ( str_contains( $hook, 'etwa-prospects' ) ) {
+			$script = 'prospects';
 		} elseif ( str_contains( $hook, 'etwa-client-analytics' ) ) {
 			$script = 'client-analytics';
 		} elseif ( str_contains( $hook, 'etwa-reports' ) ) {

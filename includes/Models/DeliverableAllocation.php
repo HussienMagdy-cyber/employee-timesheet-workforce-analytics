@@ -25,7 +25,6 @@ final class DeliverableAllocation {
 	public function __construct(
 		public readonly ?int $id,
 		public readonly int $scope_id,
-		public readonly ?int $patch_id,
 		public readonly string $task_name,
 		public readonly string $completed_date,
 		public readonly string $notes,
@@ -44,7 +43,6 @@ final class DeliverableAllocation {
 		return new self(
 			isset( $r['id'] ) ? (int) $r['id'] : null,
 			(int) ( $r['scope_id'] ?? 0 ),
-			isset( $r['patch_id'] ) && null !== $r['patch_id'] && '' !== (string) $r['patch_id'] ? (int) $r['patch_id'] : null,
 			(string) ( $r['task_name'] ?? '' ),
 			(string) ( $r['completed_date'] ?? '' ),
 			(string) ( $r['notes'] ?? '' ),
@@ -83,7 +81,6 @@ final class DeliverableAllocation {
 		$out = array(
 			'id'             => $this->id,
 			'scope_id'       => $this->scope_id,
-			'patch_id'       => $this->patch_id,
 			'task_name'      => $this->task_name,
 			'completed_date' => $this->completed_date,
 			'notes'          => $this->notes,

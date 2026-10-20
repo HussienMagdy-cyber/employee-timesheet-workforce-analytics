@@ -162,6 +162,7 @@ Create time entry.
   "end_time": "18:00",
   "client_id": 1,
   "project_id": 5,
+  "prospect_id": null,
   "task": "Website",
   "notes": "",
   "entry_type": "regular"
@@ -170,7 +171,9 @@ Create time entry.
 
 | Field | Description |
 |-------|-------------|
-| project_id | **Always optional**; omit or null for Social Media work. Must belong to `client_id` when set. Break and All Clients (Moderation) clients do not use projects. |
+| client_id | Required for Client / Internal / General entries. Omit for standalone Workspace project entries and Prospect entries. |
+| project_id | For a Client: omit or null for Social Media work; when set, must belong to `client_id`. For a standalone Workspace project: required, and `client_id` must be omitted. Break and Moderation do not use projects. |
+| prospect_id | Optional. When set, `client_id` and `project_id` must be omitted. New assignments require an **Open** prospect. Historical entries on Won/Lost prospects remain editable. |
 | entry_type | `regular` (default), `overtime`, or `compensation`. Required for entries at or after 18:00. |
 
 **Capability:** `etwa_edit_own_timesheet`
@@ -289,13 +292,14 @@ Role-based Excel reports and the interactive **All Clients Comparison** dashboar
 |------------------|----------------|-------------|
 | `employee_timesheet` | HR / Owner | Entry-level detail for one employee |
 | `client` | HR / Owner (`etwa_view_analytics`) | Client activity and period totals |
+| `prospect` | HR / Owner (`etwa_view_analytics`) | Timesheet hours for one prospect (`prospect_id` on entries) |
 | `client_labor_cost` | Labor-cost viewers + analytics | Employee hours and labor cost by client |
 | `employee_hours_by_client` | HR / Owner | Hours distribution across clients |
 | `all_clients_comparison` | HR / Owner (`etwa_view_analytics`) | Side-by-side client comparison (also available as live UI) |
 
 ### GET `/reports/filters`
 
-Dropdown options for report modals: employees, clients (excludes Break), departments, date presets, `can_view_labor_cost`.
+Dropdown options for report modals: employees, clients (excludes Break), departments, parent projects, prospects (`id`, `name`, `status`, `display_name`), date presets, `can_view_labor_cost`.
 
 **Capability:** `etwa_export_reports`
 
@@ -340,6 +344,7 @@ Generate an Excel file for the given report type.
 |-------|--------------|
 | user_id | `employee_timesheet` (required), `employee_hours_by_client`, `all_clients_comparison` (optional) |
 | client_id | `client`, `client_labor_cost` (required); optional filter on other types |
+| prospect_id | `prospect` (required). Hours come only from `etwa_entries.prospect_id` for the date range; later client hours after conversion are never included. Empty periods still return a valid workbook. |
 
 **Response:**
 
@@ -355,6 +360,123 @@ Generate an Excel file for the given report type.
 ```
 
 **Capability:** Varies by type (see table above). Requires PhpSpreadsheet via Composer.
+
+#### POST `/reports/export/prospect`
+
+Single-prospect Excel export. Requires `prospect_id` plus a date range (`preset` or `date_from` / `date_to`). Hours are `SUM(regular_hours + overtime_hours)` where `etwa_entries.prospect_id` matches; later client hours after conversion are never included. Open, Won, and Lost prospects are allowed. An empty period still returns a valid workbook with 0 hours.
+
+```json
+{
+  "prospect_id": 12,
+  "preset": "custom",
+  "date_from": "2026-07-01",
+  "date_to": "2026-07-31"
+}
+```
+
+**Capability:** `etwa_export_reports` + `etwa_view_analytics`
+
+---
+
+## Prospects
+
+Lightweight pre-client records. Employees pick Open prospects on timesheets via `GET /prospects`. Historical hours stay on `prospect_id` after conversion.
+
+### GET `/prospects`
+
+Open prospects for the timesheet dropdown.
+
+**Capability:** logged in
+
+---
+
+### GET `/prospects/all`
+
+All prospects for management. Optional `status` = `open` \| `won` \| `lost`.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### GET `/prospects/{id}`
+
+Prospect detail including `total_hours`, `entry_count`, related entries, and `converted_client` when converted.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### POST `/prospects`
+
+```json
+{ "name": "Acme Co.", "source": "referrals", "prospect_start_date": "2026-08-23" }
+```
+
+Creates an Open prospect. `source` is required and must be one of `referrals`, `social_media`, `direct_contact`, `campaigns`, `events`. `prospect_start_date` is a `Y-m-d` date; if omitted it defaults to today. `created_at` remains the database record timestamp.
+
+Responses include `source` and `prospect_start_date` on create, list, get, and update.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### PUT `/prospects/{id}`
+
+Update `name`. May also update `source` and `prospect_start_date` when those keys are sent. Omitted keys are left unchanged (Start Date is never auto-overwritten). Lost prospects may also update `lost_reason`.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### POST `/prospects/{id}/won`
+
+Mark an Open prospect as Won. Sets `won_lost_at`.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### POST `/prospects/{id}/lost`
+
+```json
+{ "lost_reason": "Budget not approved" }
+```
+
+Mark an Open prospect as Lost. `lost_reason` is required. Historical entries are kept.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### POST `/prospects/{id}/convert`
+
+Convert a Won, not-yet-converted prospect into a Client. Does **not** rewrite historical entries.
+
+```json
+{ "name": "Acme Co.", "code": "ACME", "department": "General" }
+```
+
+`code` is required (existing Client rule). Duplicate conversion returns `409 already_converted`.
+
+**Capability:** `etwa_manage_settings`
+
+---
+
+### GET `/prospect-analytics`
+
+Read-only dashboard over existing prospect + conversion data. Optional query params:
+
+| Param | Notes |
+|-------|-------|
+| `preset` | `all_time` (default), `today`, `this_week`, `this_month`, `last_month`, `last_3_months`, `last_6_months`, `this_year`, `custom` |
+| `date_from` / `date_to` | Used when `preset=custom` (`Y-m-d`) |
+| `interval` | Acquisition grain: `day` \| `week` \| `month` (default `month`) |
+| `status` | Table filter: `open` \| `won` \| `lost` |
+| `search` | Table filter by prospect name |
+
+New-prospect, acquisition, and source metrics use `prospect_start_date` (not `created_at`). A prospect is **converted** when `converted_client_id` is set (existing Convert to Client flow). Average conversion time is days from `prospect_start_date` to `converted_at`. Conversion rate is omitted (`null`) when there are no new prospects or no conversions in range. Hours on the prospect table still use `etwa_entries.entry_date` where `prospect_id` is set.
+
+**Capability:** `etwa_view_analytics`
 
 ---
 
@@ -422,13 +544,22 @@ Transactionally merge clients; reassigns entries, scopes, and projects; deactiva
 
 ### POST `/clients/{id}/convert-to-project/preview`
 
-Preview converting an active client into a project under a parent client. Unlike merge, direct entries and scopes receive the new `project_id`; child projects become sibling projects under the parent (no nesting).
+Preview converting an active client into a project under either another **Client** or a standalone **Parent Project**. Unlike merge, direct entries receive a `project_id`; child Client Projects become siblings under the selected parent (no nesting).
+
+Send **either** `parent_client_id` **or** `parent_project_id` (not both). Optional `destination_project_id`:
+
+- With `parent_client_id`: must be an active Client Project of that client. When omitted, a new Client Project is created using the source client's name.
+- With `parent_project_id`: must be that parent project or one of its standalone sub-projects. When omitted, a new standalone sub-project is created using the source client's name. Direct hours can land on the parent itself by setting `destination_project_id` to the parent.
 
 ```json
-{ "parent_client_id": 123 }
+{ "parent_client_id": 123, "destination_project_id": 456 }
 ```
 
-**Response highlights:** source/parent clients, affected entry/scope/allocation counts, child projects, duplicate name conflicts, unmigratable relationships (requests, draft snapshots), and `can_convert`.
+```json
+{ "parent_project_id": 78, "destination_project_id": 78 }
+```
+
+**Response highlights:** source client, `parent_client` and/or `parent_project`, `destination_project` (or `null`), `uses_existing_project`, `new_project_name`, affected entry/scope/allocation counts, child projects, duplicate name conflicts (new-project name check is skipped when using an existing destination), unmigratable relationships (requests, draft snapshots; scopes keep the deactivated source `client_id` when converting under a Parent Project), and `can_convert`.
 
 **Capability:** `etwa_manage_settings`
 
@@ -436,10 +567,14 @@ Preview converting an active client into a project under a parent client. Unlike
 
 ### POST `/clients/{id}/convert-to-project`
 
-Transactionally convert a client to a project under the parent client; deactivates the source client.
+Transactionally convert a client into a project under the selected parent; deactivates the source client. Same body as preview: required `parent_client_id` **or** `parent_project_id`, optional `destination_project_id`. When `destination_project_id` is set, direct hours move onto that project and no new project row is created.
 
 ```json
-{ "parent_client_id": 123 }
+{ "parent_client_id": 123, "destination_project_id": 456 }
+```
+
+```json
+{ "parent_project_id": 78 }
 ```
 
 **Capability:** `etwa_manage_settings`
@@ -460,9 +595,25 @@ Create a project under a client.
 { "name": "Adformatics", "description": "Optional" }
 ```
 
+### GET `/projects`
+
+List standalone (clientless) Workspace projects as a parent/child tree. `include_archived=1` includes archived items. Each parent includes `children` (sub-projects).
+
+### POST `/projects`
+
+Create a standalone project. Omit `client_id`. Optional `parent_project_id` creates a one-level sub-project under another standalone parent.
+
+```json
+{ "name": "ETWA Development", "description": "Optional", "parent_project_id": null }
+```
+
 ### GET `/projects/{id}`
 
-Project detail with hours summary, recent entries, and related scopes.
+Project analytics detail: hours summary, recent entries, related scopes, and employee breakdown. Query: `date_from`, `date_to` (defaults to current month).
+
+For a standalone **Parent Project**, totals include hours on the parent and its sub-projects (`includes_children`, `child_breakdown`, `analytics_project_ids`).
+
+**Capability:** logged in
 
 ### PUT `/projects/{id}`
 
@@ -622,7 +773,7 @@ See `DepartmentController` — `GET/POST /departments`, `PUT/DELETE /departments
 | `etwa_manage_vacation` | HR Manager, Owner — allocations, records, requests review |
 | `etwa_view_own_vacation` | Employee — own profile, submit/cancel requests |
 
-**Balance model:** One **annual leave pool** per employee. HR sets entitlement on the **Annual Leave** type only. All approved usage (annual, sick, emergency, compensatory) deducts from that pool; **unpaid** leave does not. Usage is still stored by leave type for reporting.
+**Balance model:** One **annual leave pool** per employee. HR sets entitlement on the **Annual Leave** type only. All approved usage (annual, sick, emergency) deducts from that pool; **unpaid** leave does not. Usage is still stored by leave type for reporting.
 
 Employees must have the **Think Marketing Employee** (`etwa_employee`) role.
 
@@ -630,7 +781,7 @@ Employees must have the **Think Marketing Employee** (`etwa_employee`) role.
 
 ### GET `/vacations/leave-types`
 
-Active leave types (annual, sick, emergency, compensatory, unpaid).
+Active leave types (annual, sick, emergency, unpaid).
 
 **Capability:** `etwa_manage_vacation` or `etwa_view_own_vacation`
 
@@ -927,7 +1078,6 @@ Refresh REST and AJAX nonces for long-lived portal sessions (used by `etwa-api.j
 
 | Action | Description |
 |--------|-------------|
-| `etwa_autosave_entry` | Autosave entry draft |
 | `etwa_save_settings` | Save owner settings |
 | `etwa_toggle_dark_mode` | Toggle user dark mode preference (`etwa_dark_mode` user meta); returns `{ dark_mode: boolean }` |
 | `etwa_email_preview` | Render branded HTML email preview from posted settings (Email Settings page) |
@@ -952,13 +1102,8 @@ Alternatively, members of an **active** department with `can_allocate_deliverabl
 | GET/POST | `/deliverables/scopes` | view / manage | List with metrics / create |
 | GET/PUT | `/deliverables/scopes/{id}` | view / manage | Scope details |
 | GET | `/deliverables/scopes/{id}/metrics` | view | Metrics only |
-| PUT | `/deliverables/scopes/{id}/contract-lines` | manage | **Retired** — returns 410 (legacy distribution from package era) |
-| POST | `/deliverables/scopes/{scope_id}/patches` | manage | **Retired** — returns 410 |
-| GET/PUT | `/deliverables/patches/{id}` | view / manage | **Retired** — returns 410 |
 | GET/POST | `/deliverables/allocations` | view / allocate | List / create (returns `allocation` + `metrics`) |
 | GET/PUT/DELETE | `/deliverables/allocations/{id}` | view / allocate | Details / update / delete |
-
-Batches are soft-retired. Package/Add-on catalog REST and scope write paths were removed in schema **1.25.0**; historical rows remain in the database for audit.
 
 ### Client Files (`GET /deliverables/files`)
 
@@ -1034,7 +1179,7 @@ Response:
 - `code` is auto-generated on create (`SCP-YYYYMMDD-####`) and ignored on update.
 - `project_id` optional; must belong to `client_id` when set.
 - `contract_deliverables` required on create; must be `>= 0`. HR/Owner sets the **Total Expected Deliverables** directly; Business adds allocation items later.
-- Planned = `contract_deliverables` only. Batch and package/add-on fields are ignored on write.
+- Planned = `contract_deliverables` only.
 
 ### Allocation body (multi-item)
 

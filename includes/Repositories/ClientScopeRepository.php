@@ -31,7 +31,7 @@ final class ClientScopeRepository {
 	}
 
 	/**
-	 * @param array{client_id?:int,status?:string,search?:string,package_id?:int} $filters
+	 * @param array{client_id?:int,project_id?:int,status?:string,search?:string} $filters
 	 * @return ClientScope[]
 	 */
 	public function list( array $filters = array() ): array {
@@ -50,10 +50,6 @@ final class ClientScopeRepository {
 		if ( ! empty( $filters['status'] ) ) {
 			$where[]  = 'status = %s';
 			$params[] = (string) $filters['status'];
-		}
-		if ( ! empty( $filters['package_id'] ) ) {
-			$where[]  = 'package_id = %d';
-			$params[] = (int) $filters['package_id'];
 		}
 		if ( ! empty( $filters['search'] ) ) {
 			$where[]  = '(name LIKE %s OR code LIKE %s)';
@@ -77,11 +73,7 @@ final class ClientScopeRepository {
 	/** @param array<string,mixed> $data */
 	public function create( array $data ): int {
 		global $wpdb;
-		$now      = current_time( 'mysql' );
-		$snapshot = $data['package_snapshot'] ?? null;
-		if ( is_array( $snapshot ) ) {
-			$snapshot = wp_json_encode( $snapshot );
-		}
+		$now = current_time( 'mysql' );
 		$wpdb->insert(
 			$this->table,
 			array(
@@ -94,10 +86,6 @@ final class ClientScopeRepository {
 				'starts_on'             => $data['starts_on'] ?? null,
 				'ends_on'               => $data['ends_on'] ?? null,
 				'contract_deliverables' => (float) ( $data['contract_deliverables'] ?? 0 ),
-				'patch_count'           => 0,
-				'expected_per_patch'    => 0,
-				'package_id'            => $data['package_id'] ?? null,
-				'package_snapshot'      => $snapshot,
 				'created_by'            => (int) ( $data['created_by'] ?? 0 ),
 				'created_at'            => $now,
 				'updated_at'            => $now,
@@ -119,21 +107,13 @@ final class ClientScopeRepository {
 			'starts_on',
 			'ends_on',
 			'contract_deliverables',
-			'patch_count',
-			'expected_per_patch',
-			'package_id',
-			'package_snapshot',
 		);
 		$payload = array( 'updated_at' => current_time( 'mysql' ) );
 		foreach ( $allowed as $key ) {
 			if ( ! array_key_exists( $key, $data ) ) {
 				continue;
 			}
-			$value = $data[ $key ];
-			if ( 'package_snapshot' === $key && is_array( $value ) ) {
-				$value = wp_json_encode( $value );
-			}
-			$payload[ $key ] = $value;
+			$payload[ $key ] = $data[ $key ];
 		}
 		return false !== $wpdb->update( $this->table, $payload, array( 'id' => $id ) );
 	}

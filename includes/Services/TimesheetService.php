@@ -22,6 +22,7 @@ use ETWA\Repositories\AuditLogRepository;
 use ETWA\Repositories\ClientRepository;
 use ETWA\Repositories\EntryRepository;
 use ETWA\Repositories\OvertimeRepository;
+use ETWA\Repositories\ProspectRepository;
 use ETWA\Repositories\TimesheetRepository;
 use WP_Error;
 
@@ -39,6 +40,7 @@ final class TimesheetService {
 		private OvertimeRepository $overtime = new OvertimeRepository(),
 		private AuditLogRepository $audit = new AuditLogRepository(),
 		private ClientRepository $clients = new ClientRepository(),
+		private ProspectRepository $prospects = new ProspectRepository(),
 		private TimeCalculator $calculator = new TimeCalculator(),
 	) {}
 
@@ -129,7 +131,16 @@ final class TimesheetService {
 
 		AnalyticsService::flush_dashboard_cache();
 
-		return $this->timesheets->find( $timesheet_id );
+		$timesheet = $this->timesheets->find( $timesheet_id );
+		if ( ! $timesheet ) {
+			return new WP_Error(
+				'save_failed',
+				__( 'Could not save the time entry. Please try again.', 'etwa' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return $timesheet;
 	}
 
 	public function clear_draft_visibility( int $timesheet_id ): void {
@@ -157,10 +168,42 @@ final class TimesheetService {
 			return new WP_Error( 'forbidden', __( 'Cannot edit this timesheet.', 'etwa' ), array( 'status' => 403 ) );
 		}
 
-		$entry_date = sanitize_text_field( (string) $data['entry_date'] );
-		$start_time = $this->normalize_time( (string) $data['start_time'] );
-		$end_time   = $this->normalize_time( (string) $data['end_time'] );
-		$client_id  = (int) $data['client_id'];
+		$entry_date  = sanitize_text_field( (string) $data['entry_date'] );
+		$start_time  = $this->normalize_time( (string) $data['start_time'] );
+		$end_time    = $this->normalize_time( (string) $data['end_time'] );
+		$client_id   = isset( $data['client_id'] ) && (int) $data['client_id'] > 0 ? (int) $data['client_id'] : null;
+		$prospect_id = isset( $data['prospect_id'] ) && (int) $data['prospect_id'] > 0 ? (int) $data['prospect_id'] : null;
+		$project_id  = null;
+
+		if ( $prospect_id ) {
+			$client_id  = null;
+			$project_id = null;
+			$prospect   = $this->prospects->find( $prospect_id );
+			if ( ! $prospect ) {
+				return new WP_Error( 'invalid', __( 'Please select a valid prospect.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			$existing       = $entry_id ? $this->entries->find( $entry_id ) : null;
+			$same_prospect  = $existing && (int) ( $existing->prospect_id ?? 0 ) === $prospect_id;
+			if ( ! $same_prospect && ! $prospect->is_open() ) {
+				return new WP_Error(
+					'invalid',
+					__( 'Only open prospects can receive new time entries.', 'etwa' ),
+					array( 'status' => 400 )
+				);
+			}
+		} else {
+			$project_id = $this->resolve_project_id( $data, $client_id );
+			if ( is_wp_error( $project_id ) ) {
+				return $project_id;
+			}
+			if ( ! $client_id && ! $project_id ) {
+				return new WP_Error(
+					'invalid',
+					__( 'Please select a client, prospect, or an internal project.', 'etwa' ),
+					array( 'status' => 400 )
+				);
+			}
+		}
 
 		$validation = $this->validate_entry_data(
 			$timesheet,
@@ -178,8 +221,8 @@ final class TimesheetService {
 			return $validation;
 		}
 
-		$client   = $this->clients->find( $client_id );
-		$is_break = $this->clients->is_break_client( $client_id, $client );
+		$client   = $client_id ? $this->clients->find( $client_id ) : null;
+		$is_break = $client_id ? $this->clients->is_break_client( $client_id, $client ) : false;
 		$task     = sanitize_text_field( (string) ( $data['task'] ?? '' ) );
 		if ( $is_break && '' === $task ) {
 			$task = __( 'Break', 'etwa' );
@@ -192,11 +235,6 @@ final class TimesheetService {
 		);
 		if ( is_wp_error( $entry_type ) ) {
 			return $entry_type;
-		}
-
-		$project_id = $this->resolve_project_id( $data, $client_id );
-		if ( is_wp_error( $project_id ) ) {
-			return $project_id;
 		}
 
 		$normalized = EntryTypeHelper::normalize_stored_hours(
@@ -216,6 +254,7 @@ final class TimesheetService {
 			'end_time'         => $end_time,
 			'client_id'        => $client_id,
 			'project_id'       => $project_id,
+			'prospect_id'      => $prospect_id,
 			'task'             => $task,
 			'notes'            => sanitize_textarea_field( (string) ( $data['notes'] ?? '' ) ),
 			'duration_minutes' => $normalized['duration_minutes'],
@@ -239,6 +278,13 @@ final class TimesheetService {
 			$id = $entry_id;
 		} else {
 			$id = $this->entries->create( $payload );
+			if ( 0 === $id ) {
+				return new WP_Error(
+					'save_failed',
+					__( 'Could not save the time entry. Please try again.', 'etwa' ),
+					array( 'status' => 500 )
+				);
+			}
 			if ( $audit_context ) {
 				$create_context = array_merge( $audit_context, array( 'operation' => 'create' ) );
 				$this->audit->log( 'hr_edit', 'entry', $id, null, $payload, $user_id, $create_context );
@@ -254,7 +300,16 @@ final class TimesheetService {
 		}
 		$this->recalculate_totals( (int) $timesheet->id, true );
 
-		return $this->entries->find( $id );
+		$entry = $this->entries->find( $id );
+		if ( ! $entry ) {
+			return new WP_Error(
+				'save_failed',
+				__( 'Could not save the time entry. Please try again.', 'etwa' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return $entry;
 	}
 
 	/**
@@ -310,6 +365,13 @@ final class TimesheetService {
 		);
 
 		$id = $this->entries->create( $payload );
+		if ( 0 === $id ) {
+			return new WP_Error(
+				'save_failed',
+				__( 'Could not save the time entry. Please try again.', 'etwa' ),
+				array( 'status' => 500 )
+			);
+		}
 		$this->audit->log(
 			'create',
 			'entry',
@@ -325,7 +387,16 @@ final class TimesheetService {
 
 		$this->recalculate_totals( (int) $timesheet->id, true );
 
-		return $this->entries->find( $id );
+		$entry = $this->entries->find( $id );
+		if ( ! $entry ) {
+			return new WP_Error(
+				'save_failed',
+				__( 'Could not save the time entry. Please try again.', 'etwa' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return $entry;
 	}
 
 	public function delete_entry( int $user_id, int $entry_id, ?array $audit_context = null ): bool|WP_Error {
@@ -414,7 +485,16 @@ final class TimesheetService {
 
 		AnalyticsService::flush_dashboard_cache();
 
-		return $this->timesheets->find( $timesheet_id );
+		$timesheet = $this->timesheets->find( $timesheet_id );
+		if ( ! $timesheet ) {
+			return new WP_Error(
+				'save_failed',
+				__( 'Could not save the time entry. Please try again.', 'etwa' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return $timesheet;
 	}
 
 	public function copy_previous_week( int $user_id, ?string $reference_date = null ): Timesheet|WP_Error {
@@ -480,7 +560,16 @@ final class TimesheetService {
 			)
 		);
 
-		return $this->timesheets->find( (int) $current->id );
+		$timesheet = $this->timesheets->find( (int) $current->id );
+		if ( ! $timesheet ) {
+			return new WP_Error(
+				'save_failed',
+				__( 'Could not save the time entry. Please try again.', 'etwa' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return $timesheet;
 	}
 
 	/**
@@ -502,7 +591,8 @@ final class TimesheetService {
 			$new_date   = $date_map[ $entry->entry_date ];
 			$start_time = $this->normalize_time( $entry->start_time );
 			$end_time   = $this->normalize_time( $entry->end_time );
-			$client_id  = $entry->client_id;
+			$client_id   = $entry->client_id && $entry->client_id > 0 ? (int) $entry->client_id : null;
+			$prospect_id = $entry->prospect_id && $entry->prospect_id > 0 ? (int) $entry->prospect_id : null;
 
 			$validation = $this->validate_entry_data(
 				$timesheet,
@@ -528,11 +618,12 @@ final class TimesheetService {
 				);
 			}
 
-			if ( ! array_key_exists( $client_id, $client_cache ) ) {
-				$client_cache[ $client_id ] = $this->clients->find( $client_id );
+			$cache_key = $client_id ?? 0;
+			if ( ! array_key_exists( $cache_key, $client_cache ) ) {
+				$client_cache[ $cache_key ] = $client_id ? $this->clients->find( $client_id ) : null;
 			}
-			$client   = $client_cache[ $client_id ];
-			$is_break = $this->clients->is_break_client( $client_id, $client );
+			$client   = $client_cache[ $cache_key ];
+			$is_break = $client_id ? $this->clients->is_break_client( $client_id, $client ) : false;
 			$calc     = $this->calculator->calculate( $new_date, $start_time, $end_time );
 			$task     = sanitize_text_field( $entry->task );
 			if ( $is_break && '' === $task ) {
@@ -542,10 +633,12 @@ final class TimesheetService {
 			$entry_type = $entry->entry_type;
 			$hours      = EntryTypeHelper::split_hours( $entry_type, (float) $calc['regular_hours'], $is_break );
 
-			$project_check = $this->resolve_project_id(
-				array( 'project_id' => $entry->project_id ),
-				$client_id
-			);
+			$project_check = $prospect_id
+				? null
+				: $this->resolve_project_id(
+					array( 'project_id' => $entry->project_id ),
+					$client_id
+				);
 			if ( is_wp_error( $project_check ) ) {
 				return $project_check;
 			}
@@ -556,8 +649,9 @@ final class TimesheetService {
 				'entry_date'       => $new_date,
 				'start_time'       => $start_time,
 				'end_time'         => $end_time,
-				'client_id'        => $client_id,
-				'project_id'       => $project_check,
+				'client_id'        => $prospect_id ? null : $client_id,
+				'project_id'       => $prospect_id ? null : $project_check,
+				'prospect_id'      => $prospect_id,
 				'task'             => $task,
 				'notes'            => sanitize_textarea_field( (string) $entry->notes ),
 				'duration_minutes' => $calc['duration_minutes'],
@@ -663,8 +757,10 @@ final class TimesheetService {
 			$entry_date = $entry->entry_date;
 			$start_time = $this->normalize_time( $entry->start_time );
 			$end_time   = $this->normalize_time( $entry->end_time );
-			$client     = $this->clients->find( $entry->client_id );
-			$is_break   = $this->clients->is_break_client( $entry->client_id, $client );
+			$client_id   = $entry->client_id && $entry->client_id > 0 ? (int) $entry->client_id : null;
+			$prospect_id = $entry->prospect_id && $entry->prospect_id > 0 ? (int) $entry->prospect_id : null;
+			$client      = $client_id ? $this->clients->find( $client_id ) : null;
+			$is_break    = $client_id ? $this->clients->is_break_client( $client_id, $client ) : false;
 			$normalized = EntryTypeHelper::normalize_stored_hours(
 				$entry_type,
 				$entry_date,
@@ -680,7 +776,9 @@ final class TimesheetService {
 				'entry_date'       => $entry_date,
 				'start_time'       => $start_time,
 				'end_time'         => $end_time,
-				'client_id'        => $entry->client_id,
+				'client_id'        => $prospect_id ? null : $client_id,
+				'project_id'       => $prospect_id ? null : $entry->project_id,
+				'prospect_id'      => $prospect_id,
 				'task'             => $entry->task,
 				'notes'            => (string) ( $entry->notes ?? '' ),
 				'duration_minutes' => $normalized['duration_minutes'],
@@ -722,7 +820,7 @@ final class TimesheetService {
 		string $entry_date,
 		string $start_time,
 		string $end_time,
-		int $client_id,
+		?int $client_id,
 		string $task,
 		?int $entry_id = null,
 		bool $skip_calendar_check = false,
@@ -776,17 +874,20 @@ final class TimesheetService {
 			);
 		}
 
-		$client = $this->clients->find( $client_id );
-		if ( ! $client || ! $client->is_active ) {
-			return new WP_Error(
-				'invalid_client',
-				__( 'Please select a valid active client.', 'etwa' ),
-				array( 'status' => 400 )
-			);
+		$client = null;
+		if ( $client_id ) {
+			$client = $this->clients->find( $client_id );
+			if ( ! $client || ! $client->is_active ) {
+				return new WP_Error(
+					'invalid_client',
+					__( 'Please select a valid active client.', 'etwa' ),
+					array( 'status' => 400 )
+				);
+			}
 		}
 
-		$is_break       = $this->clients->is_break_client( $client_id, $client );
-		$is_all_clients = $this->clients->is_all_clients_client( $client_id, $client );
+		$is_break       = $client_id ? $this->clients->is_break_client( $client_id, $client ) : false;
+		$is_all_clients = $client_id ? $this->clients->is_all_clients_client( $client_id, $client ) : false;
 
 		if ( ! $is_break && '' === trim( $task ) ) {
 			return new WP_Error(
@@ -826,11 +927,8 @@ final class TimesheetService {
 	 * @param array<string,mixed> $data
 	 * @return int|null|WP_Error
 	 */
-	private function resolve_project_id( array $data, int $client_id ): int|null|WP_Error {
-		if ( ! isset( $data['project_id'] ) || '' === (string) $data['project_id'] ) {
-			return null;
-		}
-		$project_id = (int) $data['project_id'];
+	private function resolve_project_id( array $data, ?int $client_id ): int|null|WP_Error {
+		$project_id = isset( $data['project_id'] ) ? (int) $data['project_id'] : 0;
 		if ( $project_id <= 0 ) {
 			return null;
 		}

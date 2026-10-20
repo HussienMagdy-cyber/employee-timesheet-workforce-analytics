@@ -20,19 +20,22 @@ final class EntryRepository {
 	private string $table;
 	private string $clients_table;
 	private string $projects_table;
+	private string $prospects_table;
 
 	public function __construct() {
 		global $wpdb;
-		$this->table          = $wpdb->prefix . 'etwa_entries';
-		$this->clients_table  = $wpdb->prefix . 'etwa_clients';
-		$this->projects_table = $wpdb->prefix . 'etwa_projects';
+		$this->table           = $wpdb->prefix . 'etwa_entries';
+		$this->clients_table   = $wpdb->prefix . 'etwa_clients';
+		$this->projects_table  = $wpdb->prefix . 'etwa_projects';
+		$this->prospects_table = $wpdb->prefix . 'etwa_prospects';
 	}
 
 	private function entry_select_sql(): string {
-		return "SELECT e.*, c.name AS client_name, p.name AS project_name
+		return "SELECT e.*, c.name AS client_name, p.name AS project_name, pr.name AS prospect_name
 			FROM {$this->table} e
 			LEFT JOIN {$this->clients_table} c ON c.id = e.client_id
-			LEFT JOIN {$this->projects_table} p ON p.id = e.project_id";
+			LEFT JOIN {$this->projects_table} p ON p.id = e.project_id
+			LEFT JOIN {$this->prospects_table} pr ON pr.id = e.prospect_id";
 	}
 
 	public function find( int $id ): ?Entry {
@@ -63,7 +66,10 @@ final class EntryRepository {
 		return $this->find_by_date_range_page( $date_from, $date_to, 0, 0, $user_id );
 	}
 
-	/** @return Entry[] */
+	/**
+	 * @param int[]|null $project_ids
+	 * @return Entry[]
+	 */
 	public function find_by_date_range_page(
 		string $date_from,
 		string $date_to,
@@ -71,7 +77,8 @@ final class EntryRepository {
 		int $offset,
 		?int $user_id = null,
 		?int $client_id = null,
-		?int $project_id = null
+		?int $project_id = null,
+		?array $project_ids = null
 	): array {
 		global $wpdb;
 		$sql    = $this->entry_select_sql() . ' WHERE e.entry_date BETWEEN %s AND %s';
@@ -85,7 +92,13 @@ final class EntryRepository {
 			$sql     .= ' AND e.client_id = %d';
 			$params[] = $client_id;
 		}
-		if ( $project_id ) {
+		$project_ids = array_values( array_filter( array_map( 'intval', $project_ids ?? array() ) ) );
+		if ( $project_ids ) {
+			$placeholders = implode( ',', array_fill( 0, count( $project_ids ), '%d' ) );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IN placeholders are %d tokens.
+			$sql         .= " AND e.project_id IN ({$placeholders})";
+			$params       = array_merge( $params, $project_ids );
+		} elseif ( $project_id ) {
 			$sql     .= ' AND e.project_id = %d';
 			$params[] = $project_id;
 		}
@@ -98,6 +111,20 @@ final class EntryRepository {
 		}
 
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
+		return array_map( fn( $row ) => Entry::from_row( $row ), $rows ?: array() );
+	}
+
+	/** @return Entry[] */
+	public function find_by_prospect( int $prospect_id, int $limit = 100 ): array {
+		global $wpdb;
+		$limit = max( 1, min( 500, $limit ) );
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare(
+				$this->entry_select_sql() . ' WHERE e.prospect_id = %d ORDER BY e.entry_date DESC, e.start_time DESC, e.id DESC LIMIT %d',
+				$prospect_id,
+				$limit
+			)
+		);
 		return array_map( fn( $row ) => Entry::from_row( $row ), $rows ?: array() );
 	}
 
@@ -152,10 +179,14 @@ final class EntryRepository {
 	public function create( array $data ): int {
 		global $wpdb;
 		$now = current_time( 'mysql' );
-		$wpdb->insert(
+		$inserted = $wpdb->insert(
 			$this->table,
 			array_merge( $data, array( 'created_at' => $now, 'updated_at' => $now ) )
 		);
+		if ( false === $inserted ) {
+			error_log( 'ETWA EntryRepository::create() insert failed: ' . $wpdb->last_error );
+			return 0;
+		}
 		return (int) $wpdb->insert_id;
 	}
 

@@ -11,7 +11,9 @@ namespace ETWA\Helpers;
 
 use ETWA\Models\Entry;
 use ETWA\Repositories\ClientRepository;
+use ETWA\Repositories\ProspectRepository;
 use ETWA\Helpers\TimesheetDraftHelper;
+use ETWA\Services\ProjectService;
 use ETWA\Services\TimesheetService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -74,6 +76,8 @@ final class TimesheetViewData {
 			'prev_week_start'  => $prev['period_start'],
 			'next_week_start'  => $next['period_start'],
 			'clients'          => ( new ClientRepository() )->all_for_dropdown(),
+			'prospects'        => self::prospects_for_entries( $data['entries'] ?? array() ),
+			'standalone_projects' => self::standalone_project_tree( $user_id ),
 			'dark_mode'        => '1' === get_user_meta( $user_id, 'etwa_dark_mode', true ),
 			'readonly'         => $readonly,
 			'context'          => $context,
@@ -285,5 +289,45 @@ final class TimesheetViewData {
 			$total += $entry->regular_hours + $entry->overtime_hours;
 		}
 		return $total;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private static function standalone_project_tree( int $user_id ): array {
+		$tree = ( new ProjectService() )->list_standalone_tree( $user_id, true );
+		return is_wp_error( $tree ) ? array() : $tree;
+	}
+
+	/**
+	 * Open prospects plus any closed prospects already used on this week's entries.
+	 *
+	 * @param Entry[] $entries
+	 * @return \ETWA\Models\Prospect[]
+	 */
+	private static function prospects_for_entries( array $entries ): array {
+		$repo = new ProspectRepository();
+		$open = $repo->all_open_for_dropdown();
+		$by_id = array();
+		foreach ( $open as $prospect ) {
+			$by_id[ (int) $prospect->id ] = $prospect;
+		}
+
+		$needed = array();
+		foreach ( $entries as $entry ) {
+			if ( $entry->prospect_id ) {
+				$needed[ (int) $entry->prospect_id ] = true;
+			}
+		}
+
+		$missing = array_diff( array_keys( $needed ), array_keys( $by_id ) );
+		foreach ( $repo->find_many( $missing ) as $prospect ) {
+			$by_id[ (int) $prospect->id ] = $prospect;
+		}
+
+		usort(
+			$by_id,
+			static fn( $a, $b ) => strcasecmp( $a->name, $b->name )
+		);
+
+		return array_values( $by_id );
 	}
 }

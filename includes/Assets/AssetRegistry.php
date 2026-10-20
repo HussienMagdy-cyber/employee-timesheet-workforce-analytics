@@ -11,6 +11,10 @@ namespace ETWA\Assets;
 
 use ETWA\Frontend\PortalNav;
 use ETWA\Helpers\AuthHelper;
+use ETWA\Models\Prospect;
+use ETWA\Helpers\DateRangeHelper;
+use ETWA\Helpers\SuperClientAccessHelper;
+use ETWA\Helpers\SuperClientRequestHelper;
 use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\EmployeeProfileHelper;
 use ETWA\Helpers\EntryTypeHelper;
@@ -88,7 +92,7 @@ final class AssetRegistry {
 		if ( ! $post ) {
 			return false;
 		}
-		$tags = array( 'etwa_timesheet', 'etwa_hr', 'etwa_analytics', 'etwa_client_analytics', 'etwa_clients', 'etwa_employees', 'etwa_reports', 'etwa_holidays', 'etwa_vacations', 'etwa_my_vacation', 'etwa_requests', 'etwa_requests_hr', 'etwa_portal', 'etwa_login', 'etwa_set_password' );
+		$tags = array( 'etwa_timesheet', 'etwa_hr', 'etwa_analytics', 'etwa_client_analytics', 'etwa_prospect_analytics', 'etwa_clients', 'etwa_prospects', 'etwa_employees', 'etwa_reports', 'etwa_holidays', 'etwa_vacations', 'etwa_my_vacation', 'etwa_requests', 'etwa_requests_hr', 'etwa_portal', 'etwa_login', 'etwa_set_password' );
 		foreach ( $tags as $tag ) {
 			if ( has_shortcode( $post->post_content, $tag ) ) {
 				if ( 'etwa_portal' === $tag && is_user_logged_in() ) {
@@ -141,6 +145,9 @@ final class AssetRegistry {
 		if ( isset( self::$scripts['client-analytics'] ) ) {
 			return 'client-analytics';
 		}
+		if ( isset( self::$scripts['prospect-analytics'] ) ) {
+			return 'prospect-analytics';
+		}
 		if ( isset( self::$scripts['owner-analytics'] ) ) {
 			return 'owner-analytics';
 		}
@@ -159,6 +166,12 @@ final class AssetRegistry {
 		if ( isset( self::$scripts['clients-manager'] ) ) {
 			return 'clients-manager';
 		}
+		if ( isset( self::$scripts['prospects'] ) ) {
+			return 'prospects';
+		}
+		if ( isset( self::$scripts['super-client-manager'] ) ) {
+			return 'super-client-manager';
+		}
 		if ( isset( self::$scripts['admin'] ) ) {
 			return 'admin';
 		}
@@ -170,10 +183,13 @@ final class AssetRegistry {
 			'etwa_hr'        => 'hr-dashboard',
 			'etwa_analytics' => 'owner-analytics',
 			'etwa_client_analytics' => 'client-analytics',
+			'etwa_prospect_analytics' => 'prospect-analytics',
 			'etwa_reports'   => 'reports-exports',
 			'etwa_deliverables' => 'deliverables',
 			'etwa_files'     => 'files',
 			'etwa_clients'   => 'clients-manager',
+			'etwa_prospects' => 'prospects',
+			'etwa_super_clients' => 'super-client-manager',
 			'etwa_employees' => 'employees-manager',
 			'etwa_holidays'  => 'holidays-manager',
 			'etwa_vacations' => 'vacation-manager',
@@ -235,7 +251,7 @@ final class AssetRegistry {
 			wp_enqueue_media();
 		}
 
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script || 'files' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'prospect-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script || 'files' === $script ) {
 			wp_enqueue_style(
 				'etwa-analytics',
 				ETWA_PLUGIN_URL . 'assets/css/analytics.css',
@@ -244,7 +260,22 @@ final class AssetRegistry {
 			);
 		}
 
-		if ( in_array( $script, array( 'reports-exports', 'client-analytics', 'employees-manager', 'owner-analytics', 'hr-dashboard' ), true ) ) {
+		if ( 'super-client-manager' === $script || 'departments-manager' === $script ) {
+			wp_enqueue_style(
+				'etwa-analytics',
+				ETWA_PLUGIN_URL . 'assets/css/analytics.css',
+				array( 'etwa-components' ),
+				ETWA_VERSION
+			);
+			wp_enqueue_style(
+				'etwa-super-client',
+				ETWA_PLUGIN_URL . 'assets/css/super-client.css',
+				array( 'etwa-frontend', 'etwa-analytics' ),
+				ETWA_VERSION
+			);
+		}
+
+		if ( in_array( $script, array( 'reports-exports', 'client-analytics', 'prospect-analytics', 'employees-manager', 'owner-analytics', 'hr-dashboard' ), true ) ) {
 			wp_enqueue_script(
 				'etwa-date-range',
 				ETWA_PLUGIN_URL . 'assets/js/etwa-date-range.js',
@@ -254,7 +285,7 @@ final class AssetRegistry {
 			);
 		}
 
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'prospect-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script ) {
 			wp_enqueue_script(
 				'chartjs',
 				'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
@@ -290,7 +321,7 @@ final class AssetRegistry {
 		if ( ! in_array( $script, array( 'clients-manager', 'auth' ), true ) ) {
 			$deps[] = 'wp-api-fetch';
 		}
-		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script ) {
+		if ( 'owner-analytics' === $script || 'client-analytics' === $script || 'prospect-analytics' === $script || 'reports-exports' === $script || 'deliverables' === $script ) {
 			$deps[] = 'chartjs';
 		}
 		if ( wp_script_is( 'etwa-date-range', 'enqueued' ) ) {
@@ -371,8 +402,30 @@ final class AssetRegistry {
 				'userId'     => get_current_user_id(),
 				'canExport'  => current_user_can( RoleManager::CAP_EXPORT ),
 				'canViewAnalytics' => current_user_can( RoleManager::CAP_ANALYTICS ),
+				'clientAnalyticsUrl' => is_admin()
+					? admin_url( 'admin.php?page=etwa-client-analytics' )
+					: PortalNav::view_url( AuthHelper::portal_url(), 'client-analytics' ),
 				'canApprove' => current_user_can( RoleManager::CAP_APPROVE_TS ),
-				'canManage'        => current_user_can( RoleManager::CAP_MANAGE_SETTINGS ),
+				'canManage'        => SuperClientAccessHelper::can_manage_products( get_current_user_id() ),
+				'canAccessProducts' => SuperClientAccessHelper::can_access_product_hub( get_current_user_id() ),
+				'canCompleteProductSubmission' => SuperClientAccessHelper::can_complete_submission( get_current_user_id() ),
+				'today'            => current_time( 'Y-m-d' ),
+				'sourceLabels'     => Prospect::source_labels(),
+				'prospectsUrl'     => is_admin()
+					? admin_url( 'admin.php?page=etwa-prospects' )
+					: PortalNav::view_url( AuthHelper::portal_url(), 'prospects' ),
+				'workspaceUrl'     => is_admin()
+					? ''
+					: PortalNav::view_url( AuthHelper::portal_url(), 'clients' ),
+				'superClientsUrl'  => is_admin()
+					? ''
+					: PortalNav::view_url( AuthHelper::portal_url(), 'super-clients' ),
+				'superClientRequestTypeLabels'     => SuperClientRequestHelper::request_type_labels(),
+				'superClientServiceCategoryLabels' => SuperClientRequestHelper::service_category_labels(),
+				'superClientAgencyLabels'          => SuperClientRequestHelper::agency_labels(),
+				'superClientIndustryLabels'        => SuperClientRequestHelper::industry_labels(),
+				'superClientStatusLabels'          => SuperClientRequestHelper::status_labels(),
+				'dateRangePresets'                 => DateRangeHelper::prospect_analytics_preset_labels(),
 				'canViewLaborCost' => EmployeeCostHelper::can_view_labor_cost(),
 				'canManageEmployees' => EmployeeProfileHelper::can_manage_employees(),
 				'creatableRoles'     => EmployeeProfileHelper::assignable_roles(),
@@ -387,7 +440,6 @@ final class AssetRegistry {
 				'canAllocateDeliverables' => RoleManager::user_can_allocate_deliverables(),
 				'canManageDeliverableTypes' => RoleManager::user_can_manage_deliverable_types(),
 				'vacationDualApproval' => VacationApprovalHelper::is_dual_approval_enabled(),
-				'autosaveMs'       => (int) ( new SettingsRepository() )->get( 'autosave_interval', 30 ) * 1000,
 				'breakCode'  => \ETWA\Repositories\ClientRepository::BREAK_CODE,
 				'workDayEnd' => EntryTypeHelper::work_day_end(),
 				'i18n'       => array(
@@ -414,14 +466,18 @@ final class AssetRegistry {
 					'clientDeleted'    => __( 'Client deleted.', 'etwa' ),
 					'clientDeactivated'=> __( 'Client deactivated.', 'etwa' ),
 					'convertToProject'   => __( 'Convert to Project', 'etwa' ),
-					'convertSelectionRequired' => __( 'Select a parent client.', 'etwa' ),
+					'convertSelectionRequired' => __( 'Select a parent client or parent project.', 'etwa' ),
 					'convertPreviewRequired' => __( 'Preview the conversion and resolve conflicts first.', 'etwa' ),
-					'confirmConvert'     => __( 'Convert this client into a project under the parent client?', 'etwa' ),
+					'confirmConvert'     => __( 'Convert this client into a project under the selected parent?', 'etwa' ),
 					'convertComplete'    => __( 'Client converted to project successfully.', 'etwa' ),
 					'convertSourceLabel' => __( 'Converting client:', 'etwa' ),
 					'convertPreviewSource' => __( 'Source', 'etwa' ),
 					'convertPreviewParent' => __( 'Parent', 'etwa' ),
 					'convertPreviewProject' => __( 'New project', 'etwa' ),
+					'convertPreviewExistingProject' => __( 'Existing project', 'etwa' ),
+					'convertNewProjectOption' => __( 'New project (use client name)', 'etwa' ),
+					'convertNewSubProjectOption' => __( 'New sub-project (use client name)', 'etwa' ),
+					'convertParentProjectOption' => __( '%s (parent project)', 'etwa' ),
 					'convertEntries'     => __( 'entries', 'etwa' ),
 					'convertDirect'      => __( 'social media', 'etwa' ),
 					'convertOnChildProjects' => __( 'on child projects', 'etwa' ),
@@ -433,6 +489,93 @@ final class AssetRegistry {
 					'convertWarnings'    => __( 'Notes', 'etwa' ),
 					'confirmDeleteClient'   => __( 'Permanently delete this client? This cannot be undone.', 'etwa' ),
 					'confirmDeactivateClient' => __( 'Deactivate this client? It will be hidden from the timesheet dropdown.', 'etwa' ),
+					'promoteSuperClient'      => __( 'Promote to Product', 'etwa' ),
+					'demoteSuperClient'       => __( 'Demote Product', 'etwa' ),
+					'manageSuperClient'       => __( 'Manage', 'etwa' ),
+					'superClientBadge'        => __( 'PRODUCT', 'etwa' ),
+					'confirmPromoteSuper'     => __( 'Promote this client to a Product?', 'etwa' ),
+					'confirmDemoteSuper'      => __( 'Demote this Product to a standard client? Child data will be preserved.', 'etwa' ),
+					'promotedSuper'           => __( 'Client promoted to Product.', 'etwa' ),
+					'demotedSuper'            => __( 'Client demoted to standard client.', 'etwa' ),
+					'noSuperClients'          => __( 'No Products yet. Promote a client from Workspace.', 'etwa' ),
+					'noProductTabsForUnit'    => __( 'No Product Tabs are available for your department.', 'etwa' ),
+					'noBrands'                => __( 'No brands yet.', 'etwa' ),
+					'noBrandsHint'            => __( 'Create your first brand to get started.', 'etwa' ),
+					'noRequestsHint'          => __( 'Create a request for one of your brands.', 'etwa' ),
+					'noRecentRequests'        => __( 'No requests yet.', 'etwa' ),
+					'noSearchResults'         => __( 'No matching results.', 'etwa' ),
+					'noAnalyticsData'         => __( 'No analytics data yet.', 'etwa' ),
+					'noAnalyticsHint'         => __( 'Add brands and requests to see analytics here.', 'etwa' ),
+					'recentRequests'          => __( 'Recent Requests', 'etwa' ),
+					'activeBrands'            => __( 'Active Brands', 'etwa' ),
+					'loading'                 => __( 'Loading…', 'etwa' ),
+					'view'                    => __( 'View', 'etwa' ),
+					'date'                    => __( 'Date', 'etwa' ),
+					'brandLabel'              => __( 'Brand', 'etwa' ),
+					'requestTypeLabel'        => __( 'Request Type', 'etwa' ),
+					'invoiceLabel'            => __( 'Invoice #', 'etwa' ),
+					'createdLabel'            => __( 'Created', 'etwa' ),
+					'requestDateAuto'         => __( 'Set automatically when saved', 'etwa' ),
+					'applyCustomRange'        => __( 'Apply custom range', 'etwa' ),
+					'requestsInPeriod'        => __( 'Total Requests (in period)', 'etwa' ),
+					'brandsAllTime'           => __( 'Total Brands', 'etwa' ),
+					'brandNameRequired'       => __( 'Brand is required.', 'etwa' ),
+					'agencyRequired'          => __( 'Agency type is required.', 'etwa' ),
+					'addBrandSubtitle'        => __( 'Add a brand profile for this Product', 'etwa' ),
+					'editBrandSubtitle'       => __( 'Update brand profile details', 'etwa' ),
+					'editRequestLabel'        => __( 'Edit Request', 'etwa' ),
+					'noRequests'              => __( 'No requests yet.', 'etwa' ),
+					'brandSaved'              => __( 'Brand saved.', 'etwa' ),
+					'brandDeactivated'        => __( 'Brand deactivated.', 'etwa' ),
+					'requestSaved'            => __( 'Request saved.', 'etwa' ),
+					'requestDeleted'          => __( 'Request deleted.', 'etwa' ),
+					'serviceCategoryRequired' => __( 'Service category is required.', 'etwa' ),
+					'serviceRequired'         => __( 'Service is required.', 'etwa' ),
+					'confirmDeactivateBrand'  => __( 'Deactivate this brand?', 'etwa' ),
+					'confirmDeleteRequest'    => __( 'Delete this request?', 'etwa' ),
+					'confirmArchiveProject'   => __( 'Archive this project?', 'etwa' ),
+					'projectSaved'            => __( 'Project created.', 'etwa' ),
+					'totalBrands'             => __( 'Total Brands', 'etwa' ),
+					'totalRequests'           => __( 'Total Requests', 'etwa' ),
+					'requestsByType'          => __( 'Requests by Type', 'etwa' ),
+					'serviceCategory'         => __( 'Service Category', 'etwa' ),
+					'byService'               => __( 'Service', 'etwa' ),
+					'byAgency'                => __( 'Brands by Agency', 'etwa' ),
+					'byIndustry'              => __( 'Brands by Industry', 'etwa' ),
+					'requestsByIndustry'      => __( 'Requests by Industry', 'etwa' ),
+					'industryRequired'        => __( 'Industry is required.', 'etwa' ),
+					'selectIndustry'          => __( 'Select industry…', 'etwa' ),
+					'byBrand'                 => __( 'By Brand', 'etwa' ),
+					'agencyName'              => __( 'Agency Name', 'etwa' ),
+					'agencyNameRequired'      => __( 'Agency name is required when Agency is selected.', 'etwa' ),
+					'addBrand'                => __( 'Add Brand', 'etwa' ),
+					'editBrand'               => __( 'Edit Brand', 'etwa' ),
+					'createRequest'           => __( 'Create Request', 'etwa' ),
+					'createRequestSubtitle'   => __( 'Add a new request for a Product brand', 'etwa' ),
+					'editRequestSubtitle'     => __( 'Update request details for this brand', 'etwa' ),
+					'completeSubmissionSubtitle' => __( 'Complete submission and receipt information', 'etwa' ),
+					'saveRequest'             => __( 'Save Request', 'etwa' ),
+					'requestDetails'          => __( 'Request Details', 'etwa' ),
+					'contactInformation'      => __( 'Contact Information', 'etwa' ),
+					'submissionReceipt'       => __( 'Submission / Receipt', 'etwa' ),
+					'completeSubmission'      => __( 'Complete Submission', 'etwa' ),
+					'editSubmission'          => __( 'Edit Submission', 'etwa' ),
+					'statusLabel'             => __( 'Status', 'etwa' ),
+					'statusPending'           => __( 'Pending', 'etwa' ),
+					'statusPublished'         => __( 'Published', 'etwa' ),
+					'statusCancelled'         => __( 'Cancelled', 'etwa' ),
+					'allowedUnits'            => __( 'Allowed Units', 'etwa' ),
+					'allowedUnitsHint'        => __( 'Choose which units can see this Product Tab. Products inside the tab inherit this access.', 'etwa' ),
+					'allowedUnitsSaved'       => __( 'Allowed units saved.', 'etwa' ),
+					'noUnitsConfigured'       => __( 'No units yet. Add departments in Administration.', 'etwa' ),
+					'enterServiceDescription' => __( 'Enter service description…', 'etwa' ),
+					'enterInvoiceNumber'      => __( 'Enter invoice number…', 'etwa' ),
+					'brandRequired'           => __( 'Brand is required.', 'etwa' ),
+					'invalidEmail'            => __( 'Enter a valid email address.', 'etwa' ),
+					'editRequest'             => __( 'Edit Request', 'etwa' ),
+					'selectBrand'             => __( 'Select brand…', 'etwa' ),
+					'viewRequests'            => __( 'Requests', 'etwa' ),
+					'manage'                  => __( 'Manage', 'etwa' ),
 					'deactivate'       => __( 'Deactivate', 'etwa' ),
 					'editClient'       => __( 'Edit Client', 'etwa' ),
 					'entrySaved'       => __( 'Entry saved.', 'etwa' ),
@@ -451,9 +594,21 @@ final class AssetRegistry {
 					'breakLabel'       => __( 'Break', 'etwa' ),
 					'taskPlaceholder'  => __( 'e.g. Website', 'etwa' ),
 					'directClientWork' => __( 'Social Media', 'etwa' ),
+					'prospectsGroup'   => __( 'Prospects', 'etwa' ),
+					'directParentProject' => __( 'Direct on parent project', 'etwa' ),
 					'selectProject'    => __( 'Select a project…', 'etwa' ),
 					'projectRequired'  => __( 'Please select a project for this client.', 'etwa' ),
 					'noProjectsDirect' => __( 'No projects — Social Media', 'etwa' ),
+					'addSubProject'    => __( 'Add Sub-project', 'etwa' ),
+					'subProjectName'   => __( 'Sub-project name', 'etwa' ),
+					'addProject'       => __( 'Add Project', 'etwa' ),
+					'addingParentProject' => __( 'Creating a new Parent Project.', 'etwa' ),
+					'addingSubProject' => __( 'Adding a Sub-project under %s.', 'etwa' ),
+					'parentProject'    => __( 'Parent Project', 'etwa' ),
+					'subProject'       => __( 'Sub-project', 'etwa' ),
+					'viewHours'        => __( 'View hours', 'etwa' ),
+					'active'           => __( 'active', 'etwa' ),
+					'inactive'         => __( 'inactive', 'etwa' ),
 					'notesPlaceholder' => __( 'Optional details…', 'etwa' ),
 					'allClientsNotesPlaceholder' => __( 'Describe the work performed in detail (required for Moderation entries)…', 'etwa' ),
 					'allClientsNotesRequired' => __( 'Please describe the work performed in detail in Notes because this entry applies to Moderation.', 'etwa' ),
@@ -476,6 +631,41 @@ final class AssetRegistry {
 					'calendarSaved'    => __( 'Calendar saved.', 'etwa' ),
 					'noHolidays'       => __( 'No holidays found.', 'etwa' ),
 					'confirmDeleteHoliday' => __( 'Delete this holiday?', 'etwa' ),
+					'noProspects'      => __( 'No prospects found.', 'etwa' ),
+					'prospectSaved'    => __( 'Prospect saved.', 'etwa' ),
+					'prospectUpdated'  => __( 'Prospect updated.', 'etwa' ),
+					'prospectWon'      => __( 'Prospect marked as won.', 'etwa' ),
+					'prospectLost'     => __( 'Prospect marked as lost.', 'etwa' ),
+					'prospectConverted'=> __( 'Prospect converted to client.', 'etwa' ),
+					'confirmMarkWon'   => __( 'Mark this prospect as won?', 'etwa' ),
+					'markWon'          => __( 'Mark Won', 'etwa' ),
+					'markLost'         => __( 'Mark Lost', 'etwa' ),
+					'convertToClient'  => __( 'Convert to Client', 'etwa' ),
+					'viewConvertedClient' => __( 'View converted Client', 'etwa' ),
+					'viewLostReason'   => __( 'View Lost Reason', 'etwa' ),
+					'lostReason'       => __( 'Lost reason', 'etwa' ),
+					'statusOpen'       => __( 'Open', 'etwa' ),
+					'statusWon'        => __( 'Won', 'etwa' ),
+					'statusLost'       => __( 'Lost', 'etwa' ),
+					'notConvertedYet'  => __( 'Not converted yet', 'etwa' ),
+					'notConverted'     => __( 'Not converted', 'etwa' ),
+					'converted'        => __( 'Converted', 'etwa' ),
+					'conversionStatus' => __( 'Conversion status', 'etwa' ),
+					'convertedClient'  => __( 'Converted client', 'etwa' ),
+					'createdDate'      => __( 'Created date', 'etwa' ),
+					'wonLostDate'      => __( 'Won/Lost date', 'etwa' ),
+					'source'           => __( 'Source', 'etwa' ),
+					'startDate'        => __( 'Start Date', 'etwa' ),
+					'selectSource'     => __( 'Select Source', 'etwa' ),
+					'sourceReferrals'  => __( 'Referrals', 'etwa' ),
+					'sourceSocialMedia'=> __( 'Social Media', 'etwa' ),
+					'sourceDirectContact' => __( 'Direct Contact', 'etwa' ),
+					'sourceCampaigns'  => __( 'Campaigns', 'etwa' ),
+					'sourceEvents'     => __( 'Events', 'etwa' ),
+					'relatedEntries'   => __( 'Related entries / work', 'etwa' ),
+					'noProspectEntries'=> __( 'No working hours recorded against this prospect.', 'etwa' ),
+					'entries'          => __( 'entries', 'etwa' ),
+					'hours'            => __( 'Hours', 'etwa' ),
 					'yes'              => __( 'Yes', 'etwa' ),
 					'no'               => __( 'No', 'etwa' ),
 					'auditReasonTitle' => __( 'Audit reason required', 'etwa' ),
@@ -533,6 +723,15 @@ final class AssetRegistry {
 					'requestDates'          => __( 'Request dates', 'etwa' ),
 					'invalidDays'           => __( 'Enter a valid number of days.', 'etwa' ),
 					'vacationBulkHrDays'    => __( 'Approve vacation requests individually so you can enter the days to deduct.', 'etwa' ),
+					'permissionBulkHrDays'  => __( 'Approve permission requests individually so you can enter deduction days when required.', 'etwa' ),
+					'permissionDeductionTitle' => __( 'Permission Deduction', 'etwa' ),
+					'permissionDeductionHelp'  => __( 'This permission exceeds the monthly allowance. Enter how many vacation days to deduct.', 'etwa' ),
+					'deductionDays'         => __( 'Deduction Days', 'etwa' ),
+					'freePermission'        => __( 'Permission — No vacation deduction', 'etwa' ),
+					'deductedLabel'         => __( 'Deducted', 'etwa' ),
+					'monthlyPermissionUsage' => __( 'Monthly Permission Usage', 'etwa' ),
+					'freePermissions'       => __( 'Permissions', 'etwa' ),
+					'defaultLabel'          => __( 'default', 'etwa' ),
 					'active'                => __( 'Active', 'etwa' ),
 					'inactive'              => __( 'Inactive', 'etwa' ),
 					'deactivate'            => __( 'Deactivate', 'etwa' ),
@@ -577,6 +776,9 @@ final class AssetRegistry {
 					'noDepartmentHead'=> __( 'No Department Head', 'etwa' ),
 					'selectDepartment'=> __( '— No department —', 'etwa' ),
 					'confirmDeleteDepartment' => __( 'Delete department "%s"?', 'etwa' ),
+					'productHubAccess'        => __( 'Product Hub Access', 'etwa' ),
+					'productHubAccessHint'    => __( 'Select which Product Tabs are available to employees in this department.', 'etwa' ),
+					'noProductTabsConfigured' => __( 'No Product Tabs yet. Promote a client to a Product first.', 'etwa' ),
 					'approveAsOwner' => __( 'Approve (Owner)', 'etwa' ),
 					'confirmApproveHr' => __( 'Record your HR approval for this request?', 'etwa' ),
 					'confirmApproveOwner' => __( 'Record your Owner approval for this request?', 'etwa' ),
@@ -602,6 +804,16 @@ final class AssetRegistry {
 					'workDate'       => __( 'Work Date', 'etwa' ),
 					'time'           => __( 'Time', 'etwa' ),
 					'permissionType' => __( 'Permission Type', 'etwa' ),
+					'monthlyUsage'   => __( 'Monthly Usage', 'etwa' ),
+					'monthlyPosition'  => __( 'Monthly Position', 'etwa' ),
+					'leaveRecord'      => __( 'Leave Record', 'etwa' ),
+					'vacationDeducted' => __( 'Vacation Deducted', 'etwa' ),
+					'annualLeave'      => __( 'Annual', 'etwa' ),
+					'unpaidLeave'      => __( 'Unpaid', 'etwa' ),
+					'permissionLeaveDuration' => __( '0.25 day', 'etwa' ),
+					'revoke'           => __( 'Revoke', 'etwa' ),
+					'confirmRevokePermission' => __( 'Revoke this approved permission? The linked leave record will be removed and any vacation deduction will be restored.', 'etwa' ),
+					'permissionRevoked' => __( 'Permission revoked.', 'etwa' ),
 					'employee'       => __( 'Employee', 'etwa' ),
 					'date'           => __( 'Date', 'etwa' ),
 					'addEmployee'    => __( 'Add Employee', 'etwa' ),
@@ -645,9 +857,16 @@ final class AssetRegistry {
 					'exportTimesheet'   => __( 'Export Timesheet', 'etwa' ),
 					'employeeTimesheetReport' => __( 'Employee Timesheet Report', 'etwa' ),
 					'clientReport'      => __( 'Client Report', 'etwa' ),
+					'prospectReport'    => __( 'Prospect Report', 'etwa' ),
 					'clientLaborCostReport' => __( 'Client Labor Cost Report', 'etwa' ),
 					'employeeHoursByClientReport' => __( 'Employee Hours by Client', 'etwa' ),
 					'allClientsComparisonReport' => __( 'All Clients Comparison', 'etwa' ),
+					'parentProjectReport' => __( 'Parent Project Report', 'etwa' ),
+					'allParentProjectsComparisonReport' => __( 'All Parent Projects Comparison', 'etwa' ),
+					'parentProject'     => __( 'Parent Project', 'etwa' ),
+					'selectParentProject' => __( 'Please select a parent project.', 'etwa' ),
+					'prospect'          => __( 'Prospect', 'etwa' ),
+					'selectProspect'    => __( 'Please select a prospect.', 'etwa' ),
 					'generateComparison' => __( 'Generate Comparison', 'etwa' ),
 					'generating'       => __( 'Generating…', 'etwa' ),
 					'exportExcel'      => __( 'Export Excel', 'etwa' ),
@@ -730,11 +949,15 @@ final class AssetRegistry {
 
 	/** @param string[] $deps */
 	private static function enqueue_script_handle( string $script, array $deps ): void {
+		$relative = 'assets/js/' . $script . '.js';
+		$path     = ETWA_PLUGIN_DIR . $relative;
+		$version  = file_exists( $path ) ? (string) filemtime( $path ) : ETWA_VERSION;
+
 		wp_enqueue_script(
 			'etwa-' . $script,
-			ETWA_PLUGIN_URL . 'assets/js/' . $script . '.js',
+			ETWA_PLUGIN_URL . $relative,
 			$deps,
-			ETWA_VERSION,
+			$version,
 			true
 		);
 	}
@@ -746,7 +969,7 @@ final class AssetRegistry {
 			}
 
 			$deps = array( 'jquery', 'etwa-ui' );
-			if ( ! in_array( $extra, array( 'clients-manager' ), true ) ) {
+			if ( ! in_array( $extra, array( 'clients-manager', 'super-client-manager' ), true ) ) {
 				$deps[] = 'wp-api-fetch';
 			}
 

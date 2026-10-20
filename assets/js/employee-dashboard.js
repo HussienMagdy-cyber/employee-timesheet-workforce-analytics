@@ -178,12 +178,34 @@
 			$('#etwa-entry-id').val(entry.id);
 			setTimeSelect('#etwa-start-time', entry.start);
 			setTimeSelect('#etwa-end-time', entry.end);
-			$('#etwa-client-id').val(entry.clientId);
-			loadProjectsForClient(entry.clientId, entry.projectId).then(() => {
-				if (entry.projectId) {
-					$('#etwa-project-id').val(String(entry.projectId));
-				}
-			});
+			if (!entry.clientId && entry.prospectId) {
+				ensureProspectOption(entry.prospectId, entry.prospectName || '');
+				$('#etwa-client-id').val(`pr:${entry.prospectId}`);
+				loadProjectsForClient(`pr:${entry.prospectId}`, null);
+			} else if (!entry.clientId && entry.projectId) {
+				getStandaloneProjectTree()
+					.then((tree) => {
+						const node = findStandaloneNode(tree, entry.projectId);
+						if (node && (node.parent.children || []).length) {
+							$('#etwa-client-id').val(`p:${node.parent.id}`);
+							fillStandaloneProjectSelect(tree, node.parent.id, entry.projectId);
+						} else {
+							$('#etwa-client-id').val(`p:${entry.projectId}`);
+							fillStandaloneProjectSelect(tree, entry.projectId, entry.projectId);
+						}
+					})
+					.catch(() => {
+						$('#etwa-client-id').val(`p:${entry.projectId}`);
+						loadProjectsForClient(`p:${entry.projectId}`, entry.projectId);
+					});
+			} else {
+				$('#etwa-client-id').val(entry.clientId);
+				loadProjectsForClient(entry.clientId, entry.projectId).then(() => {
+					if (entry.projectId) {
+						$('#etwa-project-id').val(String(entry.projectId));
+					}
+				});
+			}
 			$('#etwa-task').val(entry.task);
 			$('#etwa-notes').val(entry.notes);
 			toggleEntryTypeField();
@@ -302,13 +324,122 @@
 		$('#etwa-entry-type').prop('required', false).val('');
 	}
 
+	function isStandaloneProjectValue(val) {
+		const s = String(val || '');
+		return s.startsWith('p:') && !s.startsWith('pr:');
+	}
+
+	function isProspectValue(val) {
+		return String(val || '').startsWith('pr:');
+	}
+
+	function prospectIdFromValue(val) {
+		return String(val || '').slice(3);
+	}
+
+	function ensureProspectOption(id, name) {
+		const value = `pr:${id}`;
+		if ($(`#etwa-client-id option[value="${value}"]`).length) {
+			return;
+		}
+		let $group = $('#etwa-client-id optgroup').filter(function () {
+			return $(this).attr('label') === (cfg.i18n?.prospectsGroup || 'Prospects');
+		});
+		if (!$group.length) {
+			$group = $('<optgroup>').attr('label', cfg.i18n?.prospectsGroup || 'Prospects');
+			$('#etwa-client-id').append($group);
+		}
+		$group.append($('<option>').attr('value', value).prop('disabled', true).text(name || `Prospect #${id}`));
+	}
+
+	function standaloneProjectId(val) {
+		return String(val || '').slice(2);
+	}
+
+	function findStandaloneNode(tree, id) {
+		const numId = parseInt(id, 10);
+		if (!numId) {
+			return null;
+		}
+		for (const parent of tree || []) {
+			if (parseInt(parent.id, 10) === numId) {
+				return { kind: 'parent', parent };
+			}
+			const child = (parent.children || []).find((c) => parseInt(c.id, 10) === numId);
+			if (child) {
+				return { kind: 'child', parent, child };
+			}
+		}
+		return null;
+	}
+
+	let standaloneProjectTreeCache = null;
+
+	function readEmbeddedStandaloneTree() {
+		const $json = $('#etwa-standalone-projects-json');
+		if (!$json.length) {
+			return null;
+		}
+		try {
+			return JSON.parse($json.text() || '[]');
+		} catch (err) {
+			return null;
+		}
+	}
+
+	function getStandaloneProjectTree() {
+		if (standaloneProjectTreeCache) {
+			return Promise.resolve(standaloneProjectTreeCache);
+		}
+		const embedded = readEmbeddedStandaloneTree();
+		if (embedded) {
+			standaloneProjectTreeCache = embedded;
+			return Promise.resolve(embedded);
+		}
+		return api('projects').then((res) => {
+			if (!res.success) throw new Error(res.message);
+			standaloneProjectTreeCache = res.data || [];
+			return standaloneProjectTreeCache;
+		});
+	}
+
+	function fillStandaloneProjectSelect(tree, workspaceId, selectedProjectId) {
+		const $wrap = $('#etwa-project-wrap');
+		const $select = $('#etwa-project-id');
+		const node = findStandaloneNode(tree, workspaceId);
+		if (!node) {
+			$wrap.prop('hidden', true);
+			return;
+		}
+		const children = (node.parent.children || []).filter((p) => p.status === 'active');
+		if (!children.length) {
+			$wrap.prop('hidden', true);
+			$select.prop('required', false).html('<option value=""></option>');
+			return;
+		}
+		const directLabel = cfg.i18n?.directParentProject || 'Direct on parent project';
+		let html = `<option value="">${directLabel}</option>`;
+		children.forEach((p) => {
+			html += `<option value="${p.id}">${p.name}</option>`;
+		});
+		$select.html(html).prop('required', false);
+		$wrap.prop('hidden', false);
+		const sel = selectedProjectId ? String(selectedProjectId) : '';
+		if (sel && children.some((p) => String(p.id) === sel)) {
+			$select.val(sel);
+		} else if (node.kind === 'child') {
+			$select.val(String(node.child.id));
+		}
+	}
+
 	function loadProjectsForClient(clientId, selectedProjectId) {
 		const $wrap = $('#etwa-project-wrap');
 		const $select = $('#etwa-project-id');
 		if (
 			!clientId ||
 			String(clientId) === String(breakClientId) ||
-			String(clientId) === String(allClientsClientId)
+			String(clientId) === String(allClientsClientId) ||
+			isProspectValue(clientId)
 		) {
 			$wrap.attr('hidden', 'hidden');
 			$select.prop('required', false).html(
@@ -316,6 +447,19 @@
 			);
 			return Promise.resolve();
 		}
+
+		if (isStandaloneProjectValue(clientId)) {
+			const workspaceId = standaloneProjectId(clientId);
+			return getStandaloneProjectTree()
+				.then((tree) => {
+					fillStandaloneProjectSelect(tree, workspaceId, selectedProjectId);
+				})
+				.catch(() => {
+					$wrap.prop('hidden', true);
+					$select.prop('required', false);
+				});
+		}
+
 		return api(`clients/${clientId}/projects`)
 			.then((res) => {
 				if (!res.success) throw new Error(res.message);
@@ -416,6 +560,8 @@
 			end: normalizeSlotTime($chip.attr('data-end-time') || ''),
 			clientId: $chip.attr('data-client-id'),
 			projectId: $chip.attr('data-project-id') || '',
+			prospectId: $chip.attr('data-prospect-id') || '',
+			prospectName: $chip.find('.etwa-entry-meta strong').first().text() || '',
 			task: $chip.attr('data-task') || '',
 			notes: $chip.attr('data-notes') || '',
 			entryType: $chip.attr('data-entry-type') || '',
@@ -454,8 +600,9 @@
 				data-entry-date="${entry.entry_date}"
 				data-start-time="${entry.start_time}"
 				data-end-time="${entry.end_time}"
-				data-client-id="${entry.client_id}"
+				data-client-id="${entry.client_id || ''}"
 				data-project-id="${entry.project_id || ''}"
+				data-prospect-id="${entry.prospect_id || ''}"
 				data-task="${$('<div>').text(entry.task || '').html()}"
 				data-notes="${$('<div>').text(entry.notes || '').html()}"
 				data-entry-type="${entry.entry_type || 'regular'}"
@@ -465,8 +612,8 @@
 			>
 				<div class="etwa-entry-time">${entry.time_range_label || `${ui.formatTime12(entry.start_time)} – ${ui.formatTime12(entry.end_time)}`}</div>
 				<div class="etwa-entry-meta">
-					<strong>${entry.client_name || ''}</strong>
-					${entry.project_name ? `<span class="etwa-entry-project">${entry.project_name}</span>` : !isBreak && !isAllClients && !entry.project_id ? `<span class="etwa-entry-project">${cfg.i18n?.directClientWork || 'Social Media'}</span>` : ''}
+					<strong>${entry.client_name || entry.prospect_name || entry.project_name || ''}</strong>
+					${entry.project_name && entry.client_id ? `<span class="etwa-entry-project">${entry.project_name}</span>` : !isBreak && !isAllClients && entry.client_id && !entry.project_id ? `<span class="etwa-entry-project">${cfg.i18n?.directClientWork || 'Social Media'}</span>` : ''}
 					<span>${entry.task || ''}</span>
 				</div>
 				<div class="etwa-entry-hours">${hoursHtml}</div>
@@ -723,8 +870,20 @@
 			if (!isAfterWorkHours(data.start_time)) {
 				delete data.entry_type;
 			}
+			if (isProspectValue(data.client_id)) {
+				data.prospect_id = prospectIdFromValue(data.client_id);
+				delete data.client_id;
+				delete data.project_id;
+			} else if (isStandaloneProjectValue(data.client_id)) {
+				const fallback = standaloneProjectId(data.client_id);
+				data.project_id = data.project_id || fallback;
+				delete data.client_id;
+			}
 			if (!data.project_id) {
 				delete data.project_id;
+			}
+			if (!data.prospect_id) {
+				delete data.prospect_id;
 			}
 
 			const saveEntry = (reason) => {

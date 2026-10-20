@@ -52,6 +52,16 @@ final class ReportExportService {
 		$from = $range['date_from'];
 		$to   = $range['date_to'];
 
+		if ( ReportingService::REPORT_PARENT_PROJECT === $report_type ) {
+			$project_id = (int) ( $params['parent_project_id'] ?? 0 );
+			$validated  = $this->reporting->get_parent_project_report( $project_id, $from, $to );
+			if ( is_wp_error( $validated ) ) {
+				return $validated;
+			}
+
+			return ( new ExportService() )->generate_project_excel( $project_id, $from, $to );
+		}
+
 		$dataset = match ( $report_type ) {
 			ReportingService::REPORT_EMPLOYEE_TIMESHEET => $this->reporting->get_employee_timesheet_report(
 				(int) ( $params['user_id'] ?? 0 ),
@@ -60,7 +70,7 @@ final class ReportExportService {
 				! empty( $params['client_id'] ) ? (int) $params['client_id'] : null
 			),
 			ReportingService::REPORT_CLIENT => $this->reporting->get_client_report(
-				(int) ( $params['client_id'] ?? 0 ),
+				! empty( $params['client_id'] ) ? (int) $params['client_id'] : 0,
 				$from,
 				$to
 			),
@@ -81,6 +91,15 @@ final class ReportExportService {
 				! empty( $params['department_id'] ) ? (int) $params['department_id'] : null,
 				! empty( $params['user_id'] ) ? (int) $params['user_id'] : null
 			),
+			ReportingService::REPORT_ALL_PARENT_PROJECTS_COMPARISON => $this->reporting->get_all_parent_projects_comparison_report(
+				$from,
+				$to
+			),
+			ReportingService::REPORT_PROSPECT => $this->reporting->get_prospect_report(
+				(int) ( $params['prospect_id'] ?? 0 ),
+				$from,
+				$to
+			),
 			default => new WP_Error( 'invalid_report', __( 'Unknown report type.', 'etwa' ), array( 'status' => 400 ) ),
 		};
 
@@ -94,6 +113,8 @@ final class ReportExportService {
 			ReportingService::REPORT_CLIENT_LABOR_COST => $this->build_client_labor_cost_workbook( $dataset ),
 			ReportingService::REPORT_EMPLOYEE_HOURS_BY_CLIENT => $this->build_employee_hours_by_client_workbook( $dataset ),
 			ReportingService::REPORT_ALL_CLIENTS_COMPARISON => $this->build_all_clients_comparison_workbook( $dataset ),
+			ReportingService::REPORT_ALL_PARENT_PROJECTS_COMPARISON => $this->build_all_parent_projects_comparison_workbook( $dataset ),
+			ReportingService::REPORT_PROSPECT => $this->build_prospect_workbook( $dataset ),
 			default => null,
 		};
 
@@ -122,7 +143,9 @@ final class ReportExportService {
 			ReportingService::REPORT_CLIENT => sprintf(
 				'%s-client-report-%s-%s-to-%s-%s.xlsx',
 				BrandHelper::SLUG,
-				sanitize_file_name( (string) ( $dataset['client']['code'] ?? 'client' ) ),
+				! empty( $dataset['all_clients'] )
+					? 'all-clients'
+					: sanitize_file_name( (string) ( $dataset['client']['code'] ?? 'client' ) ),
 				$from,
 				$to,
 				$stamp
@@ -138,6 +161,21 @@ final class ReportExportService {
 			ReportingService::REPORT_ALL_CLIENTS_COMPARISON => sprintf(
 				'%s-all-clients-comparison-%s-to-%s-%s.xlsx',
 				BrandHelper::SLUG,
+				$from,
+				$to,
+				$stamp
+			),
+			ReportingService::REPORT_ALL_PARENT_PROJECTS_COMPARISON => sprintf(
+				'%s-all-parent-projects-comparison-%s-to-%s-%s.xlsx',
+				BrandHelper::SLUG,
+				$from,
+				$to,
+				$stamp
+			),
+			ReportingService::REPORT_PROSPECT => sprintf(
+				'%s-prospect-report-%s-%s-to-%s-%s.xlsx',
+				BrandHelper::SLUG,
+				sanitize_file_name( (string) ( $dataset['prospect']['name'] ?? 'prospect' ) ),
 				$from,
 				$to,
 				$stamp
@@ -279,8 +317,121 @@ final class ReportExportService {
 			++$row;
 		}
 
+		if ( ! empty( $dataset['all_clients'] ) && ! empty( $dataset['client_summaries'] ) ) {
+			$this->build_client_summary_sheet( $spreadsheet, $dataset['client_summaries'] );
+		}
+
 		$this->auto_size_columns( $sheet, count( $headers ) );
 		return $spreadsheet;
+	}
+
+	/** @param array<string,mixed> $dataset */
+	private function build_prospect_workbook( array $dataset ): Spreadsheet {
+		$spreadsheet = new Spreadsheet();
+		$sheet       = $spreadsheet->getActiveSheet();
+		$sheet->setTitle( __( 'Prospect Report', 'etwa' ) );
+
+		$prospect = $dataset['prospect'] ?? array();
+		$range    = $dataset['range'] ?? array();
+		$converted = (string) ( $prospect['converted_client_name'] ?? '' );
+
+		$meta = array(
+			array( __( 'Prospect', 'etwa' ), $prospect['name'] ?? '' ),
+			array( __( 'Status', 'etwa' ), $prospect['status_label'] ?? ( $prospect['status'] ?? '' ) ),
+			array( __( 'Created', 'etwa' ), $prospect['created_label'] ?? ( $prospect['created_at'] ?? '' ) ),
+			array( __( 'Won/Lost Date', 'etwa' ), $prospect['won_lost_label'] ?? '—' ),
+			array( __( 'Converted Client', 'etwa' ), '' !== $converted ? $converted : '—' ),
+			array( __( 'Period From', 'etwa' ), $range['date_from'] ?? '' ),
+			array( __( 'Period To', 'etwa' ), $range['date_to'] ?? '' ),
+		);
+
+		$this->write_report_header( $sheet, __( 'Prospect Report', 'etwa' ), $meta );
+
+		$headers = array(
+			__( 'Employee', 'etwa' ),
+			__( 'Date', 'etwa' ),
+			__( 'Prospect', 'etwa' ),
+			__( 'Activity', 'etwa' ),
+			__( 'Regular Hours', 'etwa' ),
+			__( 'Overtime Hours', 'etwa' ),
+			__( 'Total Hours', 'etwa' ),
+		);
+		$header_row = 2 + count( $meta ) + 1;
+		$sheet->fromArray( $headers, null, 'A' . $header_row );
+
+		$row = $header_row + 1;
+		foreach ( $dataset['rows'] ?? array() as $entry ) {
+			$sheet->fromArray(
+				array(
+					$entry['employee_name'],
+					$entry['date'],
+					$entry['prospect_name'] ?: ( $prospect['name'] ?? '' ),
+					$entry['activity'],
+					$entry['regular_hours'],
+					$entry['overtime_hours'],
+					$entry['total_hours'],
+				),
+				null,
+				"A{$row}"
+			);
+			++$row;
+		}
+
+		$summary = $dataset['summary'] ?? array();
+		++$row;
+		$sheet->setCellValue( "A{$row}", __( 'Summary', 'etwa' ) );
+		++$row;
+		$summary_rows = array(
+			array( __( 'Total Employees', 'etwa' ), $summary['total_employees'] ?? 0 ),
+			array( __( 'Total Regular Hours', 'etwa' ), $summary['total_regular_hours'] ?? 0 ),
+			array( __( 'Total Overtime Hours', 'etwa' ), $summary['total_overtime_hours'] ?? 0 ),
+			array( __( 'Total Hours', 'etwa' ), $summary['total_hours'] ?? 0 ),
+		);
+		if ( isset( $summary['total_labor_cost_egp'] ) && EmployeeCostHelper::can_view_labor_cost() ) {
+			$summary_rows[] = array( __( 'Total Labor Cost (EGP)', 'etwa' ), $summary['total_labor_cost_egp'] );
+		}
+		foreach ( $summary_rows as $summary_row ) {
+			$sheet->fromArray( $summary_row, null, "A{$row}" );
+			++$row;
+		}
+
+		$this->auto_size_columns( $sheet, count( $headers ) );
+		return $spreadsheet;
+	}
+
+	/** @param array<int,array<string,mixed>> $client_summaries */
+	private function build_client_summary_sheet( Spreadsheet $spreadsheet, array $client_summaries ): void {
+		$sheet = $spreadsheet->createSheet();
+		$sheet->setTitle( 'Client Summary' );
+		$sheet->fromArray(
+			array(
+				__( 'Client', 'etwa' ),
+				__( 'Employees', 'etwa' ),
+				__( 'Regular Hours', 'etwa' ),
+				__( 'Overtime Hours', 'etwa' ),
+				__( 'Total Hours', 'etwa' ),
+			),
+			null,
+			'A1'
+		);
+
+		$row = 2;
+		foreach ( $client_summaries as $client ) {
+			$sheet->fromArray(
+				array(
+					$client['client_name'] ?? '',
+					$client['employee_count'] ?? 0,
+					$client['regular_hours'] ?? 0,
+					$client['overtime_hours'] ?? 0,
+					$client['total_hours'] ?? 0,
+				),
+				null,
+				"A{$row}"
+			);
+			++$row;
+		}
+
+		$this->auto_size_columns( $sheet, 5 );
 	}
 
 	/** @param array<string,mixed> $dataset */
@@ -651,6 +802,79 @@ final class ReportExportService {
 		return $spreadsheet;
 	}
 
+	/** @param array<string,mixed> $dataset */
+	private function build_all_parent_projects_comparison_workbook( array $dataset ): Spreadsheet {
+		$spreadsheet = new Spreadsheet();
+		$sheet       = $spreadsheet->getActiveSheet();
+		$sheet->setTitle( __( 'Parent Projects', 'etwa' ) );
+
+		$range      = $dataset['range'] ?? array();
+		$date_label = sprintf(
+			'%s — %s',
+			$range['date_from'] ?? '',
+			$range['date_to'] ?? ''
+		);
+
+		$this->write_report_header(
+			$sheet,
+			__( 'All Parent Projects Comparison', 'etwa' ),
+			array(
+				array( __( 'Date Range', 'etwa' ), $date_label ),
+			)
+		);
+
+		$headers = array(
+			__( 'Parent Project', 'etwa' ),
+			__( 'Sub-projects', 'etwa' ),
+			__( 'Employee Count', 'etwa' ),
+			__( 'Regular Hours', 'etwa' ),
+			__( 'Overtime Hours', 'etwa' ),
+			__( 'Total Hours', 'etwa' ),
+			__( '% of Total Hours', 'etwa' ),
+			__( 'Last Activity', 'etwa' ),
+		);
+		$sheet->fromArray( $headers, null, 'A5' );
+
+		$row = 6;
+		foreach ( $dataset['rows'] ?? array() as $project ) {
+			$sheet->fromArray(
+				array(
+					$project['project_name'] ?? '',
+					$project['sub_project_count'] ?? 0,
+					$project['employee_count'] ?? 0,
+					$project['regular_hours'] ?? 0,
+					$project['overtime_hours'] ?? 0,
+					$project['total_hours'] ?? 0,
+					( $project['pct_total_hours'] ?? 0 ) . '%',
+					$project['last_activity'] ?? '',
+				),
+				null,
+				"A{$row}"
+			);
+			++$row;
+		}
+
+		$summary = $dataset['summary'] ?? array();
+		++$row;
+		$sheet->setCellValue( "A{$row}", __( 'Grand Total', 'etwa' ) );
+		++$row;
+		foreach (
+			array(
+				array( __( 'Parent Projects', 'etwa' ), $summary['project_count'] ?? 0 ),
+				array( __( 'Total Employees', 'etwa' ), $summary['total_employees'] ?? 0 ),
+				array( __( 'Total Regular Hours', 'etwa' ), $summary['total_regular_hours'] ?? 0 ),
+				array( __( 'Total Overtime Hours', 'etwa' ), $summary['total_overtime_hours'] ?? 0 ),
+				array( __( 'Total Hours', 'etwa' ), $summary['total_hours'] ?? 0 ),
+			) as $summary_row
+		) {
+			$sheet->fromArray( $summary_row, null, "A{$row}" );
+			++$row;
+		}
+
+		$this->auto_size_columns( $sheet, count( $headers ) );
+		return $spreadsheet;
+	}
+
 	/**
 	 * @param array<int,array{0:string,1:string}> $meta_rows
 	 */
@@ -670,11 +894,11 @@ final class ReportExportService {
 	}
 
 	private function save_workbook( Spreadsheet $spreadsheet, string $filename ): string|WP_Error {
-		$upload = wp_upload_dir();
-		$dir    = trailingslashit( $upload['basedir'] ) . 'etwa-exports';
-		wp_mkdir_p( $dir );
+		$upload = \wp_upload_dir();
+		$dir    = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
 
-		$path = trailingslashit( $dir ) . $filename;
+		$path = \trailingslashit( $dir ) . $filename;
 
 		$writer = new Xlsx( $spreadsheet );
 		$writer->save( $path );

@@ -154,7 +154,16 @@
 	}
 
 	function promptDaysToDeduct(options = {}) {
-		const { startDate = '', endDate = '', api = null } = options;
+		const {
+			startDate = '',
+			endDate = '',
+			api = null,
+			defaultDays = null,
+			title = null,
+			help = null,
+			label = null,
+			skipDaysBetween = false,
+		} = options;
 		const strings = i18n();
 
 		return new Promise((resolve) => {
@@ -176,17 +185,21 @@
 				</div>`;
 
 			overlay.querySelector('.etwa-confirm-title').textContent =
-				strings.daysToDeductTitle || 'Days to deduct';
+				title || strings.daysToDeductTitle || 'Days to deduct';
 			overlay.querySelector('.etwa-confirm-message').textContent =
-				startDate && endDate
+				help ||
+				(startDate && endDate
 					? `${strings.requestDates || 'Request dates'}: ${startDate} – ${endDate}`
-					: strings.daysToDeductHelp || 'Enter how many days to deduct from the employee balance.';
+					: strings.daysToDeductHelp || 'Enter how many days to deduct from the employee balance.');
 			overlay.querySelector('.etwa-hr-reason-label').textContent =
-				strings.daysToDeduct || 'Days to deduct';
+				label || strings.daysToDeduct || 'Days to deduct';
 			overlay.querySelector('.etwa-days-cancel').textContent = strings.cancel || 'Cancel';
 			overlay.querySelector('.etwa-days-ok').textContent = strings.approve || 'Approve';
 
 			const input = overlay.querySelector('.etwa-days-deduct-input');
+			if (defaultDays != null && defaultDays > 0) {
+				input.value = String(defaultDays);
+			}
 			const close = (result) => {
 				overlay.classList.remove('is-visible');
 				setTimeout(() => overlay.remove(), 180);
@@ -214,7 +227,7 @@
 			document.body.appendChild(overlay);
 			requestAnimationFrame(() => overlay.classList.add('is-visible'));
 
-			if (api && startDate && endDate) {
+			if (api && startDate && endDate && !skipDaysBetween) {
 				api(`vacations/days-between?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`)
 					.then((res) => {
 						if (res.success && res.data && res.data.days) {

@@ -61,7 +61,7 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 	</form>
 
 	<div class="etwa-analytics-kpi-grid">
-		<article class="etwa-analytics-kpi">
+		<a class="etwa-analytics-kpi" href="#etwa-analytics-trends">
 			<div class="etwa-analytics-kpi-icon etwa-analytics-kpi-icon-hours" aria-hidden="true">
 				<span class="dashicons dashicons-clock"></span>
 			</div>
@@ -70,8 +70,8 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 				<strong class="etwa-kpi-value" data-kpi="total_hours"><?php echo esc_html( number_format( (float) $kpis['total_hours'], 1 ) ); ?></strong>
 				<span class="etwa-analytics-kpi-hint"><?php esc_html_e( 'Regular + overtime', 'etwa' ); ?></span>
 			</div>
-		</article>
-		<article class="etwa-analytics-kpi">
+		</a>
+		<a class="etwa-analytics-kpi" href="#etwa-analytics-trends">
 			<div class="etwa-analytics-kpi-icon etwa-analytics-kpi-icon-regular" aria-hidden="true">
 				<span class="dashicons dashicons-calendar-alt"></span>
 			</div>
@@ -80,8 +80,8 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 				<strong class="etwa-kpi-value" data-kpi="regular_hours"><?php echo esc_html( number_format( (float) $kpis['regular_hours'], 1 ) ); ?></strong>
 				<span class="etwa-analytics-kpi-hint"><?php esc_html_e( 'Within standard schedule', 'etwa' ); ?></span>
 			</div>
-		</article>
-		<article class="etwa-analytics-kpi">
+		</a>
+		<a class="etwa-analytics-kpi" href="#etwa-insight-ot-hotspots">
 			<div class="etwa-analytics-kpi-icon etwa-analytics-kpi-icon-ot" aria-hidden="true">
 				<span class="dashicons dashicons-warning"></span>
 			</div>
@@ -93,8 +93,8 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 				</div>
 				<span class="etwa-analytics-kpi-hint"><?php echo esc_html( sprintf( __( '%s%% of total hours', 'etwa' ), number_format( $ot_ratio, 1 ) ) ); ?></span>
 			</div>
-		</article>
-		<article class="etwa-analytics-kpi">
+		</a>
+		<a class="etwa-analytics-kpi" href="#etwa-analytics-utilization">
 			<div class="etwa-analytics-kpi-icon etwa-analytics-kpi-icon-util" aria-hidden="true">
 				<span class="dashicons dashicons-chart-line"></span>
 			</div>
@@ -106,7 +106,7 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 				</div>
 				<span class="etwa-analytics-kpi-hint"><?php esc_html_e( 'Capacity vs worked hours', 'etwa' ); ?></span>
 			</div>
-		</article>
+		</a>
 	</div>
 
 	<div class="etwa-analytics-kpi-grid etwa-analytics-extended-kpis" id="etwa-extended-metrics" hidden>
@@ -143,7 +143,7 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 	</div>
 
 	<section class="etwa-analytics-charts" aria-label="<?php esc_attr_e( 'Charts', 'etwa' ); ?>">
-		<article class="etwa-chart-card etwa-chart-card-wide">
+		<article class="etwa-chart-card etwa-chart-card-wide" id="etwa-analytics-trends">
 			<header class="etwa-chart-card-head">
 				<div>
 					<h2><?php esc_html_e( 'Monthly Trends', 'etwa' ); ?></h2>
@@ -169,7 +169,7 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 			</div>
 		</article>
 
-		<article class="etwa-chart-card">
+		<article class="etwa-chart-card" id="etwa-analytics-utilization">
 			<header class="etwa-chart-card-head">
 				<div>
 					<h2><?php esc_html_e( 'Employee Utilization', 'etwa' ); ?></h2>
@@ -245,7 +245,7 @@ $util_pct = (float) ( $kpis['utilization_pct'] ?? 0 );
 				<div class="etwa-insight-list" id="etwa-insight-underutilized"></div>
 			</article>
 
-			<article class="etwa-insight-card etwa-insight-card-ot">
+			<article class="etwa-insight-card etwa-insight-card-ot" id="etwa-insight-ot-hotspots">
 				<header class="etwa-insight-card-head">
 					<span class="etwa-insight-icon etwa-insight-icon-ot" aria-hidden="true">
 						<span class="dashicons dashicons-clock"></span>

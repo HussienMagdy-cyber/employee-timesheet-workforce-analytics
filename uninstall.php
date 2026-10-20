@@ -18,13 +18,29 @@ if ( ! defined( 'ETWA_DELETE_DATA' ) || ! ETWA_DELETE_DATA ) {
 global $wpdb;
 
 $tables = array(
-	$wpdb->prefix . 'etwa_timesheets',
+	$wpdb->prefix . 'etwa_super_client_requests',
+	$wpdb->prefix . 'etwa_super_client_units',
+	$wpdb->prefix . 'etwa_super_clients',
+	$wpdb->prefix . 'etwa_deliverable_allocation_items',
+	$wpdb->prefix . 'etwa_deliverable_allocations',
+	$wpdb->prefix . 'etwa_client_scopes',
+	$wpdb->prefix . 'etwa_deliverable_types',
+	$wpdb->prefix . 'etwa_notification_log',
+	$wpdb->prefix . 'etwa_vacation_transactions',
+	$wpdb->prefix . 'etwa_vacation_records',
+	$wpdb->prefix . 'etwa_vacation_requests',
+	$wpdb->prefix . 'etwa_requests',
+	$wpdb->prefix . 'etwa_leave_types',
+	$wpdb->prefix . 'etwa_departments',
+	$wpdb->prefix . 'etwa_projects',
+	$wpdb->prefix . 'etwa_prospects',
 	$wpdb->prefix . 'etwa_entries',
-	$wpdb->prefix . 'etwa_clients',
 	$wpdb->prefix . 'etwa_overtime',
-	$wpdb->prefix . 'etwa_settings',
-	$wpdb->prefix . 'etwa_audit_logs',
+	$wpdb->prefix . 'etwa_timesheets',
+	$wpdb->prefix . 'etwa_clients',
 	$wpdb->prefix . 'etwa_holidays',
+	$wpdb->prefix . 'etwa_audit_logs',
+	$wpdb->prefix . 'etwa_settings',
 );
 
 foreach ( $tables as $table ) {
@@ -66,3 +82,4 @@ foreach ( $caps as $cap ) {
 
 wp_clear_scheduled_hook( 'etwa_weekly_report_email' );
 wp_clear_scheduled_hook( 'etwa_daily_reminder' );
+wp_clear_scheduled_hook( 'etwa_deliverable_expiration_check' );

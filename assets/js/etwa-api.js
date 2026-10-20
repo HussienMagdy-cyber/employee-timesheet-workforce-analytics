@@ -3,8 +3,11 @@
 
 	const SESSION_PATH = 'portal/session';
 	const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+	const SESSION_THROTTLE_MS = 60 * 1000;
 
 	let refreshPromise = null;
+	let lastSessionFetchAt = 0;
+	let lastSessionData = null;
 
 	function cfg() {
 		return window.etwaApp || {};
@@ -62,6 +65,15 @@
 	}
 
 	async function fetchSession() {
+		const now = Date.now();
+		if (lastSessionData && (now - lastSessionFetchAt) < SESSION_THROTTLE_MS) {
+			setNonce(lastSessionData.nonce);
+			if (lastSessionData.ajaxNonce) {
+				setAjaxNonce(lastSessionData.ajaxNonce);
+			}
+			return lastSessionData;
+		}
+
 		const response = await fetch(restUrl(SESSION_PATH), {
 			credentials: 'same-origin',
 			headers: { 'X-WP-Nonce': getNonce() },
@@ -73,6 +85,8 @@
 			if (data.data.ajaxNonce) {
 				setAjaxNonce(data.data.ajaxNonce);
 			}
+			lastSessionFetchAt = Date.now();
+			lastSessionData = data.data;
 			return data.data;
 		}
 

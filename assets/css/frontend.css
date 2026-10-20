@@ -40,11 +40,11 @@
 	color: var(--etwa-text) !important;
 }
 
-.etwa-portal-layout .etwa-app a:not(.etwa-btn):not(.etwa-week-arrow) {
+.etwa-portal-layout .etwa-app a:not(.etwa-btn):not(.etwa-week-arrow):not(.etwa-kpi-card):not(.etwa-analytics-kpi) {
 	color: var(--etwa-primary) !important;
 }
 
-.etwa-portal-layout .etwa-app a:not(.etwa-btn):not(.etwa-week-arrow):hover {
+.etwa-portal-layout .etwa-app a:not(.etwa-btn):not(.etwa-week-arrow):not(.etwa-kpi-card):not(.etwa-analytics-kpi):hover {
 	color: var(--etwa-primary-hover) !important;
 }
 
@@ -1495,6 +1495,16 @@
 	color: var(--etwa-primary) !important;
 	font-size: 12px !important;
 	font-weight: 600 !important;
+}
+
+.etwa-badge-super {
+	background: #fef3c7 !important;
+	color: #92400e !important;
+}
+
+.etwa-dark .etwa-badge-super {
+	background: rgba(245, 158, 11, 0.2) !important;
+	color: #fcd34d !important;
 }
 
 .etwa-dark .etwa-badge {

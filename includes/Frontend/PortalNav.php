@@ -11,6 +11,7 @@ namespace ETWA\Frontend;
 
 use ETWA\Helpers\EmployeeProfileHelper;
 use ETWA\Helpers\RoleManager;
+use ETWA\Helpers\SuperClientAccessHelper;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -181,49 +182,7 @@ final class PortalNav {
 				'label' => __( 'HR Dashboard', 'etwa' ),
 				'cap'   => RoleManager::CAP_VIEW_ALL,
 				'icon'  => 'dashicons-groups',
-				'group' => 'dashboard',
-			);
-			$items[] = array(
-				'id'    => 'reports',
-				'label' => __( 'Reports & Exports', 'etwa' ),
-				'cap'   => RoleManager::CAP_EXPORT,
-				'icon'  => 'dashicons-media-spreadsheet',
-				'group' => 'reports',
-			);
-			$items[] = array(
-				'id'    => 'deliverables',
-				'label' => __( 'Deliverables', 'etwa' ),
-				'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
-				'icon'  => 'dashicons-clipboard',
-				'group' => 'deliverables',
-			);
-			$items[] = array(
-				'id'    => 'files',
-				'label' => __( 'Files', 'etwa' ),
-				'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
-				'icon'  => 'dashicons-portfolio',
-				'group' => 'deliverables',
-			);
-			$items[] = array(
-				'id'    => 'client-analytics',
-				'label' => __( 'Client Analytics', 'etwa' ),
-				'cap'   => RoleManager::CAP_ANALYTICS,
-				'icon'  => 'dashicons-chart-bar',
-				'group' => 'reports',
-			);
-			$items[] = array(
-				'id'    => 'employees',
-				'label' => __( 'Employees', 'etwa' ),
-				'cap'   => RoleManager::CAP_VIEW_ALL,
-				'icon'  => 'dashicons-id',
-				'group' => 'people',
-			);
-			$items[] = array(
-				'id'    => 'departments',
-				'label' => __( 'Departments', 'etwa' ),
-				'cap'   => RoleManager::CAP_MANAGE_DEPARTMENTS,
-				'icon'  => 'dashicons-networking',
-				'group' => 'people',
+				'group' => 'hr',
 			);
 			if ( user_can( $user_id, RoleManager::CAP_MANAGE_VACATION ) ) {
 				foreach ( self::request_type_definitions() as $tab => $def ) {
@@ -232,7 +191,7 @@ final class PortalNav {
 						'label' => $def['label'],
 						'cap'   => RoleManager::CAP_MANAGE_VACATION,
 						'icon'  => $def['icon'],
-						'group' => 'requests',
+						'group' => 'hr',
 					);
 				}
 			}
@@ -250,34 +209,131 @@ final class PortalNav {
 				'icon'  => 'dashicons-palmtree',
 				'group' => 'time-off',
 			);
+			if ( user_can( $user_id, RoleManager::CAP_MANAGE_SETTINGS ) ) {
+				$items[] = array(
+					'id'    => 'clients',
+					'label' => __( 'Clients & Workspace', 'etwa' ),
+					'cap'   => RoleManager::CAP_MANAGE_SETTINGS,
+					'icon'  => 'dashicons-building',
+					'group' => 'work-management',
+				);
+				$items[] = array(
+					'id'    => 'prospects',
+					'label' => __( 'Prospects', 'etwa' ),
+					'cap'   => RoleManager::CAP_MANAGE_SETTINGS,
+					'icon'  => 'dashicons-flag',
+					'group' => 'work-management',
+				);
+				$items[] = array(
+					'id'    => 'super-clients',
+					'label' => __( 'Products', 'etwa' ),
+					'cap'   => RoleManager::CAP_MANAGE_SETTINGS,
+					'icon'  => 'dashicons-star-filled',
+					'group' => 'work-management',
+				);
+			}
+			$items[] = array(
+				'id'    => 'deliverables',
+				'label' => __( 'Deliverables', 'etwa' ),
+				'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
+				'icon'  => 'dashicons-clipboard',
+				'group' => 'work-management',
+			);
+			$items[] = array(
+				'id'    => 'files',
+				'label' => __( 'Files', 'etwa' ),
+				'cap'   => RoleManager::CAP_VIEW_DELIVERABLES,
+				'icon'  => 'dashicons-portfolio',
+				'group' => 'work-management',
+			);
+			if ( user_can( $user_id, RoleManager::CAP_ADV_ANALYTICS ) ) {
+				$items[] = array(
+					'id'    => 'analytics',
+					'label' => __( 'Overview', 'etwa' ),
+					'cap'   => RoleManager::CAP_ADV_ANALYTICS,
+					'icon'  => 'dashicons-chart-area',
+					'group' => 'analytics',
+				);
+			}
+			$items[] = array(
+				'id'    => 'client-analytics',
+				'label' => __( 'Client Analytics', 'etwa' ),
+				'cap'   => RoleManager::CAP_ANALYTICS,
+				'icon'  => 'dashicons-chart-bar',
+				'group' => 'analytics',
+			);
+			$items[] = array(
+				'id'    => 'prospect-analytics',
+				'label' => __( 'Prospect Analytics', 'etwa' ),
+				'cap'   => RoleManager::CAP_ANALYTICS,
+				'icon'  => 'dashicons-chart-pie',
+				'group' => 'analytics',
+			);
+			$items[] = array(
+				'id'    => 'reports',
+				'label' => __( 'Reports & Exports', 'etwa' ),
+				'cap'   => RoleManager::CAP_EXPORT,
+				'icon'  => 'dashicons-media-spreadsheet',
+				'group' => 'analytics',
+			);
+			$items[] = array(
+				'id'    => 'employees',
+				'label' => __( 'Employees', 'etwa' ),
+				'cap'   => RoleManager::CAP_VIEW_ALL,
+				'icon'  => 'dashicons-id',
+				'group' => 'administration',
+			);
+			$items[] = array(
+				'id'    => 'departments',
+				'label' => __( 'Departments', 'etwa' ),
+				'cap'   => RoleManager::CAP_MANAGE_DEPARTMENTS,
+				'icon'  => 'dashicons-networking',
+				'group' => 'administration',
+			);
 			$items[] = array(
 				'id'    => 'logs',
 				'label' => __( 'Logs', 'etwa' ),
 				'cap'   => RoleManager::CAP_VIEW_ALL,
 				'icon'  => 'dashicons-list-view',
-				'group' => 'administration',
+				'group' => 'logs',
 			);
 		}
 
 		if ( user_can( $user_id, RoleManager::CAP_ADV_ANALYTICS ) ) {
 			$items[] = array(
 				'id'    => 'analytics',
-				'label' => __( 'Analytics', 'etwa' ),
+				'label' => __( 'Overview', 'etwa' ),
 				'cap'   => RoleManager::CAP_ADV_ANALYTICS,
 				'icon'  => 'dashicons-chart-area',
-				'group' => 'dashboard',
+				'group' => 'analytics',
 			);
 		}
 
 		if ( user_can( $user_id, RoleManager::CAP_MANAGE_SETTINGS ) ) {
 			$items[] = array(
 				'id'    => 'clients',
-				'label' => __( 'Clients', 'etwa' ),
+				'label' => __( 'Clients & Workspace', 'etwa' ),
 				'cap'   => RoleManager::CAP_MANAGE_SETTINGS,
 				'icon'  => 'dashicons-building',
-				'group' => 'administration',
+				'group' => 'work-management',
+			);
+			$items[] = array(
+				'id'    => 'prospects',
+				'label' => __( 'Prospects', 'etwa' ),
+				'cap'   => RoleManager::CAP_MANAGE_SETTINGS,
+				'icon'  => 'dashicons-flag',
+				'group' => 'work-management',
+			);
+			$items[] = array(
+				'id'    => 'super-clients',
+				'label' => __( 'Products', 'etwa' ),
+				'cap'   => RoleManager::CAP_MANAGE_SETTINGS,
+				'icon'  => 'dashicons-star-filled',
+				'group' => 'work-management',
 			);
 		}
+
+		$items = self::append_product_hub_items( $items, $user_id );
 
 		$items[] = array(
 			'id'    => 'my-profile',
@@ -296,14 +352,21 @@ final class PortalNav {
 	 * @return array<int,array{id:string,label:string,icon:string,items:array<int,array{id:string,label:string,cap:string,icon:string,group:string}>}>
 	 */
 	public static function groups_for_user( int $user_id ): array {
-		$items     = self::items_for_user( $user_id );
+		$items      = self::items_for_user( $user_id );
 		$group_defs = self::group_definitions();
-		/** @var array<string,array{id:string,label:string,icon:string,items:array<int,array<string,string>>>} $grouped */
-		$grouped   = array();
-		/** @var string[] $order */
-		$order     = array();
+		/** @var array<string,array{id:string,label:string,icon:string,items:array<int,array<string,string>>}> $grouped */
+		$grouped  = array();
 		/** @var string[] $seen_ids */
-		$seen_ids  = array();
+		$seen_ids = array();
+
+		foreach ( $group_defs as $group_id => $def ) {
+			$grouped[ $group_id ] = array(
+				'id'    => $group_id,
+				'label' => $def['label'],
+				'icon'  => $def['icon'],
+				'items' => array(),
+			);
+		}
 
 		foreach ( $items as $item ) {
 			if ( in_array( $item['id'], $seen_ids, true ) ) {
@@ -313,75 +376,110 @@ final class PortalNav {
 
 			$group_id = (string) ( $item['group'] ?? 'general' );
 			if ( ! isset( $grouped[ $group_id ] ) ) {
-				$def = $group_defs[ $group_id ] ?? array(
-					'label' => ucfirst( str_replace( '-', ' ', $group_id ) ),
-					'icon'  => 'dashicons-menu',
-				);
 				$grouped[ $group_id ] = array(
 					'id'    => $group_id,
-					'label' => $def['label'],
-					'icon'  => $def['icon'],
+					'label' => ucfirst( str_replace( '-', ' ', $group_id ) ),
+					'icon'  => 'dashicons-menu',
 					'items' => array(),
 				);
-				$order[]              = $group_id;
 			}
 
 			$grouped[ $group_id ]['items'][] = $item;
 		}
 
 		$result = array();
-		foreach ( $order as $group_id ) {
+		foreach ( array_keys( $group_defs ) as $group_id ) {
 			if ( empty( $grouped[ $group_id ]['items'] ) ) {
 				continue;
 			}
 			$result[] = $grouped[ $group_id ];
 		}
 
+		foreach ( $grouped as $group_id => $group ) {
+			if ( isset( $group_defs[ $group_id ] ) || empty( $group['items'] ) ) {
+				continue;
+			}
+			$result[] = $group;
+		}
+
 		return $result;
+	}
+
+	/** @param array<int,array{id:string,label:string,cap:string,icon:string,group:string}> $items @return array<int,array{id:string,label:string,cap:string,icon:string,group:string}> */
+	private static function append_product_hub_items( array $items, int $user_id ): array {
+		if ( SuperClientAccessHelper::can_manage_products( $user_id ) ) {
+			return $items;
+		}
+
+		$existing = array_column( $items, 'id' );
+		foreach ( SuperClientAccessHelper::accessible_product_tabs_for_user( $user_id ) as $client ) {
+			$tab_id = 'super-client-' . (int) $client->id;
+			if ( in_array( $tab_id, $existing, true ) ) {
+				continue;
+			}
+			$items[] = array(
+				'id'    => $tab_id,
+				'label' => $client->name,
+				'cap'   => RoleManager::CAP_VIEW_OWN,
+				'icon'  => 'dashicons-products',
+				'group' => 'product-hub',
+			);
+			$existing[] = $tab_id;
+		}
+
+		return $items;
 	}
 
 	/** @return array<string,array{label:string,icon:string}> */
 	private static function group_definitions(): array {
 		return array(
-			'my-work'        => array(
+			'my-work'          => array(
 				'label' => __( 'My work', 'etwa' ),
 				'icon'  => 'dashicons-portfolio',
 			),
-			'requests'       => array(
+			'requests'         => array(
 				'label' => __( 'Requests', 'etwa' ),
 				'icon'  => 'dashicons-clipboard',
 			),
-			'team'           => array(
+			'team'             => array(
 				'label' => __( 'Team', 'etwa' ),
 				'icon'  => 'dashicons-groups',
 			),
-			'dashboard'      => array(
-				'label' => __( 'Dashboard', 'etwa' ),
-				'icon'  => 'dashicons-dashboard',
-			),
-			'people'         => array(
-				'label' => __( 'People', 'etwa' ),
-				'icon'  => 'dashicons-id',
-			),
-			'time-off'       => array(
-				'label' => __( 'Time & leave', 'etwa' ),
-				'icon'  => 'dashicons-calendar-alt',
-			),
-			'reports'        => array(
-				'label' => __( 'Reports', 'etwa' ),
-				'icon'  => 'dashicons-chart-bar',
-			),
-			'deliverables'   => array(
+			'deliverables'     => array(
 				'label' => __( 'Deliverables', 'etwa' ),
 				'icon'  => 'dashicons-portfolio',
 			),
-			'administration' => array(
+			'product-hub'      => array(
+				'label' => __( 'Product Hub', 'etwa' ),
+				'icon'  => 'dashicons-star-filled',
+			),
+			'hr'               => array(
+				'label' => __( 'HR', 'etwa' ),
+				'icon'  => 'dashicons-groups',
+			),
+			'time-off'         => array(
+				'label' => __( 'Time & Leave', 'etwa' ),
+				'icon'  => 'dashicons-calendar-alt',
+			),
+			'work-management'  => array(
+				'label' => __( 'Work Management', 'etwa' ),
+				'icon'  => 'dashicons-building',
+			),
+			'analytics'        => array(
+				'label' => __( 'Analytics', 'etwa' ),
+				'icon'  => 'dashicons-chart-bar',
+			),
+			'administration'   => array(
 				'label' => __( 'Administration', 'etwa' ),
 				'icon'  => 'dashicons-admin-generic',
 			),
-			'account'        => array(
+			'account'          => array(
 				'label' => __( 'Account', 'etwa' ),
 				'icon'  => 'dashicons-admin-users',
+			),
+			'logs'             => array(
+				'label' => __( 'Logs', 'etwa' ),
+				'icon'  => 'dashicons-list-view',
 			),
 		);
 	}
@@ -403,14 +501,17 @@ final class PortalNav {
 			'vacations'        => 'vacation-manager',
 			'my-vacation'      => 'employee-vacation',
 			'client-analytics' => 'client-analytics',
+			'prospect-analytics' => 'prospect-analytics',
 			'reports'          => 'reports-exports',
 			'files'            => 'files',
 			'deliverables'     => 'deliverables',
 			'analytics'        => 'owner-analytics',
 			'clients'   => 'clients-manager',
+			'prospects' => 'prospects',
+			'super-clients' => 'super-client-manager',
 			'logs'      => 'admin',
 			'my-profile'=> 'my-profile',
-			default     => 'employee-dashboard',
+			default     => str_starts_with( $view, 'super-client-' ) ? 'super-client-manager' : 'employee-dashboard',
 		};
 	}
 
@@ -437,8 +538,21 @@ final class PortalNav {
 			}
 		}
 
+		if ( ! empty( $_GET['prospect_id'] ) && in_array( 'prospects', $allowed, true ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return 'prospects';
+		}
+
 		if ( ! empty( $_GET['client_id'] ) && in_array( 'client-analytics', $allowed, true ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return 'client-analytics';
+		}
+
+		if ( ! empty( $_GET['client_id'] ) && in_array( 'super-clients', $allowed, true ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return 'super-clients';
+		}
+
+		$client_id = isset( $_GET['client_id'] ) ? (int) $_GET['client_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( $client_id > 0 && in_array( 'super-client-' . $client_id, $allowed, true ) ) {
+			return 'super-client-' . $client_id;
 		}
 
 		if ( ! empty( $_GET['review_user'] ) && in_array( 'hr', $allowed, true ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -466,6 +580,13 @@ final class PortalNav {
 
 	/** @return array{title:string,subtitle:string} */
 	public static function view_meta( string $view ): array {
+		if ( SuperClientAccessHelper::is_super_client_view( $view ) ) {
+			return array(
+				'title'    => __( 'Products', 'etwa' ),
+				'subtitle' => __( 'Products, brands, and requests', 'etwa' ),
+			);
+		}
+
 		return match ( $view ) {
 			'history'   => array(
 				'title'    => __( 'History', 'etwa' ),
@@ -489,7 +610,11 @@ final class PortalNav {
 			),
 			'client-analytics' => array(
 				'title'    => __( 'Client Analytics', 'etwa' ),
-				'subtitle' => __( 'Hours, labor cost, and trends by client', 'etwa' ),
+				'subtitle' => __( 'Hours by client and workspace project', 'etwa' ),
+			),
+			'prospect-analytics' => array(
+				'title'    => __( 'Prospect Analytics', 'etwa' ),
+				'subtitle' => __( 'Pipeline conversion, prospect hours, and performance over time', 'etwa' ),
 			),
 			'reports' => array(
 				'title'    => __( 'Reports & Exports', 'etwa' ),
@@ -524,12 +649,16 @@ final class PortalNav {
 				'subtitle' => __( 'Submit leave requests and view your balances', 'etwa' ),
 			),
 			'analytics' => array(
-				'title'    => __( 'Analytics', 'etwa' ),
+				'title'    => __( 'Overview', 'etwa' ),
 				'subtitle' => __( 'Workforce insights and trends', 'etwa' ),
 			),
 			'clients'   => array(
-				'title'    => __( 'Clients', 'etwa' ),
-				'subtitle' => __( 'Manage client codes and departments', 'etwa' ),
+				'title'    => __( 'Clients & Workspace', 'etwa' ),
+				'subtitle' => __( 'Manage internal work, projects, general categories, and clients', 'etwa' ),
+			),
+			'prospects' => array(
+				'title'    => __( 'Prospects', 'etwa' ),
+				'subtitle' => __( 'Potential clients, recorded work, and conversion', 'etwa' ),
 			),
 			'logs'      => array(
 				'title'    => __( 'Logs', 'etwa' ),

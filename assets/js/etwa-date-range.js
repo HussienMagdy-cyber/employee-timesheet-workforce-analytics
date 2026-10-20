@@ -42,6 +42,28 @@
 				</label>`;
 		}
 
+		if (fields.parent_project) {
+			const required = fields.parent_project.required ? ' required' : '';
+			html += `
+				<label class="etwa-analytics-field">
+					<span>${strings.parentProject || 'Parent Project'}</span>
+					<select class="etwa-input etwa-date-range-parent-project"${required}>
+						<option value="">${strings.selectParentProject || 'Please select a parent project.'}</option>
+					</select>
+				</label>`;
+		}
+
+		if (fields.prospect) {
+			const required = fields.prospect.required ? ' required' : '';
+			html += `
+				<label class="etwa-analytics-field">
+					<span>${strings.prospect || 'Prospect'}</span>
+					<select class="etwa-input etwa-date-range-prospect"${required}>
+						<option value="">${strings.selectProspect || 'Please select a prospect.'}</option>
+					</select>
+				</label>`;
+		}
+
 		html += `
 			<label class="etwa-analytics-field">
 				<span>${strings.startDate || 'Start Date'}</span>
@@ -127,6 +149,8 @@
 
 			const employeeSelect = overlay.querySelector('.etwa-date-range-employee');
 			const clientSelect = overlay.querySelector('.etwa-date-range-client');
+			const parentProjectSelect = overlay.querySelector('.etwa-date-range-parent-project');
+			const prospectSelect = overlay.querySelector('.etwa-date-range-prospect');
 			const filters = options.filters || {};
 
 			if (employeeSelect) {
@@ -154,6 +178,22 @@
 				if (options.fields?.client?.readonly && options.client_id) {
 					clientSelect.value = String(options.client_id);
 				}
+			}
+			if (parentProjectSelect) {
+				populateSelect(
+					parentProjectSelect,
+					filters.parent_projects,
+					options.parent_project_id,
+					strings.selectParentProject || 'Please select a parent project.'
+				);
+			}
+			if (prospectSelect) {
+				populateSelect(
+					prospectSelect,
+					filters.prospects,
+					options.prospect_id,
+					strings.selectProspect || 'Please select a prospect.'
+				);
 			}
 
 			const close = (result) => {
@@ -206,6 +246,24 @@
 					payload.client_id = parseInt(String(options.client_id), 10);
 				}
 
+				if (parentProjectSelect) {
+					const parentProjectId = parseInt(parentProjectSelect.value || '0', 10);
+					if (options.fields?.parent_project?.required && !parentProjectId) {
+						ui().error(strings.selectParentProject || 'Please select a parent project.');
+						return;
+					}
+					if (parentProjectId) payload.parent_project_id = parentProjectId;
+				}
+
+				if (prospectSelect) {
+					const prospectId = parseInt(prospectSelect.value || '0', 10);
+					if (options.fields?.prospect?.required && !prospectId) {
+						ui().error(strings.selectProspect || 'Please select a prospect.');
+						return;
+					}
+					if (prospectId) payload.prospect_id = prospectId;
+				}
+
 				close(payload);
 			});
 
@@ -243,7 +301,7 @@
 
 		const api = window.etwaAPI?.api;
 		if (!api) {
-			return Promise.resolve({ employees: [], clients: [], departments: [] });
+			return Promise.resolve({ employees: [], clients: [], departments: [], parent_projects: [], prospects: [] });
 		}
 
 		filtersPromise = api('reports/filters')
@@ -252,8 +310,10 @@
 					const employees = res.data.employees || [];
 					const clients = res.data.clients || [];
 					const departments = res.data.departments || [];
-					if (employees.length || clients.length || departments.length) {
-						return { employees, clients, departments };
+					const parent_projects = res.data.parent_projects || [];
+					const prospects = res.data.prospects || [];
+					if (employees.length || clients.length || departments.length || parent_projects.length || prospects.length) {
+						return { employees, clients, departments, parent_projects, prospects };
 					}
 				}
 				return Promise.all([
@@ -263,6 +323,8 @@
 					employees: mapEmployeesResponse(empRes),
 					clients: mapClientsResponse(clientRes),
 					departments: [],
+					parent_projects: [],
+					prospects: [],
 				}));
 			})
 			.catch(() =>
@@ -271,12 +333,14 @@
 						employees: mapEmployeesResponse(empRes),
 						clients: mapClientsResponse(clientRes),
 						departments: [],
+						parent_projects: [],
+						prospects: [],
 					})
 				)
 			)
 			.catch(() => {
 				filtersPromise = null;
-				return { employees: [], clients: [], departments: [] };
+				return { employees: [], clients: [], departments: [], parent_projects: [], prospects: [] };
 			});
 
 		return filtersPromise;

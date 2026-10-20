@@ -269,7 +269,7 @@
 			impact = 'normal';
 		}
 		return `
-			<div class="etwa-dlv-line-row etwa-dlv-alloc-item" data-alloc-item>
+			<div class="etwa-dlv-line-row etwa-dlv-alloc-item etwa-workspace-card" data-alloc-item>
 				<div class="etwa-dlv-alloc-item-main">
 					<label>
 						<span>Deliverable Type</span>
@@ -286,7 +286,7 @@
 							<option value="replacement"${impact === 'replacement' ? ' selected' : ''}>Replacement</option>
 						</select>
 					</label>
-					<button type="button" class="etwa-btn etwa-btn-ghost etwa-dlv-remove-item" data-remove-item>Remove</button>
+					<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-small etwa-dlv-remove-item" data-remove-item>Remove</button>
 				</div>
 				<div class="etwa-dlv-item-replacement" data-replacement-fields hidden>
 					<label>
@@ -855,9 +855,9 @@
 		items.forEach((a) => {
 			const total = a.total_quantity != null ? a.total_quantity : (a.items || []).reduce((s, i) => s + num(i.quantity), 0);
 			const actions = canAllocate
-				? `<td class="etwa-dlv-alloc-actions">
-					<button type="button" class="etwa-btn etwa-btn-ghost etwa-btn-small" data-alloc-edit="${esc(a.id)}">Edit</button>
-					<button type="button" class="etwa-btn etwa-btn-ghost etwa-btn-small" data-alloc-delete="${esc(a.id)}">Delete</button>
+				? `<td class="etwa-dlv-alloc-actions etwa-actions-cell">
+					<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-small" data-alloc-edit="${esc(a.id)}">Edit</button>
+					<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-small" data-alloc-delete="${esc(a.id)}">Delete</button>
 				</td>`
 				: '';
 			$body.append(`
@@ -1076,15 +1076,15 @@
 				rows.forEach((t) => {
 					const active = t.is_active === true || t.is_active === 1 || t.is_active === '1';
 					const statusAction = active
-						? `<button type="button" class="etwa-btn etwa-btn-ghost etwa-btn-small" data-type-deactivate="${esc(t.id)}">Delete</button>`
-						: `<button type="button" class="etwa-btn etwa-btn-ghost etwa-btn-small" data-type-reactivate="${esc(t.id)}">Reactivate</button>`;
+						? `<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-small" data-type-deactivate="${esc(t.id)}">Delete</button>`
+						: `<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-small" data-type-reactivate="${esc(t.id)}">Reactivate</button>`;
 					$body.append(`
 						<tr data-type-id="${esc(t.id)}">
 							<td>${esc(t.name)}</td>
 							<td>${num(t.effort_score).toFixed(2)}</td>
-							<td>${active ? 'Yes' : 'No'}</td>
-							<td class="etwa-dlv-type-actions">
-								<button type="button" class="etwa-btn etwa-btn-ghost etwa-btn-small" data-type-edit="${esc(t.id)}">Edit</button>
+							<td>${active ? '<span class="etwa-status etwa-status-approved">Yes</span>' : '<span class="etwa-status etwa-status-rejected">No</span>'}</td>
+							<td class="etwa-dlv-type-actions etwa-actions-cell">
+								<button type="button" class="etwa-btn etwa-btn-secondary etwa-btn-small" data-type-edit="${esc(t.id)}">Edit</button>
 								${statusAction}
 							</td>
 						</tr>

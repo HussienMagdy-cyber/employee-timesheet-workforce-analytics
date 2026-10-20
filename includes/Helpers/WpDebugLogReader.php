@@ -83,16 +83,37 @@ final class WpDebugLogReader {
 
 	/** @return string[] */
 	public static function tail( int $max_lines = 150 ): array {
-		if ( ! self::log_exists() ) {
+		$path = self::resolve_log_path();
+		if ( '' === $path || ! is_readable( $path ) ) {
 			return array();
 		}
 
-		$path  = self::resolve_log_path();
-		$lines = file( $path, FILE_IGNORE_NEW_LINES );
-		if ( ! is_array( $lines ) ) {
+		$size = filesize( $path );
+		if ( false === $size || $size <= 0 ) {
 			return array();
 		}
 
+		$handle = fopen( $path, 'rb' );
+		if ( ! $handle ) {
+			return array();
+		}
+
+		$read  = min( $size, 262144 );
+		$start = $size - $read;
+		if ( $start > 0 ) {
+			fseek( $handle, $start );
+		}
+		$data = (string) stream_get_contents( $handle );
+		fclose( $handle );
+
+		if ( $start > 0 ) {
+			$newline = strpos( $data, "\n" );
+			if ( false !== $newline ) {
+				$data = substr( $data, $newline + 1 );
+			}
+		}
+
+		$lines = preg_split( '/\r\n|\n|\r/', $data ) ?: array();
 		$lines = array_values(
 			array_filter(
 				$lines,

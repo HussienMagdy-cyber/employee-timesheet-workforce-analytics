@@ -63,6 +63,35 @@ final class DepartmentController extends RestController {
 
 		register_rest_route(
 			self::NAMESPACE,
+			'/departments/product-tab-options',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'product_tab_options' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/departments/(?P<id>\d+)/product-tabs',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_product_tabs' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::EDITABLE,
+					'callback'            => array( $this, 'update_product_tabs' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/departments/dashboard',
 			array(
 				array(
@@ -164,6 +193,29 @@ final class DepartmentController extends RestController {
 	public function delete_department( WP_REST_Request $request ) {
 		$result = ( new DepartmentService() )->delete( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
 		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( array( 'deleted' => true ) );
+	}
+
+	public function product_tab_options( WP_REST_Request $request ) {
+		unset( $request );
+		$result = ( new DepartmentService() )->list_product_tab_options( get_current_user_id() );
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
+	}
+
+	public function get_product_tabs( WP_REST_Request $request ) {
+		$result = ( new DepartmentService() )->get_product_tab_access(
+			get_current_user_id(),
+			$this->get_int_param( $request, 'id' )
+		);
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
+	}
+
+	public function update_product_tabs( WP_REST_Request $request ) {
+		$result = ( new DepartmentService() )->set_product_tab_access(
+			get_current_user_id(),
+			$this->get_int_param( $request, 'id' ),
+			$this->get_request_data( $request )
+		);
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
 	}
 
 	public function dashboard( WP_REST_Request $request ) {

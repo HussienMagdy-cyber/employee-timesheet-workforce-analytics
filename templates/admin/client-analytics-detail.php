@@ -64,24 +64,24 @@ $filter_url = $in_portal
 	?>
 
 	<div class="etwa-analytics-kpi-grid etwa-ca-detail-kpis">
-		<article class="etwa-analytics-kpi">
+		<a class="etwa-analytics-kpi" href="#etwa-ca-hours-trend">
 			<div class="etwa-analytics-kpi-body">
 				<span class="etwa-kpi-label"><?php esc_html_e( 'Regular Hours', 'etwa' ); ?></span>
 				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['regular_hours'] ?? 0 ), 1 ) ); ?>h</strong>
 			</div>
-		</article>
-		<article class="etwa-analytics-kpi">
+		</a>
+		<a class="etwa-analytics-kpi" href="#etwa-ca-hours-trend">
 			<div class="etwa-analytics-kpi-body">
 				<span class="etwa-kpi-label"><?php esc_html_e( 'Overtime Hours', 'etwa' ); ?></span>
 				<strong class="etwa-kpi-value etwa-accent"><?php echo esc_html( number_format( (float) ( $summary['overtime_hours'] ?? 0 ), 1 ) ); ?>h</strong>
 			</div>
-		</article>
-		<article class="etwa-analytics-kpi">
+		</a>
+		<a class="etwa-analytics-kpi" href="#etwa-ca-hours-trend">
 			<div class="etwa-analytics-kpi-body">
 				<span class="etwa-kpi-label"><?php esc_html_e( 'Total Hours', 'etwa' ); ?></span>
 				<strong class="etwa-kpi-value"><?php echo esc_html( number_format( (float) ( $summary['total_hours'] ?? $summary['combined_hours'] ?? 0 ), 1 ) ); ?>h</strong>
 			</div>
-		</article>
+		</a>
 		<article class="etwa-analytics-kpi">
 			<div class="etwa-analytics-kpi-body">
 				<span class="etwa-kpi-label"><?php esc_html_e( 'OT Percentage', 'etwa' ); ?></span>
@@ -102,12 +102,12 @@ $filter_url = $in_portal
 				</div>
 			</article>
 		<?php endif; ?>
-		<article class="etwa-analytics-kpi">
+		<a class="etwa-analytics-kpi" href="#etwa-ca-employee-breakdown">
 			<div class="etwa-analytics-kpi-body">
 				<span class="etwa-kpi-label"><?php esc_html_e( 'Employees', 'etwa' ); ?></span>
 				<strong class="etwa-kpi-value"><?php echo esc_html( (string) ( $summary['employee_count'] ?? 0 ) ); ?></strong>
 			</div>
-		</article>
+		</a>
 	</div>
 
 	<?php $project_breakdown = $detail['project_breakdown'] ?? array(); ?>
@@ -146,7 +146,7 @@ $filter_url = $in_portal
 	<?php endif; ?>
 
 	<div class="etwa-analytics-charts-grid">
-		<section class="etwa-chart-card">
+		<section class="etwa-chart-card" id="etwa-ca-hours-trend">
 			<header class="etwa-chart-card-head">
 				<h2><?php esc_html_e( 'Hours Trend', 'etwa' ); ?></h2>
 				<p><?php esc_html_e( 'Monthly hours logged for this client', 'etwa' ); ?></p>
@@ -158,7 +158,7 @@ $filter_url = $in_portal
 	</div>
 
 	<div class="etwa-analytics-grid zwei-col">
-		<section class="etwa-panel">
+		<section class="etwa-panel" id="etwa-ca-employee-breakdown">
 			<h2><?php esc_html_e( 'Employee Breakdown', 'etwa' ); ?></h2>
 			<table class="etwa-table">
 				<thead>

@@ -129,6 +129,15 @@ if ( ! in_array( $initial_tab, array( 'vacation', 'wfh', 'permission', 'holiday_
 	</section>
 
 	<section class="etwa-requests-panel<?php echo 'permission' === $initial_tab ? ' is-active' : ''; ?>" data-request-panel="permission"<?php echo 'permission' === $initial_tab ? '' : ' hidden'; ?>>
+		<div id="etwa-perm-req-usage-summary" class="etwa-panel etwa-permission-usage-panel" hidden>
+			<h3><?php esc_html_e( 'Employee Monthly Permission Allowance', 'etwa' ); ?></h3>
+			<ul class="etwa-permission-usage-list">
+				<li id="etwa-perm-req-usage-count"></li>
+				<li id="etwa-perm-req-usage-free"></li>
+				<li id="etwa-perm-req-usage-deducted"></li>
+			</ul>
+			<p class="etwa-muted etwa-panel-intro"><?php esc_html_e( 'First 2 approved permissions each month are free (0 vacation deduction). From the 3rd, HR enters the deduction days (default 0.25) at approval. Permissions never lock day entries.', 'etwa' ); ?></p>
+		</div>
 		<div class="etwa-panel">
 			<div class="etwa-toolbar etwa-vacation-filters">
 				<div class="etwa-filter-row">

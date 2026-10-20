@@ -9,10 +9,19 @@
 
 	let departments = [];
 	let users = [];
+	let productTabOptions = [];
 
 	function loadUsers() {
 		return api('vacations/employees?per_page=100').then((res) => {
 			if (res.success) users = res.data?.items || [];
+		});
+	}
+
+	function loadProductTabOptions() {
+		return api('departments/product-tab-options').then((res) => {
+			if (!res.success) throw new Error(res.message);
+			const items = res.data?.items;
+			productTabOptions = Array.isArray(items) ? items : [];
 		});
 	}
 
@@ -22,6 +31,65 @@
 			html += `<option value="${u.id}"${String(selected) === String(u.id) ? ' selected' : ''}>${u.display_name}</option>`;
 		});
 		return html;
+	}
+
+	function renderProductTabChecks(selectedIds) {
+		const $list = $('#etwa-dept-product-tabs-list');
+		const selected = (selectedIds || []).map((id) => parseInt(id, 10));
+		const active = productTabOptions.filter((tab) => tab.is_active !== false);
+
+		if (!active.length) {
+			$list.html(
+				`<p class="etwa-muted">${cfg.i18n?.noProductTabsConfigured || 'No Product Tabs yet. Promote a client to a Product first.'}</p>`
+			);
+			return;
+		}
+
+		$list.html(
+			active
+				.map((tab) => {
+					const checked = selected.includes(parseInt(tab.id, 10)) ? ' checked' : '';
+					return `<label class="etwa-checkbox-row etwa-sc-unit-check">
+						<input type="checkbox" name="product_tab_ids[]" value="${tab.id}"${checked}>
+						<span>${tab.name}</span>
+					</label>`;
+				})
+				.join('')
+		);
+	}
+
+	function loadDepartmentProductTabs(deptId) {
+		if (!deptId) {
+			renderProductTabChecks([]);
+			return Promise.resolve();
+		}
+		return api(`departments/${deptId}/product-tabs`)
+			.then((res) => {
+				if (!res.success) throw new Error(res.message);
+				renderProductTabChecks((res.data && res.data.product_tab_ids) || []);
+			})
+			.catch((err) => {
+				$('#etwa-dept-product-tabs-list').html(`<p class="etwa-sc-error">${err.message}</p>`);
+			});
+	}
+
+	function selectedProductTabIds() {
+		return $('#etwa-dept-product-tabs-list input[name="product_tab_ids[]"]:checked')
+			.map(function () {
+				return parseInt($(this).val(), 10);
+			})
+			.get()
+			.filter((id) => id > 0);
+	}
+
+	function saveProductTabAccess(deptId) {
+		if (!deptId) return Promise.resolve();
+		return api(`departments/${deptId}/product-tabs`, {
+			method: 'PATCH',
+			body: JSON.stringify({ product_tab_ids: selectedProductTabIds() }),
+		}).then((res) => {
+			if (!res.success) throw new Error(res.message);
+		});
 	}
 
 	function renderRows() {
@@ -57,6 +125,8 @@
 		$('#etwa-dept-deliverables').prop('checked', dept ? !!dept.can_allocate_deliverables : false);
 		$('#etwa-dept-status').val(dept?.status || 'active');
 		$('#etwa-department-modal-title').text(dept ? cfg.i18n?.editDepartment || 'Edit Department' : cfg.i18n?.addDepartment || 'Add Department');
+		$('#etwa-dept-product-tabs-list').html(`<p class="etwa-muted">${cfg.i18n?.loading || 'Loading…'}</p>`);
+		loadDepartmentProductTabs(dept?.id || null);
 		$modal.removeAttr('hidden').attr('aria-hidden', 'false');
 		$('body').addClass('etwa-modal-open');
 	}
@@ -67,7 +137,7 @@
 	}
 
 	function loadDepartments() {
-		$('#etwa-departments-body').html('<tr><td colspan="6"><div class="etwa-skeleton" style="height:40px"></div></td></tr>');
+		$('#etwa-departments-body').html('<tr><td colspan="7"><div class="etwa-skeleton" style="height:40px"></div></td></tr>');
 		api('departments')
 			.then((res) => {
 				if (!res.success) throw new Error(res.message);
@@ -75,12 +145,12 @@
 				$('#etwa-departments-body').html(renderRows());
 			})
 			.catch((err) => {
-				$('#etwa-departments-body').html(`<tr><td colspan="6" class="etwa-empty-cell">${err.message}</td></tr>`);
+				$('#etwa-departments-body').html(`<tr><td colspan="7" class="etwa-empty-cell">${err.message}</td></tr>`);
 			});
 	}
 
 	$(function () {
-		loadUsers().finally(loadDepartments);
+		Promise.all([loadUsers(), loadProductTabOptions()]).finally(loadDepartments);
 
 		$('#etwa-add-department').on('click', () => openModal(null));
 		$modal.on('click', '.etwa-modal-close', closeModal);
@@ -123,6 +193,10 @@
 			api(path, { method, body: JSON.stringify(payload) })
 				.then((res) => {
 					if (!res.success) throw new Error(res.message);
+					const deptId = id || res.data?.id;
+					return saveProductTabAccess(deptId).then(() => deptId);
+				})
+				.then(() => {
 					ui.success(cfg.i18n?.departmentSaved || 'Department saved.');
 					closeModal();
 					loadDepartments();

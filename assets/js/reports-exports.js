@@ -13,9 +13,12 @@
 	const reportTitles = {
 		employee_timesheet: cfg.i18n?.employeeTimesheetReport || 'Employee Timesheet Report',
 		client: cfg.i18n?.clientReport || 'Client Report',
+		prospect: cfg.i18n?.prospectReport || 'Prospect Report',
 		client_labor_cost: cfg.i18n?.clientLaborCostReport || 'Client Labor Cost Report',
 		employee_hours_by_client: cfg.i18n?.employeeHoursByClientReport || 'Employee Hours by Client',
 		all_clients_comparison: cfg.i18n?.allClientsComparisonReport || 'All Clients Comparison',
+		parent_project: cfg.i18n?.parentProjectReport || 'Parent Project Report',
+		all_parent_projects_comparison: cfg.i18n?.allParentProjectsComparisonReport || 'All Parent Projects Comparison',
 	};
 
 	const reportFields = {
@@ -24,7 +27,10 @@
 			client: { required: false },
 		},
 		client: {
-			client: { required: true },
+			client: { required: false },
+		},
+		prospect: {
+			prospect: { required: true },
 		},
 		client_labor_cost: {
 			client: { required: true },
@@ -32,6 +38,9 @@
 		employee_hours_by_client: {
 			employee: { required: false },
 			client: { required: false },
+		},
+		parent_project: {
+			parent_project: { required: true },
 		},
 	};
 
@@ -66,6 +75,7 @@
 	const strings = cfg.i18n || {};
 	const showLaborCost = !!cfg.canViewLaborCost;
 	let comparisonData = null;
+	let comparisonEmployees = [];
 	let sortKey = 'total_hours';
 	let sortDir = 'desc';
 	const chartInstances = [];
@@ -93,10 +103,32 @@
 		$('#etwa-comparison-to').val(range.date_to || '');
 	}
 
+	function fillComparisonEmployees(departmentId) {
+		const empSelect = document.getElementById('etwa-comparison-employee');
+		if (!empSelect) return;
+
+		const selected = empSelect.value;
+		const filtered = departmentId
+			? comparisonEmployees.filter((emp) => parseInt(emp.department_id || '0', 10) === departmentId)
+			: comparisonEmployees;
+
+		empSelect.innerHTML = `<option value="">${strings.allEmployees || 'All Employees'}</option>`;
+		filtered.forEach((emp) => {
+			const opt = document.createElement('option');
+			opt.value = String(emp.id);
+			opt.textContent = emp.display_name;
+			empSelect.appendChild(opt);
+		});
+
+		if (selected && filtered.some((emp) => String(emp.id) === String(selected))) {
+			empSelect.value = selected;
+		}
+	}
+
 	function populateComparisonFilters() {
 		return dateRange.loadFilters().then((filters) => {
 			const deptSelect = document.getElementById('etwa-comparison-department');
-			const empSelect = document.getElementById('etwa-comparison-employee');
+			comparisonEmployees = filters.employees || [];
 
 			if (deptSelect) {
 				deptSelect.innerHTML = `<option value="">${strings.allDepartments || 'All Departments'}</option>`;
@@ -108,15 +140,7 @@
 				});
 			}
 
-			if (empSelect) {
-				empSelect.innerHTML = `<option value="">${strings.allEmployees || 'All Employees'}</option>`;
-				(filters.employees || []).forEach((emp) => {
-					const opt = document.createElement('option');
-					opt.value = String(emp.id);
-					opt.textContent = emp.display_name;
-					empSelect.appendChild(opt);
-				});
-			}
+			fillComparisonEmployees(parseInt(deptSelect?.value || '0', 10));
 		});
 	}
 
@@ -292,6 +316,18 @@
 		});
 	}
 
+	function jumpToAllocation(clientId) {
+		if (!clientId) return;
+		const panel = document.getElementById(`etwa-allocation-panel-${clientId}`);
+		const accordion = panel?.closest('.etwa-comparison-accordion');
+		const toggle = accordion?.querySelector('.etwa-comparison-accordion-toggle');
+		if (!panel || !toggle || !accordion) return;
+
+		toggle.setAttribute('aria-expanded', 'true');
+		panel.hidden = false;
+		accordion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
 	function buildComparisonCharts() {
 		if (typeof Chart === 'undefined' || !comparisonData?.rows?.length) {
 			destroyCharts();
@@ -309,6 +345,13 @@
 			scales: {
 				x: { ticks: { maxRotation: 45, minRotation: 0 } },
 				y: { beginAtZero: true },
+			},
+			onClick(_event, elements) {
+				if (!elements.length) return;
+				const row = sortedRows()[elements[0].index];
+				if (row?.client_id) {
+					jumpToAllocation(row.client_id);
+				}
 			},
 		};
 
@@ -411,6 +454,10 @@
 			.catch((err) => ui.error(err.message))
 			.finally(() => ui.setButtonLoading(button, false));
 	}
+
+	$('#etwa-comparison-department').on('change', function () {
+		fillComparisonEmployees(parseInt($(this).val() || '0', 10));
+	});
 
 	$('#etwa-comparison-generate').on('click', function () {
 		generateComparison(this);

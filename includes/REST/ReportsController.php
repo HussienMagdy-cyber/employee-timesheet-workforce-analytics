@@ -13,6 +13,8 @@ use ETWA\Helpers\DateRangeHelper;
 use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Repositories\ClientRepository;
+use ETWA\Repositories\ProjectRepository;
+use ETWA\Repositories\ProspectRepository;
 use ETWA\Services\DepartmentService;
 use ETWA\Services\EmployeeCostService;
 use ETWA\Services\ReportExportService;
@@ -35,6 +37,9 @@ final class ReportsController extends RestController {
 				ReportingService::REPORT_CLIENT_LABOR_COST,
 				ReportingService::REPORT_EMPLOYEE_HOURS_BY_CLIENT,
 				ReportingService::REPORT_ALL_CLIENTS_COMPARISON,
+				ReportingService::REPORT_PARENT_PROJECT,
+				ReportingService::REPORT_ALL_PARENT_PROJECTS_COMPARISON,
+				ReportingService::REPORT_PROSPECT,
 			)
 		);
 
@@ -93,7 +98,17 @@ final class ReportsController extends RestController {
 			return EmployeeCostHelper::can_view_labor_cost();
 		}
 
-		if ( in_array( $type, array( ReportingService::REPORT_CLIENT, ReportingService::REPORT_ALL_CLIENTS_COMPARISON ), true ) ) {
+		if ( in_array(
+			$type,
+			array(
+				ReportingService::REPORT_CLIENT,
+				ReportingService::REPORT_ALL_CLIENTS_COMPARISON,
+				ReportingService::REPORT_PARENT_PROJECT,
+				ReportingService::REPORT_ALL_PARENT_PROJECTS_COMPARISON,
+				ReportingService::REPORT_PROSPECT,
+			),
+			true
+		) ) {
 			return current_user_can( RoleManager::CAP_ANALYTICS );
 		}
 
@@ -107,8 +122,10 @@ final class ReportsController extends RestController {
 			'date_from'  => $this->get_string_param( $request, 'date_from' ) ?: null,
 			'date_to'    => $this->get_string_param( $request, 'date_to' ) ?: null,
 			'user_id'       => $this->get_int_param( $request, 'user_id' ) ?: null,
-			'client_id'     => $this->get_int_param( $request, 'client_id' ) ?: null,
-			'department_id' => $this->get_int_param( $request, 'department_id' ) ?: null,
+			'client_id'          => $this->get_int_param( $request, 'client_id' ) ?: null,
+			'parent_project_id'  => $this->get_int_param( $request, 'parent_project_id' ) ?: null,
+			'prospect_id'        => $this->get_int_param( $request, 'prospect_id' ) ?: null,
+			'department_id'      => $this->get_int_param( $request, 'department_id' ) ?: null,
 		);
 
 		$export = new ReportExportService();
@@ -131,15 +148,19 @@ final class ReportsController extends RestController {
 	}
 
 	public function filter_options( WP_REST_Request $request ) {
-		$employees = $this->report_employee_options();
-		$clients   = $this->report_client_options();
-		$departments = $this->report_department_options();
+		$employees       = $this->report_employee_options();
+		$clients         = $this->report_client_options();
+		$departments     = $this->report_department_options();
+		$parent_projects = $this->report_parent_project_options();
+		$prospects       = $this->report_prospect_options();
 
 		return $this->success(
 			array(
 				'employees'           => $employees,
 				'clients'             => $clients,
 				'departments'         => $departments,
+				'parent_projects'     => $parent_projects,
+				'prospects'           => $prospects,
 				'presets'             => DateRangeHelper::preset_labels(),
 				'can_view_labor_cost' => EmployeeCostHelper::can_view_labor_cost(),
 			)
@@ -170,7 +191,7 @@ final class ReportsController extends RestController {
 		return $this->success( $report );
 	}
 
-	/** @return array<int,array{id:int,display_name:string}> */
+	/** @return array<int,array{id:int,display_name:string,department_id:int}> */
 	private function report_employee_options(): array {
 		if ( ! current_user_can( RoleManager::CAP_VIEW_ALL ) ) {
 			return array();
@@ -185,8 +206,9 @@ final class ReportsController extends RestController {
 		$employees = array();
 		foreach ( $list['items'] ?? array() as $emp ) {
 			$employees[] = array(
-				'id'           => (int) $emp['id'],
-				'display_name' => (string) $emp['display_name'],
+				'id'            => (int) $emp['id'],
+				'display_name'  => (string) $emp['display_name'],
+				'department_id' => (int) ( $emp['department_id'] ?? 0 ),
 			);
 		}
 
@@ -232,5 +254,49 @@ final class ReportsController extends RestController {
 		}
 
 		return $departments;
+	}
+
+	/** @return array<int,array{id:int,name:string}> */
+	private function report_parent_project_options(): array {
+		if ( ! current_user_can( RoleManager::CAP_ANALYTICS ) ) {
+			return array();
+		}
+
+		$projects = array();
+		foreach ( ( new ProjectRepository() )->list_standalone( true ) as $project ) {
+			if ( $project->parent_project_id ) {
+				continue;
+			}
+			$projects[] = array(
+				'id'   => (int) $project->id,
+				'name' => $project->name,
+			);
+		}
+
+		return $projects;
+	}
+
+	/** @return array<int,array{id:int,name:string,status:string,display_name:string}> */
+	private function report_prospect_options(): array {
+		if ( ! current_user_can( RoleManager::CAP_ANALYTICS ) ) {
+			return array();
+		}
+
+		$prospects = array();
+		foreach ( ( new ProspectRepository() )->all() as $prospect ) {
+			$label = match ( $prospect->status ) {
+				'won'   => __( 'Won', 'etwa' ),
+				'lost'  => __( 'Lost', 'etwa' ),
+				default => __( 'Open', 'etwa' ),
+			};
+			$prospects[] = array(
+				'id'           => (int) $prospect->id,
+				'name'         => $prospect->name,
+				'status'       => $prospect->status,
+				'display_name' => sprintf( '%s (%s)', $prospect->name, $label ),
+			);
+		}
+
+		return $prospects;
 	}
 }

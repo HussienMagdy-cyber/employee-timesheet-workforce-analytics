@@ -187,7 +187,7 @@ final class VacationController extends RestController {
 				array(
 					'methods'             => WP_REST_Server::DELETABLE,
 					'callback'            => array( $this, 'delete_record' ),
-					'permission_callback' => array( $this, 'can_delete' ),
+					'permission_callback' => array( $this, 'can_delete_record' ),
 				),
 			)
 		);
@@ -346,6 +346,10 @@ final class VacationController extends RestController {
 
 	public function can_delete(): bool {
 		return is_user_logged_in() && $this->service->can_delete( get_current_user_id() );
+	}
+
+	public function can_delete_record(): bool {
+		return is_user_logged_in() && $this->service->can_delete_record( get_current_user_id() );
 	}
 
 	public function can_export(): bool {
@@ -535,20 +539,13 @@ final class VacationController extends RestController {
 			return $this->error( $path );
 		}
 
-		$contents = file_get_contents( $path );
-		@unlink( $path );
-
-		if ( false === $contents ) {
-			return $this->error(
-				new \WP_Error( 'export_failed', __( 'Could not read export file.', 'etwa' ), array( 'status' => 500 ) )
-			);
-		}
+		$upload = wp_upload_dir();
+		$url    = str_replace( $upload['basedir'], $upload['baseurl'], $path );
 
 		return $this->success(
 			array(
-				'filename' => 'etwa-vacation-requests-' . gmdate( 'Y-m-d' ) . '.xlsx',
-				'content'  => base64_encode( $contents ),
-				'mime'     => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+				'filename' => basename( $path ),
+				'file_url' => $url,
 			)
 		);
 	}

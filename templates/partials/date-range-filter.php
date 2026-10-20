@@ -9,6 +9,7 @@
  * @var array<string,string> $presets
  * @var string               $portal_view  Portal view slug.
  * @var int                  $client_id    Optional detail context.
+ * @var int                  $project_id   Optional project detail context.
  *
  * @package ETWA
  */
@@ -23,6 +24,7 @@ $presets     = $presets ?? DateRangeHelper::preset_labels();
 $preset      = $preset ?? DateRangeHelper::PRESET_THIS_MONTH;
 $portal_view = $portal_view ?? 'client-analytics';
 $client_id   = (int) ( $client_id ?? 0 );
+$project_id  = (int) ( $project_id ?? 0 );
 ?>
 <form method="get" class="etwa-analytics-filter etwa-date-range-filter" action="<?php echo esc_url( $filter_url ); ?>" id="etwa-date-range-form">
 	<?php if ( ! empty( $in_portal ) ) : ?>
@@ -33,6 +35,20 @@ $client_id   = (int) ( $client_id ?? 0 );
 	<?php if ( $client_id > 0 ) : ?>
 		<input type="hidden" name="client_id" value="<?php echo esc_attr( (string) $client_id ); ?>" />
 	<?php endif; ?>
+	<?php if ( $project_id > 0 ) : ?>
+		<input type="hidden" name="project_id" value="<?php echo esc_attr( (string) $project_id ); ?>" />
+	<?php endif; ?>
+	<?php
+	$filter_hidden = $filter_hidden ?? array();
+	foreach ( $filter_hidden as $hidden_key => $hidden_value ) {
+		if ( '' === (string) $hidden_value ) {
+			continue;
+		}
+		?>
+		<input type="hidden" name="<?php echo esc_attr( (string) $hidden_key ); ?>" value="<?php echo esc_attr( (string) $hidden_value ); ?>" />
+		<?php
+	}
+	?>
 
 	<div class="etwa-tabs etwa-date-preset-row">
 		<?php foreach ( $presets as $key => $label ) : ?>

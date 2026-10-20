@@ -7,7 +7,8 @@
 	if (!app.length || !cfg.canManageVacation) return;
 
 	const canDelete = app.data('can-delete') === 1;
-	const canExport = app.data('can-export') === 1;
+	const canDeleteLeave = app.data('can-delete-leave') === 1 || !!cfg.canManageVacation;
+	const canExport = !!cfg.canExport;
 
 	let leaveTypes = [];
 	let employees = [];
@@ -216,7 +217,7 @@
 							} else if (row.source === 'record' || row.transaction_type === 'vacation' || row.transaction_type === 'usage') {
 								actions.push(`<button type="button" class="etwa-link etwa-vacation-view" data-id="${row.record_id || row.id}">${cfg.i18n?.view || 'View'}</button>`);
 								actions.push(`<button type="button" class="etwa-link etwa-vacation-edit" data-source="record" data-id="${row.record_id || row.id}">${cfg.i18n?.edit || 'Edit'}</button>`);
-								if (canDelete) actions.push(`<button type="button" class="etwa-link etwa-vacation-delete" data-source="record" data-id="${row.record_id || row.id}">${cfg.i18n?.delete || 'Delete'}</button>`);
+								if (canDeleteLeave) actions.push(`<button type="button" class="etwa-link etwa-vacation-delete" data-source="record" data-id="${row.record_id || row.id}">${cfg.i18n?.delete || 'Delete'}</button>`);
 							}
 							const daysDisplay =
 								row.transaction_type === 'adjustment' ? row.days : Math.abs(row.days);

@@ -97,6 +97,9 @@ $brand_icon  = BrandHelper::icon_url( 64 );
 						>
 							<span class="dashicons <?php echo esc_attr( $group['icon'] ); ?>" aria-hidden="true"></span>
 							<span class="etwa-portal-nav-group-label"><?php echo esc_html( $group['label'] ); ?></span>
+							<?php if ( 'product-hub' === $group['id'] ) : ?>
+								<span class="etwa-badge etwa-portal-nav-badge" data-nav-badge="product-hub" hidden></span>
+							<?php endif; ?>
 						</button>
 						<ul class="etwa-portal-nav-group-items" id="<?php echo esc_attr( $panel_id ); ?>"<?php echo $group_active ? '' : ' hidden'; ?>>
 							<?php foreach ( $group_items as $item ) : ?>

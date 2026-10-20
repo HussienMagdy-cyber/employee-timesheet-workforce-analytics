@@ -59,6 +59,15 @@ if ( ! in_array( $initial_tab, array( 'vacation', 'wfh', 'permission', 'holiday_
 
 	<section class="etwa-requests-panel<?php echo 'permission' === $initial_tab ? ' is-active' : ''; ?>" data-request-panel="permission"<?php echo 'permission' === $initial_tab ? '' : ' hidden'; ?>>
 		<div id="etwa-permission-notifications" class="etwa-vacation-notifications"></div>
+		<div id="etwa-permission-usage-summary" class="etwa-panel etwa-permission-usage-panel" hidden>
+			<h3><?php esc_html_e( 'Monthly Permission Allowance', 'etwa' ); ?></h3>
+			<ul class="etwa-permission-usage-list">
+				<li id="etwa-permission-usage-count"></li>
+				<li id="etwa-permission-usage-free"></li>
+				<li id="etwa-permission-usage-deducted"></li>
+			</ul>
+			<p class="etwa-muted etwa-panel-intro"><?php esc_html_e( 'Each employee gets 2 free permissions per calendar month. From the 3rd approved permission, HR enters the deduction days (default 0.25) from annual leave. Permissions do not lock day entries.', 'etwa' ); ?></p>
+		</div>
 		<div class="etwa-panel">
 			<h2><?php esc_html_e( 'Permission Request', 'etwa' ); ?></h2>
 			<form id="etwa-permission-request-form" class="etwa-form-grid" data-request-type="permission">

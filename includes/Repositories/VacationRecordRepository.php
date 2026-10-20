@@ -65,7 +65,7 @@ final class VacationRecordRepository {
 	 *
 	 * @return object[]
 	 */
-	public function approved_in_range( string $date_from, string $date_to, ?int $user_id = null ): array {
+	public function approved_in_range( string $date_from, string $date_to, ?int $user_id = null, bool $exclude_permission_source = true ): array {
 		global $wpdb;
 		$types = $wpdb->prefix . 'etwa_leave_types';
 
@@ -74,6 +74,11 @@ final class VacationRecordRepository {
 			WHERE r.status = 'approved'
 			AND r.start_date <= %s AND r.end_date >= %s";
 		$params = array( $date_to, $date_from );
+
+		if ( $exclude_permission_source ) {
+			$sql     .= " AND (r.source IS NULL OR r.source != %s)";
+			$params[] = \ETWA\Helpers\PermissionHelper::RECORD_SOURCE;
+		}
 
 		if ( $user_id ) {
 			$sql     .= ' AND r.user_id = %d';
@@ -95,9 +100,11 @@ final class VacationRecordRepository {
 				"SELECT r.*, lt.name AS leave_type_name FROM {$this->table} r
 				INNER JOIN {$types} lt ON lt.id = r.leave_type_id
 				WHERE r.status = 'approved' AND r.start_date <= %s AND r.end_date >= %s
+				AND (r.source IS NULL OR r.source != %s)
 				ORDER BY r.start_date ASC",
 				$today,
-				$today
+				$today,
+				\ETWA\Helpers\PermissionHelper::RECORD_SOURCE
 			)
 		) ?: array();
 	}
@@ -171,12 +178,15 @@ final class VacationRecordRepository {
 				'reason'        => $data['reason'] ?? '',
 				'status'        => $data['status'],
 				'notes'         => $data['notes'] ?? '',
+				'source'        => $data['source'] ?? null,
+				'source_request_id' => $data['source_request_id'] ?? null,
+				'balance_deducted'  => $data['balance_deducted'] ?? 0,
 				'created_by'    => (int) $data['created_by'],
 				'updated_by'    => null,
 				'created_at'    => $now,
 				'updated_at'    => $now,
 			),
-			array( '%d', '%d', '%s', '%s', '%f', '%s', '%s', '%s', '%d', '%d', '%s', '%s' )
+			array( '%d', '%d', '%s', '%s', '%f', '%s', '%s', '%s', '%s', '%d', '%f', '%d', '%d', '%s', '%s' )
 		);
 		return (int) $wpdb->insert_id;
 	}
@@ -186,15 +196,18 @@ final class VacationRecordRepository {
 		global $wpdb;
 		$data['updated_at'] = current_time( 'mysql' );
 		$allowed            = array(
-			'leave_type_id' => '%d',
-			'start_date'    => '%s',
-			'end_date'      => '%s',
-			'days'          => '%f',
-			'reason'        => '%s',
-			'status'        => '%s',
-			'notes'         => '%s',
-			'updated_by'    => '%d',
-			'updated_at'    => '%s',
+			'leave_type_id'     => '%d',
+			'start_date'        => '%s',
+			'end_date'          => '%s',
+			'days'              => '%f',
+			'reason'            => '%s',
+			'status'            => '%s',
+			'notes'             => '%s',
+			'source'            => '%s',
+			'source_request_id' => '%d',
+			'balance_deducted'  => '%f',
+			'updated_by'        => '%d',
+			'updated_at'        => '%s',
 		);
 		$fields             = array();
 		$formats            = array();
@@ -213,5 +226,38 @@ final class VacationRecordRepository {
 	public function delete( int $id ): bool {
 		global $wpdb;
 		return false !== $wpdb->delete( $this->table, array( 'id' => $id ), array( '%d' ) );
+	}
+
+	public function find_by_source_request( int $request_id ): ?VacationRecord {
+		global $wpdb;
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$this->table} WHERE source_request_id = %d ORDER BY id DESC LIMIT 1",
+				$request_id
+			)
+		);
+
+		return $row ? VacationRecord::from_row( $row ) : null;
+	}
+
+	public function sum_permission_balance_deducted_in_month( int $user_id, int $year, int $month ): float {
+		global $wpdb;
+
+		$value = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(balance_deducted), 0) FROM {$this->table}
+				WHERE user_id = %d
+				AND source = %s
+				AND status = 'approved'
+				AND MONTH(start_date) = %d
+				AND YEAR(start_date) = %d",
+				$user_id,
+				\ETWA\Helpers\PermissionHelper::RECORD_SOURCE,
+				$month,
+				$year
+			)
+		);
+
+		return (float) $value;
 	}
 }

@@ -50,20 +50,14 @@ final class Activator {
 		$settings = new SettingsRepository();
 
 		$defaults = array(
-			'work_week_start'       => 'sunday',
-			'work_week_end'         => 'thursday',
 			'work_day_start'        => '10:00',
 			'work_day_end'          => '18:00',
 			'time_interval_minutes' => 30,
-			'min_overtime_minutes'  => 30,
-			'overtime_round_minutes'=> 30,
 			'available_hours_week'  => 40,
 			'overtime_cost_multiplier' => 1,
 			'hr_email'              => get_option( 'admin_email' ),
 			'owner_email'           => get_option( 'admin_email' ),
 			'email_cc_owner'        => '1',
-			'dark_mode_default'     => '0',
-			'autosave_interval'     => 30,
 			'enable_audit_logs'     => '1',
 			'vacation_dual_approval'=> '1',
 			'deliverable_expiration_thresholds' => wp_json_encode( array( 7, 3, 1 ) ),
@@ -97,9 +91,6 @@ final class Activator {
 	}
 
 	private static function schedule_cron(): void {
-		if ( ! wp_next_scheduled( 'etwa_weekly_report_email' ) ) {
-			wp_schedule_event( strtotime( 'next friday 08:00' ), 'weekly', 'etwa_weekly_report_email' );
-		}
 		if ( ! wp_next_scheduled( 'etwa_daily_reminder' ) ) {
 			wp_schedule_event( strtotime( 'tomorrow 09:00' ), 'daily', 'etwa_daily_reminder' );
 		}

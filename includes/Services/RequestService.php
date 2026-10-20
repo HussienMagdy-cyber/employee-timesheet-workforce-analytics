@@ -12,6 +12,7 @@ namespace ETWA\Services;
 use ETWA\Helpers\ApprovalWorkflowHelper;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\DepartmentHelper;
+use ETWA\Helpers\PermissionHelper;
 use ETWA\Helpers\RequestApprovalHelper;
 use ETWA\Helpers\RequestHelper;
 use ETWA\Helpers\RoleManager;
@@ -164,6 +165,11 @@ final class RequestService {
 			'total'    => $this->requests->count( $filters ),
 			'page'     => $page,
 			'per_page' => $per_page,
+			'permission_usage' => (
+				! empty( $filters['request_type'] )
+				&& RequestHelper::TYPE_PERMISSION === $filters['request_type']
+				&& ! empty( $filters['user_id'] )
+			) ? PermissionHelper::monthly_usage_summary( (int) $filters['user_id'] ) : null,
 		);
 	}
 
@@ -187,6 +193,12 @@ final class RequestService {
 			return new WP_Error( 'not_found', __( 'Request not found.', 'etwa' ), array( 'status' => 404 ) );
 		}
 
+		if ( RequestHelper::TYPE_PERMISSION === $request->request_type
+			&& RequestHelper::STATUS_APPROVED === $request->status
+			&& $this->can_manage( $user_id ) ) {
+			return $this->revoke_approved_permission( $user_id, $request_id );
+		}
+
 		if ( (int) $request->user_id !== $user_id ) {
 			return new WP_Error( 'forbidden', __( 'You cannot cancel this request.', 'etwa' ), array( 'status' => 403 ) );
 		}
@@ -199,8 +211,64 @@ final class RequestService {
 		return true;
 	}
 
+	/** @return true|WP_Error */
+	public function revoke_approved_permission( int $reviewer_id, int $request_id ): bool|WP_Error {
+		if ( ! $this->can_manage( $reviewer_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot revoke this permission.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$request = $this->requests->find( $request_id );
+		if ( ! $request ) {
+			return new WP_Error( 'not_found', __( 'Request not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		if ( RequestHelper::TYPE_PERMISSION !== $request->request_type || RequestHelper::STATUS_APPROVED !== $request->status ) {
+			return new WP_Error( 'invalid', __( 'Only approved permission requests can be revoked.', 'etwa' ), array( 'status' => 409 ) );
+		}
+
+		$leave_result = ( new PermissionLeaveService() )->revoke_permission_leave( $request, $reviewer_id );
+		if ( is_wp_error( $leave_result ) ) {
+			return $leave_result;
+		}
+
+		$old = $request->to_array();
+		$this->requests->update(
+			$request_id,
+			array(
+				'status'          => RequestHelper::STATUS_REJECTED,
+				'workflow_status' => ApprovalWorkflowHelper::STAGE_CANCELLED,
+				'notes'           => trim( $request->notes . ' ' . __( 'Revoked by HR.', 'etwa' ) ),
+			)
+		);
+
+		$updated = $this->requests->find( $request_id );
+		$this->audit_log(
+			'revoke',
+			$request->request_type,
+			$request_id,
+			$old,
+			$updated?->to_array(),
+			$reviewer_id,
+			$request->user_id,
+			__( 'HR revoked approved permission', 'etwa' )
+		);
+
+		return true;
+	}
+
+	/** @return array<string,mixed>|WP_Error */
+	public function permission_monthly_usage( int $viewer_id, ?int $employee_id = null ): array|WP_Error {
+		$employee_id = $employee_id ?? $viewer_id;
+
+		if ( ! $this->can_manage( $viewer_id ) && ( ! $this->can_view_own( $viewer_id ) || $viewer_id !== $employee_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot view permission usage.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		return PermissionHelper::monthly_usage_summary( $employee_id );
+	}
+
 	/** @return Request|WP_Error */
-	public function review_request( int $reviewer_id, int $request_id, string $status, string $notes = '', string $approval_slot = '' ): Request|WP_Error {
+	public function review_request( int $reviewer_id, int $request_id, string $status, string $notes = '', string $approval_slot = '', ?float $deduction_days = null ): Request|WP_Error {
 		if ( ! $this->can_review( $reviewer_id ) ) {
 			return new WP_Error( 'forbidden', __( 'You cannot review requests.', 'etwa' ), array( 'status' => 403 ) );
 		}
@@ -293,6 +361,26 @@ final class RequestService {
 		$update = $approval->record_hr_approval( $reviewer_id, $notes ?: $request->notes );
 		$this->requests->update( $request_id, $update );
 		$updated = $this->requests->find( $request_id );
+
+		if ( $updated && RequestHelper::TYPE_PERMISSION === $updated->request_type ) {
+			$leave = ( new PermissionLeaveService() )->ensure_leave_on_hr_approval( $updated, $reviewer_id, $deduction_days );
+			if ( is_wp_error( $leave ) ) {
+				$this->requests->update(
+					$request_id,
+					array(
+						'status'          => RequestHelper::STATUS_PENDING,
+						'workflow_status' => ! empty( $old['dept_approved_by'] )
+							? ApprovalWorkflowHelper::STAGE_PENDING_HR
+							: ( $old['workflow_status'] ?? ApprovalWorkflowHelper::STAGE_PENDING_HR ),
+						'hr_approved_by'  => null,
+						'hr_approved_at'  => null,
+						'reviewed_by'     => null,
+						'reviewed_at'     => null,
+					)
+				);
+				return $leave;
+			}
+		}
 
 		if ( $updated ) {
 			$this->notify_employee_approved( $updated );
@@ -409,6 +497,7 @@ final class RequestService {
 		$approvers = RequestApprovalHelper::approver_names( $request );
 		$extra     = RequestHelper::decode_extra_data( $request->extra_data );
 		$dept      = DepartmentHelper::department_summary( $request->user_id );
+		$total_deducted = PermissionHelper::total_deducted_from_extra( $extra );
 
 		$approval  = new ApprovalService();
 		$formatted = array_merge(
@@ -453,6 +542,12 @@ final class RequestService {
 				'owner_approved_by_name'     => '',
 				'approval_timeline'          => RequestApprovalHelper::timeline( $request ),
 				'created_at_label'           => DateHelper::format_datetime( $request->created_at ),
+				'vacation_record_id'         => isset( $extra[ PermissionHelper::EXTRA_VACATION_RECORD_ID ] ) ? (int) $extra[ PermissionHelper::EXTRA_VACATION_RECORD_ID ] : null,
+				'annual_deducted'            => isset( $extra[ PermissionHelper::EXTRA_BALANCE_DEDUCTED ] ) ? (float) $extra[ PermissionHelper::EXTRA_BALANCE_DEDUCTED ] : null,
+				'unpaid_deducted'            => isset( $extra[ PermissionHelper::EXTRA_UNPAID_DEDUCTED ] ) ? (float) $extra[ PermissionHelper::EXTRA_UNPAID_DEDUCTED ] : null,
+				'total_deducted'             => $total_deducted > 0 ? $total_deducted : null,
+				'balance_deducted'           => isset( $extra[ PermissionHelper::EXTRA_BALANCE_DEDUCTED ] ) ? (float) $extra[ PermissionHelper::EXTRA_BALANCE_DEDUCTED ] : null,
+				'monthly_position'           => isset( $extra[ PermissionHelper::EXTRA_MONTHLY_POSITION ] ) ? (int) $extra[ PermissionHelper::EXTRA_MONTHLY_POSITION ] : null,
 			),
 			$this->pending_meta( $request )
 		);
@@ -467,6 +562,25 @@ final class RequestService {
 		if ( $detailed ) {
 			$formatted['approval_history'] = $this->build_approval_history( $request );
 			$formatted['attached_files']   = array();
+		}
+
+		if ( RequestHelper::TYPE_PERMISSION === $request->request_type ) {
+			if ( RequestHelper::STATUS_PENDING === $request->status ) {
+				$position = PermissionHelper::monthly_position(
+					(int) $request->user_id,
+					PermissionHelper::permission_date( $request ),
+					$request->id
+				);
+				$formatted['monthly_position']        = $position;
+				$formatted['requires_deduction']      = PermissionHelper::requires_deduction_for_position( $position );
+				$formatted['is_free_permission']      = ! $formatted['requires_deduction'];
+				$formatted['default_deduction_days']  = PermissionHelper::default_deduction_days();
+			} elseif ( isset( $extra[ PermissionHelper::EXTRA_MONTHLY_POSITION ] ) ) {
+				$position = (int) $extra[ PermissionHelper::EXTRA_MONTHLY_POSITION ];
+				$formatted['requires_deduction'] = PermissionHelper::requires_deduction_for_position( $position );
+				$formatted['is_free_permission'] = ! $formatted['requires_deduction'];
+			}
+			$formatted['permission_usage'] = PermissionHelper::monthly_usage_summary( (int) $request->user_id );
 		}
 
 		return $formatted;

@@ -235,7 +235,7 @@ Single **annual leave pool** per employee. HR sets entitlement; approved leave (
 
 | Leave type | Deducts from annual balance? |
 |------------|:----------------------------:|
-| Annual / Sick / Emergency / Compensatory | Yes |
+| Annual / Sick / Emergency | Yes |
 | Unpaid | No |
 
 **Employee:** Portal → **Requests** → submit leave.  

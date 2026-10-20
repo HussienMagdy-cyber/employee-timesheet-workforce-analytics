@@ -142,6 +142,36 @@ final class ClientRepository {
 		return array_map( fn( $row ) => Client::from_row( $row ), $rows ?: array() );
 	}
 
+	/** @return Client[] */
+	public function list_super_clients( bool $active_only = false ): array {
+		global $wpdb;
+
+		if ( $active_only ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$this->table} WHERE client_type = %s AND is_active = 1 ORDER BY name ASC",
+					Client::TYPE_SUPER
+				)
+			);
+		} else {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$this->table} WHERE client_type = %s ORDER BY name ASC",
+					Client::TYPE_SUPER
+				)
+			);
+		}
+
+		return array_map( fn( $row ) => Client::from_row( $row ), $rows ?: array() );
+	}
+
+	public function set_client_type( int $id, string $type ): bool {
+		if ( ! in_array( $type, Client::client_types(), true ) ) {
+			return false;
+		}
+		return $this->update( $id, array( 'client_type' => $type ) );
+	}
+
 	public function ensure_system_clients(): void {
 		$system = array(
 			array(
@@ -195,7 +225,10 @@ final class ClientRepository {
 	public function create( array $data ): int {
 		global $wpdb;
 		$data['created_at'] = current_time( 'mysql' );
-		$wpdb->insert( $this->table, $data );
+		$inserted           = $wpdb->insert( $this->table, $data );
+		if ( false === $inserted ) {
+			return 0;
+		}
 		return (int) $wpdb->insert_id;
 	}
 
@@ -305,6 +338,19 @@ final class ClientRepository {
 		global $wpdb;
 		$table = $wpdb->prefix . 'etwa_entries';
 
+		if ( $to_client_id <= 0 ) {
+			return (int) $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table}
+					SET client_id = NULL, project_id = %d, updated_at = %s
+					WHERE client_id = %d AND (project_id IS NULL OR project_id = 0)",
+					$project_id,
+					current_time( 'mysql' ),
+					$from_client_id
+				)
+			);
+		}
+
 		return (int) $wpdb->query(
 			$wpdb->prepare(
 				"UPDATE {$table}
@@ -321,6 +367,18 @@ final class ClientRepository {
 	public function convert_reassign_entries_with_project( int $from_client_id, int $to_client_id ): int {
 		global $wpdb;
 		$table = $wpdb->prefix . 'etwa_entries';
+
+		if ( $to_client_id <= 0 ) {
+			return (int) $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table}
+					SET client_id = NULL, updated_at = %s
+					WHERE client_id = %d AND project_id IS NOT NULL AND project_id != 0",
+					current_time( 'mysql' ),
+					$from_client_id
+				)
+			);
+		}
 
 		return (int) $wpdb->query(
 			$wpdb->prepare(

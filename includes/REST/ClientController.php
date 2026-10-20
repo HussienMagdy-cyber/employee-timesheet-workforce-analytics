@@ -14,6 +14,8 @@ use ETWA\Repositories\ClientRepository;
 use ETWA\Services\ClientConvertToProjectService;
 use ETWA\Services\ClientMergeService;
 use ETWA\Services\ClientService;
+use ETWA\Services\SuperClientPromotionService;
+use WP_Error;
 use WP_REST_Request;
 use WP_REST_Server;
 
@@ -131,6 +133,30 @@ final class ClientController extends RestController {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/clients/(?P<id>\d+)/promote-super',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'promote_super' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/clients/(?P<id>\d+)/demote-super',
+			array(
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'demote_super' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
 	}
 
 	public function can_manage(): bool {
@@ -223,7 +249,9 @@ final class ClientController extends RestController {
 		$result  = $service->preview(
 			get_current_user_id(),
 			$this->get_int_param( $request, 'id' ),
-			(int) ( $data['parent_client_id'] ?? 0 )
+			(int) ( $data['parent_client_id'] ?? 0 ),
+			(int) ( $data['destination_project_id'] ?? 0 ),
+			(int) ( $data['parent_project_id'] ?? 0 )
 		);
 		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
 	}
@@ -234,8 +262,22 @@ final class ClientController extends RestController {
 		$result  = $service->convert(
 			get_current_user_id(),
 			$this->get_int_param( $request, 'id' ),
-			(int) ( $data['parent_client_id'] ?? 0 )
+			(int) ( $data['parent_client_id'] ?? 0 ),
+			(int) ( $data['destination_project_id'] ?? 0 ),
+			(int) ( $data['parent_project_id'] ?? 0 )
 		);
 		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
+	}
+
+	public function promote_super( WP_REST_Request $request ) {
+		$service = new SuperClientPromotionService();
+		$result  = $service->promote( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result->to_array() );
+	}
+
+	public function demote_super( WP_REST_Request $request ) {
+		$service = new SuperClientPromotionService();
+		$result  = $service->demote( get_current_user_id(), $this->get_int_param( $request, 'id' ) );
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result->to_array() );
 	}
 }

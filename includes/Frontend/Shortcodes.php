@@ -14,6 +14,7 @@ use ETWA\Helpers\AuthHelper;
 use ETWA\Helpers\AuditLogViewData;
 use ETWA\Helpers\EmployeeCostHelper;
 use ETWA\Helpers\RoleManager;
+use ETWA\Helpers\SuperClientAccessHelper;
 use ETWA\Helpers\WpDebugLogReader;
 use ETWA\Helpers\HrDashboardData;
 use ETWA\Helpers\HrReviewLinks;
@@ -35,6 +36,8 @@ final class Shortcodes {
 		add_shortcode( 'etwa_hr', array( $this, 'render_hr' ) );
 		add_shortcode( 'etwa_analytics', array( $this, 'render_analytics' ) );
 		add_shortcode( 'etwa_clients', array( $this, 'render_clients' ) );
+		add_shortcode( 'etwa_prospects', array( $this, 'render_prospects' ) );
+		add_shortcode( 'etwa_prospect_analytics', array( $this, 'render_prospect_analytics' ) );
 		add_shortcode( 'etwa_employees', array( $this, 'render_employees' ) );
 		add_shortcode( 'etwa_client_analytics', array( $this, 'render_client_analytics' ) );
 		add_shortcode( 'etwa_reports', array( $this, 'render_reports' ) );
@@ -95,6 +98,11 @@ final class Shortcodes {
 
 	/** @param array<string,mixed> $atts */
 	private function render_portal_view( string $view, string $portal_url, array $atts = array() ): void {
+		if ( SuperClientAccessHelper::is_super_client_view( $view ) ) {
+			$this->output_super_clients();
+			return;
+		}
+
 		switch ( $view ) {
 			case 'history':
 				$this->output_history( $portal_url );
@@ -107,6 +115,12 @@ final class Shortcodes {
 				break;
 			case 'clients':
 				$this->output_clients();
+				break;
+			case 'prospects':
+				$this->output_prospects();
+				break;
+			case 'prospect-analytics':
+				$this->output_prospect_analytics( $portal_url );
 				break;
 			case 'client-analytics':
 				$this->output_client_analytics( $portal_url );
@@ -258,6 +272,34 @@ final class Shortcodes {
 
 		$clients = ( new ClientRepository() )->all();
 		include ETWA_PLUGIN_DIR . 'templates/frontend/clients.php';
+	}
+
+	private function output_prospects(): void {
+		if ( ! current_user_can( RoleManager::CAP_MANAGE_SETTINGS ) ) {
+			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			return;
+		}
+
+		include ETWA_PLUGIN_DIR . 'templates/frontend/prospects.php';
+	}
+
+	private function output_super_clients(): void {
+		if ( ! SuperClientAccessHelper::can_access_product_hub( get_current_user_id() ) ) {
+			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			return;
+		}
+
+		include ETWA_PLUGIN_DIR . 'templates/frontend/super-clients.php';
+	}
+
+	private function output_prospect_analytics( string $portal_url = '' ): void {
+		if ( ! current_user_can( RoleManager::CAP_ANALYTICS ) ) {
+			echo $this->denied_message(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			return;
+		}
+
+		$portal_base = $portal_url;
+		include ETWA_PLUGIN_DIR . 'templates/frontend/prospect-analytics.php';
 	}
 
 	private function output_client_analytics( string $portal_url = '' ): void {
@@ -509,6 +551,38 @@ final class Shortcodes {
 
 		ob_start();
 		$this->output_clients();
+		return (string) ob_get_clean();
+	}
+
+	public function render_prospects( $atts = array() ): string {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_MANAGE_SETTINGS ) ) {
+			return $this->denied_message();
+		}
+
+		self::$active[] = 'prospects';
+		AssetRegistry::mark( 'prospects' );
+
+		ob_start();
+		$this->output_prospects();
+		return (string) ob_get_clean();
+	}
+
+	public function render_prospect_analytics( $atts = array() ): string {
+		if ( ! is_user_logged_in() ) {
+			AuthHelper::redirect_to_login();
+		}
+		if ( ! current_user_can( RoleManager::CAP_ANALYTICS ) ) {
+			return $this->denied_message();
+		}
+
+		self::$active[] = 'prospect-analytics';
+		AssetRegistry::mark( 'prospect-analytics' );
+
+		ob_start();
+		$this->output_prospect_analytics( get_permalink() ?: home_url( '/' ) );
 		return (string) ob_get_clean();
 	}
 

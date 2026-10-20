@@ -14,7 +14,6 @@ use ETWA\Models\DeliverableAllocationItem;
 use ETWA\Repositories\ClientScopeRepository;
 use ETWA\Repositories\DeliverableAllocationRepository;
 use ETWA\Repositories\DeliverableTypeRepository;
-use ETWA\Repositories\ScopePatchRepository;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -25,7 +24,6 @@ final class DeliverableMetricsService {
 
 	public function __construct(
 		private ClientScopeRepository $scopes = new ClientScopeRepository(),
-		private ScopePatchRepository $patches = new ScopePatchRepository(),
 		private DeliverableAllocationRepository $allocations = new DeliverableAllocationRepository(),
 		private DeliverableTypeRepository $types = new DeliverableTypeRepository(),
 	) {}
@@ -48,17 +46,7 @@ final class DeliverableMetricsService {
 				'scope_id'              => $scope_id,
 				'contract_deliverables' => round( (float) $scope->contract_deliverables, 2 ),
 				'by_type'               => $by_type,
-				'patches'               => array(),
 			)
-		);
-	}
-
-	/** @return array<string,mixed>|WP_Error */
-	public function patch_progress( int $patch_id ): array|WP_Error {
-		return new WP_Error(
-			'gone',
-			__( 'Batches have been retired from deliverables planning.', 'etwa' ),
-			array( 'status' => 410 )
 		);
 	}
 
@@ -144,7 +132,6 @@ final class DeliverableMetricsService {
 				continue;
 			}
 
-			// Normal (and legacy Extra lines) count toward plan; overflow becomes Extra.
 			$normal += $qty;
 			$toward += $qty;
 		}
@@ -165,8 +152,6 @@ final class DeliverableMetricsService {
 	}
 
 	/**
-	 * Type breakdown from allocation items; Extra is share of plan overflow.
-	 *
 	 * @param DeliverableAllocation[] $allocs
 	 * @return array<int,array<string,mixed>>
 	 */
@@ -241,30 +226,6 @@ final class DeliverableMetricsService {
 			);
 		}
 		return $out;
-	}
-
-	/**
-	 * @param array<string,mixed> $patch_array
-	 * @return array<string,mixed>
-	 */
-	private function patch_progress_payload( int $patch_id, array $patch_array ): array {
-		$planned = max( 0.0, (float) ( $patch_array['expected_qty'] ?? 0 ) );
-		$allocs  = $this->allocations->list(
-			array(
-				'scope_id' => (int) $patch_array['scope_id'],
-				'patch_id' => $patch_id,
-			)
-		);
-		$totals  = $this->summarize_allocations( $planned, $allocs );
-		$by_type = $this->allocation_type_breakdown( $allocs, $planned );
-
-		return array_merge(
-			array(
-				'patch'   => $patch_array,
-				'by_type' => $by_type,
-			),
-			$totals
-		);
 	}
 
 	/** @return array<int,string> */

@@ -54,6 +54,54 @@ $compare_url = $in_portal
 	include ETWA_PLUGIN_DIR . 'templates/partials/date-range-filter.php';
 	?>
 
+	<?php $standalone_projects = $standalone_projects ?? array(); ?>
+	<?php if ( $standalone_projects ) : ?>
+	<div class="etwa-panel">
+		<h2><?php esc_html_e( 'Workspace Projects', 'etwa' ); ?></h2>
+		<p class="etwa-muted"><?php esc_html_e( 'Standalone parent projects. Hours include work logged on the parent and its sub-projects.', 'etwa' ); ?></p>
+		<div class="etwa-table-wrap">
+			<table class="etwa-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Project', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Total Hours', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Employees', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Overtime', 'etwa' ); ?></th>
+						<th><?php esc_html_e( 'Last Activity', 'etwa' ); ?></th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $standalone_projects as $item ) : ?>
+						<?php
+						$project_url = $in_portal
+							? PortalNav::view_url( $portal_base, 'client-analytics', array( 'project_id' => $item['id'], 'preset' => $preset, 'date_from' => $date_from, 'date_to' => $date_to ) )
+							: add_query_arg(
+								array(
+									'page'       => 'etwa-client-analytics',
+									'project_id' => $item['id'],
+									'preset'     => $preset,
+									'date_from'  => $date_from,
+									'date_to'    => $date_to,
+								),
+								admin_url( 'admin.php' )
+							);
+						?>
+						<tr>
+							<td><strong><?php echo esc_html( $item['name'] ); ?></strong></td>
+							<td><?php echo esc_html( number_format( (float) $item['total_hours'], 1 ) ); ?>h</td>
+							<td><?php echo esc_html( (string) $item['employee_count'] ); ?></td>
+							<td><?php echo esc_html( number_format( (float) $item['overtime_hours'], 1 ) ); ?>h</td>
+							<td><?php echo esc_html( $item['last_activity'] ? DateHelper::format_date( (string) $item['last_activity'] ) : '—' ); ?></td>
+							<td><a class="etwa-btn etwa-btn-secondary etwa-btn-sm" href="<?php echo esc_url( $project_url ); ?>"><?php esc_html_e( 'View', 'etwa' ); ?></a></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+	</div>
+	<?php endif; ?>
+
 	<div class="etwa-panel">
 		<div class="etwa-toolbar">
 			<label class="etwa-search-field">

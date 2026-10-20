@@ -14,6 +14,7 @@ use ETWA\Helpers\ApprovalWorkflowHelper;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\DepartmentHelper;
 use ETWA\Helpers\EmployeeProfileHelper;
+use ETWA\Helpers\PermissionHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Helpers\VacationApprovalHelper;
 use ETWA\Helpers\VacationHelper;
@@ -72,6 +73,15 @@ final class VacationService {
 
 	public function can_delete( int $user_id ): bool {
 		return user_can( $user_id, RoleManager::CAP_LOCK_PERIODS );
+	}
+
+	public function can_delete_record( int $user_id ): bool {
+		return $this->can_manage( $user_id ) || $this->can_delete( $user_id );
+	}
+
+	/** @return true|WP_Error */
+	public function check_sufficient_balance_public( int $user_id, int $leave_type_id, float $days ): bool|WP_Error {
+		return $this->check_sufficient_balance( $user_id, $leave_type_id, $days );
 	}
 
 	/** @return LeaveType[]|WP_Error */
@@ -513,6 +523,65 @@ final class VacationService {
 	}
 
 	/** @param array<string,mixed> $data @return VacationRecord|WP_Error */
+	public function create_permission_leave_record( int $editor_id, array $data ): VacationRecord|WP_Error {
+		if ( ! $this->can_manage( $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot record leave.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$validated = $this->validate_record_payload(
+			array_merge(
+				$data,
+				array(
+					'status' => VacationHelper::STATUS_APPROVED,
+				)
+			)
+		);
+		if ( is_wp_error( $validated ) ) {
+			return $validated;
+		}
+
+		$validated['source']            = PermissionHelper::RECORD_SOURCE;
+		$validated['source_request_id'] = absint( $data['source_request_id'] ?? 0 ) ?: null;
+		$validated['balance_deducted']  = round( (float) ( $data['balance_deducted'] ?? 0 ), 2 );
+
+		if ( $validated['balance_deducted'] > 0 ) {
+			$balance_check = $this->check_sufficient_balance(
+				$validated['user_id'],
+				$validated['leave_type_id'],
+				$validated['balance_deducted']
+			);
+			if ( is_wp_error( $balance_check ) ) {
+				return $balance_check;
+			}
+		}
+
+		$id = $this->records->create(
+			array_merge(
+				$validated,
+				array( 'created_by' => $editor_id )
+			)
+		);
+
+		$record = $this->records->find( $id );
+		if ( $record && VacationHelper::STATUS_APPROVED === $record->status ) {
+			$this->sync_usage_transaction( $record, $editor_id );
+		}
+
+		$this->audit_vacation(
+			'create',
+			'vacation_record',
+			$id,
+			null,
+			$record?->to_array(),
+			$editor_id,
+			$validated['user_id'],
+			$this->record_audit_message( 'create', $record )
+		);
+
+		return $record ?: new WP_Error( 'create_failed', __( 'Could not create vacation record.', 'etwa' ) );
+	}
+
+	/** @param array<string,mixed> $data @return VacationRecord|WP_Error */
 	public function update_record( int $editor_id, int $id, array $data ): VacationRecord|WP_Error {
 		if ( ! $this->can_manage( $editor_id ) ) {
 			return new WP_Error( 'forbidden', __( 'You cannot edit vacation records.', 'etwa' ), array( 'status' => 403 ) );
@@ -593,8 +662,8 @@ final class VacationService {
 	}
 
 	public function delete_record( int $editor_id, int $id ): true|WP_Error {
-		if ( ! $this->can_delete( $editor_id ) ) {
-			return new WP_Error( 'forbidden', __( 'Only the owner can delete vacation records.', 'etwa' ), array( 'status' => 403 ) );
+		if ( ! $this->can_delete_record( $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot delete vacation records.', 'etwa' ), array( 'status' => 403 ) );
 		}
 
 		$existing = $this->records->find( $id );
@@ -602,7 +671,16 @@ final class VacationService {
 			return new WP_Error( 'not_found', __( 'Vacation record not found.', 'etwa' ), array( 'status' => 404 ) );
 		}
 
-		$this->transactions->delete_by_record( $id );
+		if ( PermissionHelper::RECORD_SOURCE === ( $existing->source ?? '' ) ) {
+			return new WP_Error(
+				'invalid',
+				__( 'Permission-linked leave records cannot be deleted directly. Revoke the permission request instead.', 'etwa' ),
+				array( 'status' => 409 )
+			);
+		}
+
+		$this->maybe_reverse_balance_deduction( $existing, $editor_id );
+
 		$this->records->delete( $id );
 		$this->audit_vacation( 'delete', 'vacation_record', $id, $existing->to_array(), null, $editor_id, $existing->user_id, __( 'Deleted vacation', 'etwa' ) );
 
@@ -624,8 +702,11 @@ final class VacationService {
 		return array_merge(
 			$record->to_array(),
 			array(
-				'leave_type_name' => $type ? $type->name : '',
-				'employee_name'   => $user ? $user->display_name : '',
+				'leave_type_name'      => $type ? $type->name : '',
+				'employee_name'        => $user ? $user->display_name : '',
+				'source_label'         => $this->record_source_label( $record ),
+				'is_permission_leave'  => PermissionHelper::RECORD_SOURCE === ( $record->source ?? '' ),
+				'can_delete'           => $this->can_delete_record( $viewer_id ),
 			)
 		);
 	}
@@ -1182,18 +1263,80 @@ final class VacationService {
 	}
 
 	private function sync_usage_transaction( VacationRecord $record, int $editor_id ): void {
+		$deduct_days = PermissionHelper::RECORD_SOURCE === ( $record->source ?? '' )
+			? (float) $record->balance_deducted
+			: (float) $record->days;
+
+		if ( $deduct_days <= 0 ) {
+			return;
+		}
+
+		if ( $this->transactions->find_by_record( $record->id ) ) {
+			return;
+		}
+
 		$this->transactions->create(
 			array(
 				'user_id'          => $record->user_id,
 				'leave_type_id'    => $record->leave_type_id,
 				'transaction_type' => 'usage',
-				'days'             => -1 * abs( $record->days ),
+				'days'             => -1 * abs( $deduct_days ),
 				'record_id'        => $record->id,
 				'effective_date'   => $record->start_date,
 				'notes'            => $record->reason,
 				'created_by'       => $editor_id,
 			)
 		);
+	}
+
+	private function maybe_reverse_balance_deduction( VacationRecord $record, int $editor_id ): void {
+		$deducted = $this->resolve_record_deduction( $record );
+		if ( $deducted <= 0 || $this->transactions->reversal_exists_for_record( $record->id ) ) {
+			return;
+		}
+
+		$annual = VacationHelper::annual_leave_type();
+		if ( ! $annual ) {
+			return;
+		}
+
+		$this->transactions->create(
+			array(
+				'user_id'          => $record->user_id,
+				'leave_type_id'    => (int) $annual->id,
+				'transaction_type' => 'adjustment',
+				'days'             => $deducted,
+				'effective_date'   => $record->start_date,
+				'notes'            => sprintf(
+					/* translators: %d: vacation record id */
+					__( 'Reversal for deleted leave record #%d', 'etwa' ),
+					$record->id
+				),
+				'created_by'       => $editor_id,
+			)
+		);
+	}
+
+	private function resolve_record_deduction( VacationRecord $record ): float {
+		$usage = $this->transactions->find_by_record( $record->id );
+		if ( $usage ) {
+			return abs( (float) $usage->days );
+		}
+
+		if ( VacationHelper::STATUS_APPROVED === $record->status
+			&& VacationHelper::deducts_from_annual_pool( $record->leave_type_id ) ) {
+			return (float) $record->days;
+		}
+
+		return 0.0;
+	}
+
+	private function record_source_label( VacationRecord $record ): string {
+		if ( PermissionHelper::RECORD_SOURCE === ( $record->source ?? '' ) ) {
+			return __( 'Permission', 'etwa' );
+		}
+
+		return __( 'Manual', 'etwa' );
 	}
 
 	/** @param array<string,mixed> $data @return array<string,mixed>|WP_Error */
@@ -1231,14 +1374,17 @@ final class VacationService {
 		}
 
 		return array(
-			'user_id'       => $user_id,
-			'leave_type_id' => $leave_type_id,
-			'start_date'    => $start,
-			'end_date'      => $end,
-			'days'          => round( $days, 2 ),
-			'reason'        => $reason,
-			'status'        => $status,
-			'notes'         => $notes,
+			'user_id'           => $user_id,
+			'leave_type_id'     => $leave_type_id,
+			'start_date'        => $start,
+			'end_date'          => $end,
+			'days'              => round( $days, 2 ),
+			'reason'            => $reason,
+			'status'            => $status,
+			'notes'             => $notes,
+			'source'            => isset( $data['source'] ) ? sanitize_key( (string) $data['source'] ) : null,
+			'source_request_id' => isset( $data['source_request_id'] ) ? absint( $data['source_request_id'] ) : null,
+			'balance_deducted'  => isset( $data['balance_deducted'] ) ? round( (float) $data['balance_deducted'], 2 ) : 0.0,
 		);
 	}
 

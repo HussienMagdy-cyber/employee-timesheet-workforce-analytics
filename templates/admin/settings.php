@@ -31,7 +31,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<div class="etwa-form-grid">
 				<label><?php esc_html_e( 'HR Email (TO)', 'etwa' ); ?><input type="email" name="hr_email" value="<?php echo esc_attr( $settings['hr_email'] ?? get_option( 'admin_email' ) ); ?>" /></label>
 				<label><?php esc_html_e( 'Owner Email (CC)', 'etwa' ); ?><input type="email" name="owner_email" value="<?php echo esc_attr( $settings['owner_email'] ?? get_option( 'admin_email' ) ); ?>" /></label>
-				<label><?php esc_html_e( 'Autosave Interval (sec)', 'etwa' ); ?><input type="number" name="autosave_interval" value="<?php echo esc_attr( (string) ( $settings['autosave_interval'] ?? 30 ) ); ?>" /></label>
 			</div>
 		</div>
 

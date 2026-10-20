@@ -86,11 +86,11 @@ final class VacationExportService {
 			++$row_num;
 		}
 
-		$upload   = wp_upload_dir();
-		$dir      = trailingslashit( $upload['basedir'] ) . 'etwa-exports';
-		wp_mkdir_p( $dir );
+		$upload   = \wp_upload_dir();
+		$dir      = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
 		$filename = sprintf( '%s-vacation-report-%s.xlsx', BrandHelper::SLUG, gmdate( 'YmdHis' ) );
-		$path     = trailingslashit( $dir ) . $filename;
+		$path     = \trailingslashit( $dir ) . $filename;
 
 		$writer = new Xlsx( $spreadsheet );
 		$writer->save( $path );
@@ -151,15 +151,16 @@ final class VacationExportService {
 			++$row_num;
 		}
 
-		$filename = wp_tempnam( 'etwa-vacation-requests' );
-		if ( ! $filename ) {
-			return new WP_Error( 'export_failed', __( 'Could not create export file.', 'etwa' ), array( 'status' => 500 ) );
-		}
+		$upload = \wp_upload_dir();
+		$dir    = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
+		$filename = sprintf( '%s-vacation-requests-%s.xlsx', BrandHelper::SLUG, gmdate( 'YmdHis' ) );
+		$path     = \trailingslashit( $dir ) . $filename;
 
 		$writer = new Xlsx( $spreadsheet );
-		$writer->save( $filename );
+		$writer->save( $path );
 		$spreadsheet->disconnectWorksheets();
 
-		return $filename;
+		return $path;
 	}
 }

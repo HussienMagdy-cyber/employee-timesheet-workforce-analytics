@@ -70,12 +70,12 @@ final class ExportService {
 
 		unset( $bundle );
 
-		$upload = wp_upload_dir();
-		$dir    = trailingslashit( $upload['basedir'] ) . 'etwa-exports';
-		wp_mkdir_p( $dir );
+		$upload = \wp_upload_dir();
+		$dir    = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
 
 		$filename = sprintf( '%s-report-%s-to-%s-%s.xlsx', BrandHelper::SLUG, $date_from, $date_to, gmdate( 'YmdHis' ) );
-		$path     = trailingslashit( $dir ) . $filename;
+		$path     = \trailingslashit( $dir ) . $filename;
 
 		$writer = new Xlsx( $spreadsheet );
 		$writer->setIncludeCharts( true );
@@ -119,11 +119,11 @@ final class ExportService {
 		$this->build_client_entries_sheet_chunked( $spreadsheet, $client_id, $date_from, $date_to );
 
 		$code     = sanitize_file_name( (string) ( $detail['client']['code'] ?? 'client' ) );
-		$upload   = wp_upload_dir();
-		$dir      = trailingslashit( $upload['basedir'] ) . 'etwa-exports';
-		wp_mkdir_p( $dir );
+		$upload   = \wp_upload_dir();
+		$dir      = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
 		$filename = sprintf( '%s-client-%s-%s-to-%s-%s.xlsx', BrandHelper::SLUG, $code, $date_from, $date_to, gmdate( 'YmdHis' ) );
-		$path     = trailingslashit( $dir ) . $filename;
+		$path     = \trailingslashit( $dir ) . $filename;
 
 		$writer = new Xlsx( $spreadsheet );
 		$writer->save( $path );
@@ -142,11 +142,11 @@ final class ExportService {
 		}
 
 		$code     = sanitize_file_name( (string) ( $detail['client']['code'] ?? 'client' ) );
-		$upload   = wp_upload_dir();
-		$dir      = trailingslashit( $upload['basedir'] ) . 'etwa-exports';
-		wp_mkdir_p( $dir );
+		$upload   = \wp_upload_dir();
+		$dir      = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
 		$filename = sprintf( '%s-client-%s-%s-to-%s-%s.csv', BrandHelper::SLUG, $code, $date_from, $date_to, gmdate( 'YmdHis' ) );
-		$path     = trailingslashit( $dir ) . $filename;
+		$path     = \trailingslashit( $dir ) . $filename;
 
 		$handle = fopen( $path, 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		if ( ! $handle ) {
@@ -412,7 +412,7 @@ final class ExportService {
 					$entry->entry_date,
 					DateHelper::format_time( $entry->start_time ),
 					DateHelper::format_time( $entry->end_time ),
-					$entry->client_name,
+					$entry->display_target_name(),
 					$this->entry_project_label( $entry ),
 					$entry->task,
 					$entry->notes,
@@ -612,17 +612,20 @@ final class ExportService {
 
 		$spreadsheet = new Spreadsheet();
 		$this->build_project_summary_sheet( $spreadsheet, $detail );
+		if ( ! empty( $detail['child_breakdown'] ) ) {
+			$this->build_project_child_breakdown_sheet( $spreadsheet, $detail['child_breakdown'] );
+		}
 		$this->build_project_entries_sheet_chunked( $spreadsheet, $project_id, $date_from, $date_to, $detail );
 		if ( ! empty( $detail['scopes'] ) ) {
 			$this->build_project_scopes_sheet( $spreadsheet, $detail['scopes'] );
 		}
 
 		$project_name = sanitize_file_name( (string) ( $detail['project']['name'] ?? 'project' ) );
-		$upload       = wp_upload_dir();
-		$dir          = trailingslashit( $upload['basedir'] ) . 'etwa-exports';
-		wp_mkdir_p( $dir );
+		$upload       = \wp_upload_dir();
+		$dir          = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
 		$filename = sprintf( '%s-project-%s-%s-to-%s-%s.xlsx', BrandHelper::SLUG, $project_name, $date_from, $date_to, gmdate( 'YmdHis' ) );
-		$path     = trailingslashit( $dir ) . $filename;
+		$path     = \trailingslashit( $dir ) . $filename;
 
 		$writer = new Xlsx( $spreadsheet );
 		$writer->save( $path );
@@ -641,11 +644,11 @@ final class ExportService {
 		}
 
 		$project_name = sanitize_file_name( (string) ( $detail['project']['name'] ?? 'project' ) );
-		$upload       = wp_upload_dir();
-		$dir          = trailingslashit( $upload['basedir'] ) . 'etwa-exports';
-		wp_mkdir_p( $dir );
+		$upload       = \wp_upload_dir();
+		$dir          = \trailingslashit( $upload['basedir'] ) . 'etwa-exports';
+		\wp_mkdir_p( $dir );
 		$filename = sprintf( '%s-project-%s-%s-to-%s-%s.csv', BrandHelper::SLUG, $project_name, $date_from, $date_to, gmdate( 'YmdHis' ) );
-		$path     = trailingslashit( $dir ) . $filename;
+		$path     = \trailingslashit( $dir ) . $filename;
 
 		$handle = fopen( $path, 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		if ( ! $handle ) {
@@ -654,7 +657,7 @@ final class ExportService {
 
 		fputcsv( $handle, array( __( 'Project Report', 'etwa' ) ) );
 		fputcsv( $handle, array( __( 'Project', 'etwa' ), $detail['project']['name'] ?? '' ) );
-		fputcsv( $handle, array( __( 'Client', 'etwa' ), $detail['client']['name'] ?? '' ) );
+		fputcsv( $handle, array( __( 'Client', 'etwa' ), $detail['client']['name'] ?? ( empty( $detail['project']['client_id'] ) ? __( 'Standalone project', 'etwa' ) : '' ) ) );
 		fputcsv( $handle, array( __( 'Period', 'etwa' ), "{$date_from} — {$date_to}" ) );
 		fputcsv( $handle, array() );
 
@@ -662,14 +665,34 @@ final class ExportService {
 		fputcsv( $handle, array( __( 'Summary', 'etwa' ) ) );
 		fputcsv( $handle, array( __( 'Total Hours', 'etwa' ), $summary['total_hours'] ?? 0 ) );
 		fputcsv( $handle, array( __( 'Overtime Hours', 'etwa' ), $summary['overtime_hours'] ?? 0 ) );
+		fputcsv( $handle, array( __( 'Direct Hours', 'etwa' ), $summary['direct_hours'] ?? $summary['total_hours'] ?? 0 ) );
+		fputcsv( $handle, array( __( 'Sub-project Hours', 'etwa' ), $summary['child_hours'] ?? 0 ) );
 		fputcsv( $handle, array( __( 'Employees', 'etwa' ), $summary['employee_count'] ?? 0 ) );
 		fputcsv( $handle, array() );
+
+		$child_breakdown = $detail['child_breakdown'] ?? array();
+		if ( $child_breakdown ) {
+			fputcsv( $handle, array( __( 'Project Breakdown', 'etwa' ) ) );
+			fputcsv( $handle, array( __( 'Project', 'etwa' ), __( 'Type', 'etwa' ), __( 'Total Hours', 'etwa' ) ) );
+			foreach ( $child_breakdown as $row ) {
+				fputcsv(
+					$handle,
+					array(
+						$row['name'] ?? '',
+						! empty( $row['is_direct'] ) ? __( 'Direct', 'etwa' ) : __( 'Sub-project', 'etwa' ),
+						$row['total_hours'] ?? 0,
+					)
+				);
+			}
+			fputcsv( $handle, array() );
+		}
 
 		fputcsv( $handle, array( __( 'Entries', 'etwa' ) ) );
 		$entry_headers = array( 'Employee', 'Date', 'Start', 'End', 'Project', 'Client', 'Task', 'Regular Hrs', 'OT Hrs' );
 		fputcsv( $handle, $entry_headers );
 
 		$project_label = (string) ( $detail['project']['name'] ?? '' );
+		$project_ids   = $this->project_export_ids( $detail, $project_id );
 		$offset        = 0;
 		do {
 			$entries = $this->entries->find_by_date_range_page(
@@ -679,7 +702,8 @@ final class ExportService {
 				$offset,
 				null,
 				null,
-				$project_id
+				null,
+				$project_ids
 			);
 			if ( ! $entries ) {
 				break;
@@ -693,8 +717,8 @@ final class ExportService {
 						$entry->entry_date,
 						DateHelper::format_time( $entry->start_time ),
 						DateHelper::format_time( $entry->end_time ),
-						$project_label,
-						$entry->client_name,
+						$entry->project_name ?: $project_label,
+						$entry->display_target_name(),
 						$entry->task,
 						$entry->regular_hours,
 						$entry->overtime_hours,
@@ -735,22 +759,29 @@ final class ExportService {
 		$clients  = $wpdb->prefix . 'etwa_clients';
 		$projects = $wpdb->prefix . 'etwa_projects';
 
-		$sql    = "SELECT c.name AS client_name,
-				COALESCE(p.name, %s) AS project_name,
+		$prospects = $wpdb->prefix . 'etwa_prospects';
+
+		$sql    = "SELECT COALESCE(c.name, pr.name, '') AS client_name,
+				CASE
+					WHEN e.prospect_id IS NOT NULL AND e.prospect_id != 0 THEN %s
+					WHEN e.project_id IS NULL OR e.project_id = 0 THEN %s
+					ELSE p.name
+				END AS project_name,
 				COALESCE(SUM(e.regular_hours + e.overtime_hours), 0) AS total_hours,
 				COALESCE(SUM(e.overtime_hours), 0) AS overtime_hours
 			FROM {$entries} e
-			INNER JOIN {$clients} c ON c.id = e.client_id
+			LEFT JOIN {$clients} c ON c.id = e.client_id
 			LEFT JOIN {$projects} p ON p.id = e.project_id
+			LEFT JOIN {$prospects} pr ON pr.id = e.prospect_id
 			WHERE e.entry_date BETWEEN %s AND %s";
-		$params = array( ProjectService::unassigned_label(), $date_from, $date_to );
+		$params = array( __( 'Prospect', 'etwa' ), ProjectService::unassigned_label(), $date_from, $date_to );
 
 		if ( $user_id ) {
 			$sql     .= ' AND e.user_id = %d';
 			$params[] = $user_id;
 		}
 
-		$sql .= ' GROUP BY e.client_id, e.project_id ORDER BY client_name ASC, project_name ASC';
+		$sql .= ' GROUP BY e.client_id, e.project_id, e.prospect_id ORDER BY client_name ASC, project_name ASC';
 
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
 
@@ -773,6 +804,15 @@ final class ExportService {
 		}
 	}
 
+	/**
+	 * @param array<string,mixed> $detail
+	 * @return int[]
+	 */
+	private function project_export_ids( array $detail, int $project_id ): array {
+		$ids = array_values( array_filter( array_map( 'intval', $detail['analytics_project_ids'] ?? array() ) ) );
+		return $ids ?: array( $project_id );
+	}
+
 	/** @param array<string,mixed> $detail */
 	private function build_project_summary_sheet( Spreadsheet $spreadsheet, array $detail ): void {
 		$sheet   = $spreadsheet->getActiveSheet();
@@ -783,17 +823,48 @@ final class ExportService {
 
 		$rows = array(
 			array( 'Project', $project['name'] ?? '' ),
-			array( 'Client', $client['name'] ?? '' ),
+			array( 'Client', $client['name'] ?? ( $project['client_id'] ? '' : __( 'Standalone project', 'etwa' ) ) ),
 			array( 'Period From', $detail['range']['date_from'] ?? '' ),
 			array( 'Period To', $detail['range']['date_to'] ?? '' ),
 			array( 'Total Hours', $summary['total_hours'] ?? 0 ),
 			array( 'Regular Hours', $summary['regular_hours'] ?? 0 ),
 			array( 'Overtime Hours', $summary['overtime_hours'] ?? 0 ),
+			array( 'Direct Hours', $summary['direct_hours'] ?? $summary['total_hours'] ?? 0 ),
+			array( 'Sub-project Hours', $summary['child_hours'] ?? 0 ),
 			array( 'Employees', $summary['employee_count'] ?? 0 ),
 			array( 'Last Activity', $summary['last_activity'] ?? '' ),
 		);
 		$sheet->fromArray( array( 'Metric', 'Value' ), null, 'A1' );
 		$sheet->fromArray( $rows, null, 'A2' );
+	}
+
+	/** @param array<int,array<string,mixed>> $breakdown */
+	private function build_project_child_breakdown_sheet( Spreadsheet $spreadsheet, array $breakdown ): void {
+		$sheet = $spreadsheet->createSheet();
+		$sheet->setTitle( 'Sub-projects' );
+		$sheet->fromArray(
+			array(
+				__( 'Project', 'etwa' ),
+				__( 'Type', 'etwa' ),
+				__( 'Total Hours', 'etwa' ),
+			),
+			null,
+			'A1'
+		);
+
+		$row = 2;
+		foreach ( $breakdown as $item ) {
+			$sheet->fromArray(
+				array(
+					$item['name'] ?? '',
+					! empty( $item['is_direct'] ) ? __( 'Direct', 'etwa' ) : __( 'Sub-project', 'etwa' ),
+					$item['total_hours'] ?? 0,
+				),
+				null,
+				"A{$row}"
+			);
+			++$row;
+		}
 	}
 
 	/**
@@ -808,6 +879,7 @@ final class ExportService {
 	): void {
 		$sheet         = $spreadsheet->createSheet();
 		$sheet->setTitle( 'Entries' );
+		$project_ids   = $this->project_export_ids( $detail, $project_id );
 		$project_label = (string) ( $detail['project']['name'] ?? '' );
 		$headers       = array( 'Employee', 'Date', 'Start', 'End', 'Project', 'Client', 'Task', 'Entry Type', 'Regular Hrs', 'OT Hrs' );
 		$sheet->fromArray( $headers, null, 'A1' );
@@ -822,7 +894,8 @@ final class ExportService {
 				$offset,
 				null,
 				null,
-				$project_id
+				null,
+				$project_ids
 			);
 			if ( ! $entries ) {
 				break;
@@ -835,8 +908,8 @@ final class ExportService {
 						$entry->entry_date,
 						DateHelper::format_time( $entry->start_time ),
 						DateHelper::format_time( $entry->end_time ),
-						$project_label,
-						$entry->client_name,
+						$entry->project_name ?: $project_label,
+						$entry->display_target_name(),
 						$entry->task,
 						EntryTypeHelper::label( $entry->entry_type ),
 						$entry->regular_hours,
@@ -873,9 +946,12 @@ final class ExportService {
 	}
 
 	private function entry_project_label( Entry $entry ): string {
-		if ( ! $entry->project_id ) {
+		if ( $entry->project_id ) {
+			return $entry->project_name ?: '';
+		}
+		if ( $entry->client_id ) {
 			return ProjectService::unassigned_label();
 		}
-		return $entry->project_name ?: '';
+		return '';
 	}
 }

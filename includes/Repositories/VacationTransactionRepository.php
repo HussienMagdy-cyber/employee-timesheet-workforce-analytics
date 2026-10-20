@@ -291,4 +291,44 @@ final class VacationTransactionRepository {
 			array( '%d', '%s' )
 		);
 	}
+
+	public function reversal_exists_for_record( int $record_id ): bool {
+		global $wpdb;
+		$pattern = '%Reversal for deleted leave record #' . $record_id . '%';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$this->table} WHERE transaction_type = 'adjustment' AND notes LIKE %s",
+				$pattern
+			)
+		) > 0;
+	}
+
+	public function reversal_exists_for_permission_request( int $request_id ): bool {
+		global $wpdb;
+		$pattern = '%Reversal for revoked permission request #' . $request_id . '%';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$this->table}
+				WHERE transaction_type = 'adjustment'
+				AND notes LIKE %s
+				AND notes NOT LIKE %s",
+				$pattern,
+				'% (unpaid)%'
+			)
+		) > 0;
+	}
+
+	public function reversal_exists_for_permission_unpaid_request( int $request_id ): bool {
+		global $wpdb;
+		$pattern = '%Reversal for revoked permission request #' . $request_id . ' (unpaid)%';
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$this->table} WHERE transaction_type = 'usage' AND days > 0 AND notes LIKE %s",
+				$pattern
+			)
+		) > 0;
+	}
 }

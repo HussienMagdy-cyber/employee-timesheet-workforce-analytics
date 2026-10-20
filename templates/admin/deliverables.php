@@ -23,7 +23,7 @@ $scope_id                  = isset( $_GET['scope_id'] ) ? absint( wp_unslash( (s
 $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 ?>
 <div
-	class="etwa-app etwa-deliverables-page<?php echo $in_portal ? ' etwa-in-portal' : ''; ?>"
+	class="etwa-app etwa-deliverables-page<?php echo $in_portal ? ' etwa-in-portal etwa-page-shell etwa-portal' : ''; ?>"
 	id="etwa-deliverables-app"
 	data-mode="<?php echo esc_attr( $mode ); ?>"
 	data-scope-id="<?php echo esc_attr( (string) $scope_id ); ?>"
@@ -32,7 +32,15 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 	data-can-manage-types="<?php echo $can_manage_types ? '1' : '0'; ?>"
 >
 
-	<?php if ( ! $in_portal ) : ?>
+	<?php if ( $in_portal ) : ?>
+		<div class="etwa-hero">
+			<div class="etwa-hero-copy">
+				<p class="etwa-eyebrow"><?php esc_html_e( 'Analytics', 'etwa' ); ?></p>
+				<h1><?php esc_html_e( 'Deliverables', 'etwa' ); ?></h1>
+				<p class="etwa-subtitle"><?php esc_html_e( 'Scope progress, hours, and allocation activity.', 'etwa' ); ?></p>
+			</div>
+		</div>
+	<?php else : ?>
 		<div class="etwa-hero etwa-hero-compact">
 			<div class="etwa-hero-copy">
 				<p class="etwa-eyebrow"><?php esc_html_e( 'Workforce Analytics', 'etwa' ); ?></p>
@@ -42,13 +50,13 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 		</div>
 	<?php endif; ?>
 
-	<?php if ( $can_manage_types ) : ?>
-		<div class="etwa-dlv-page-actions">
-			<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-dlv-manage-types" data-dlv-manage-types><?php esc_html_e( 'Deliverable Types', 'etwa' ); ?></button>
-		</div>
-	<?php endif; ?>
-
 	<div id="etwa-deliverables-dashboard" class="<?php echo 'detail' === $mode ? 'etwa-hidden' : ''; ?>">
+		<section class="etwa-dlv-filter-card">
+			<?php if ( $can_manage_types ) : ?>
+				<div class="etwa-dlv-page-actions">
+					<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-dlv-manage-types" data-dlv-manage-types><?php esc_html_e( 'Deliverable Types', 'etwa' ); ?></button>
+				</div>
+			<?php endif; ?>
 		<form class="etwa-analytics-filter etwa-toolbar" id="etwa-deliverables-filters">
 			<div class="etwa-analytics-filter-fields">
 				<label class="etwa-analytics-field">
@@ -87,11 +95,14 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 					<input type="date" class="etwa-input" id="etwa-dlv-date-to" name="date_to" />
 				</label>
 			</div>
-			<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Apply Filters', 'etwa' ); ?></button>
-			<?php if ( $can_manage_scopes ) : ?>
-				<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-dlv-create-scope"><?php esc_html_e( 'Create Scope', 'etwa' ); ?></button>
-			<?php endif; ?>
+			<div class="etwa-form-actions">
+				<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Apply Filters', 'etwa' ); ?></button>
+				<?php if ( $can_manage_scopes ) : ?>
+					<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-dlv-create-scope"><?php esc_html_e( 'Create Scope', 'etwa' ); ?></button>
+				<?php endif; ?>
+			</div>
 		</form>
+		</section>
 
 		<div class="etwa-analytics-kpi-grid" id="etwa-dlv-dashboard-kpis">
 			<article class="etwa-analytics-kpi">
@@ -191,7 +202,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 
 		<div class="etwa-analytics-grid zwei-col">
 			<section class="etwa-panel">
-				<div class="etwa-panel-header"><h3><?php esc_html_e( 'Scope Performance', 'etwa' ); ?></h3></div>
+				<div class="etwa-panel-intro"><h3><?php esc_html_e( 'Scope Performance', 'etwa' ); ?></h3></div>
 				<div class="etwa-dlv-perf-tabs">
 					<button type="button" class="etwa-segment is-active" data-dlv-perf="top"><?php esc_html_e( 'Top', 'etwa' ); ?></button>
 					<button type="button" class="etwa-segment" data-dlv-perf="lowest"><?php esc_html_e( 'Lowest', 'etwa' ); ?></button>
@@ -216,7 +227,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 				</div>
 			</section>
 			<section class="etwa-panel">
-				<div class="etwa-panel-header"><h3><?php esc_html_e( 'Client Performance', 'etwa' ); ?></h3></div>
+				<div class="etwa-panel-intro"><h3><?php esc_html_e( 'Client Performance', 'etwa' ); ?></h3></div>
 				<div class="etwa-dlv-perf-tabs">
 					<button type="button" class="etwa-segment is-active" data-dlv-client-perf="highest_completion"><?php esc_html_e( 'Completion', 'etwa' ); ?></button>
 					<button type="button" class="etwa-segment" data-dlv-client-perf="highest_effort"><?php esc_html_e( 'Hours', 'etwa' ); ?></button>
@@ -240,12 +251,16 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 		</div>
 
 		<section class="etwa-panel">
-			<div class="etwa-panel-header"><h3><?php esc_html_e( 'Quick Insights', 'etwa' ); ?></h3></div>
+			<div class="etwa-panel-intro">
+				<h3><?php esc_html_e( 'Quick Insights', 'etwa' ); ?></h3>
+			</div>
 			<div id="etwa-dlv-insights" class="etwa-dlv-insights"></div>
 		</section>
 
 		<section class="etwa-panel">
-			<div class="etwa-panel-header"><h3><?php esc_html_e( 'Recent Activity', 'etwa' ); ?></h3></div>
+			<div class="etwa-panel-intro">
+				<h3><?php esc_html_e( 'Recent Activity', 'etwa' ); ?></h3>
+			</div>
 			<div class="etwa-table-wrap">
 				<table class="etwa-table">
 					<thead>
@@ -271,14 +286,14 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 		<p class="etwa-back-link-wrap">
 			<a href="#" class="etwa-link" id="etwa-dlv-back"><?php esc_html_e( '← Back to dashboard', 'etwa' ); ?></a>
 		</p>
-		<div class="etwa-panel-header etwa-dlv-detail-head">
-			<div>
+		<section class="etwa-panel etwa-dlv-detail-head">
+			<div class="etwa-panel-intro">
 				<p class="etwa-muted" id="etwa-dlv-detail-client"></p>
 				<p class="etwa-muted" id="etwa-dlv-detail-project"></p>
 				<h2 id="etwa-dlv-detail-title"><?php esc_html_e( 'Scope', 'etwa' ); ?></h2>
 				<span class="etwa-status" id="etwa-dlv-detail-status"></span>
 			</div>
-			<div class="etwa-hero-actions">
+			<div class="etwa-hero-actions etwa-form-actions">
 				<?php if ( $can_allocate_deliverables ) : ?>
 					<button type="button" class="etwa-btn etwa-btn-primary" id="etwa-dlv-allocate-btn"><?php esc_html_e( 'Allocate Deliverables', 'etwa' ); ?></button>
 				<?php endif; ?>
@@ -286,10 +301,10 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 					<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-dlv-edit-scope"><?php esc_html_e( 'Edit Scope', 'etwa' ); ?></button>
 				<?php endif; ?>
 				<?php if ( $can_manage_types ) : ?>
-					<button type="button" class="etwa-btn etwa-btn-ghost" data-dlv-manage-types><?php esc_html_e( 'Deliverable Types', 'etwa' ); ?></button>
+					<button type="button" class="etwa-btn etwa-btn-secondary" data-dlv-manage-types><?php esc_html_e( 'Deliverable Types', 'etwa' ); ?></button>
 				<?php endif; ?>
 			</div>
-		</div>
+		</section>
 
 		<div class="etwa-analytics-kpi-grid" id="etwa-dlv-scope-kpis">
 			<article class="etwa-analytics-kpi">
@@ -320,7 +335,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 		</div>
 
 		<section class="etwa-panel">
-			<div class="etwa-panel-header"><h3><?php esc_html_e( 'Expected vs Delivered', 'etwa' ); ?></h3></div>
+			<div class="etwa-panel-intro"><h3><?php esc_html_e( 'Expected vs Delivered', 'etwa' ); ?></h3></div>
 			<div id="etwa-dlv-contract-summary" class="etwa-dlv-contract-summary">
 				<p class="etwa-muted"><?php esc_html_e( 'Loading…', 'etwa' ); ?></p>
 			</div>
@@ -343,7 +358,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 		</section>
 
 		<section class="etwa-panel">
-			<div class="etwa-panel-header"><h3><?php esc_html_e( 'Allocations', 'etwa' ); ?></h3></div>
+			<div class="etwa-panel-intro"><h3><?php esc_html_e( 'Allocations', 'etwa' ); ?></h3></div>
 			<div class="etwa-table-wrap">
 				<table class="etwa-table">
 					<thead>
@@ -384,12 +399,14 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 					<textarea class="etwa-input" name="notes" rows="2"></textarea>
 				</label>
 
-				<div class="etwa-span-2 etwa-dlv-items-section">
-					<div class="etwa-panel-header etwa-dlv-items-header">
+				<div class="etwa-span-2 etwa-dlv-items-section etwa-workspace-card">
+					<div class="etwa-dlv-items-header">
 						<h3><?php esc_html_e( 'Deliverables', 'etwa' ); ?></h3>
 					</div>
 					<div id="etwa-dlv-alloc-items" class="etwa-dlv-alloc-items"></div>
-					<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-dlv-add-item"><?php esc_html_e( '+ Add Deliverable', 'etwa' ); ?></button>
+					<div class="etwa-form-actions">
+						<button type="button" class="etwa-btn etwa-btn-secondary" id="etwa-dlv-add-item"><?php esc_html_e( '+ Add Deliverable', 'etwa' ); ?></button>
+					</div>
 					<div class="etwa-dlv-alloc-summary" id="etwa-dlv-alloc-summary" aria-live="polite">
 						<span data-sum="items"><?php esc_html_e( 'Total Items:', 'etwa' ); ?> <strong>0</strong></span>
 						<span data-sum="qty"><?php esc_html_e( 'Total Quantity:', 'etwa' ); ?> <strong>0</strong></span>
@@ -399,7 +416,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 					</div>
 				</div>
 
-				<div class="etwa-modal-actions etwa-span-2">
+				<div class="etwa-modal-actions etwa-form-actions etwa-span-2">
 					<button type="button" class="etwa-btn etwa-btn-secondary" data-close-modal><?php esc_html_e( 'Cancel', 'etwa' ); ?></button>
 					<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Save Allocation', 'etwa' ); ?></button>
 				</div>
@@ -411,7 +428,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 		<div class="etwa-modal-content">
 			<button type="button" class="etwa-modal-close-btn" data-close-modal>&times;</button>
 			<div id="etwa-dlv-alloc-detail-body" class="etwa-dlv-alloc-detail"></div>
-			<div class="etwa-modal-actions">
+			<div class="etwa-modal-actions etwa-form-actions">
 				<?php if ( $can_allocate_deliverables ) : ?>
 					<button type="button" class="etwa-btn etwa-btn-primary" id="etwa-dlv-alloc-edit-btn"><?php esc_html_e( 'Edit', 'etwa' ); ?></button>
 					<button type="button" class="etwa-btn etwa-btn-danger" id="etwa-dlv-alloc-delete-btn"><?php esc_html_e( 'Delete', 'etwa' ); ?></button>
@@ -473,7 +490,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 						<textarea class="etwa-input" name="description" id="etwa-dlv-scope-desc" rows="2"></textarea>
 					</label>
 
-					<div class="etwa-modal-actions etwa-span-2">
+					<div class="etwa-modal-actions etwa-form-actions etwa-span-2">
 						<button type="button" class="etwa-btn etwa-btn-secondary" data-close-modal><?php esc_html_e( 'Cancel', 'etwa' ); ?></button>
 						<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Save Scope', 'etwa' ); ?></button>
 					</div>
@@ -487,7 +504,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 			<div class="etwa-modal-content">
 				<button type="button" class="etwa-modal-close-btn" data-close-modal>&times;</button>
 				<h2><?php esc_html_e( 'Deliverable Types', 'etwa' ); ?></h2>
-				<form id="etwa-dlv-type-form" class="etwa-form-grid">
+				<form id="etwa-dlv-type-form" class="etwa-form-grid etwa-workspace-card">
 					<input type="hidden" name="type_id" id="etwa-dlv-type-id" value="" />
 					<label>
 						<span><?php esc_html_e( 'Name', 'etwa' ); ?></span>
@@ -501,7 +518,7 @@ $mode                      = $scope_id > 0 ? 'detail' : 'dashboard';
 						<span><?php esc_html_e( 'Hours', 'etwa' ); ?></span>
 						<input type="number" class="etwa-input" name="effort_score" min="0" step="0.01" value="1" />
 					</label>
-					<div class="etwa-modal-actions">
+					<div class="etwa-modal-actions etwa-form-actions etwa-span-2">
 						<button type="button" class="etwa-btn etwa-btn-secondary etwa-hidden" id="etwa-dlv-type-cancel-edit"><?php esc_html_e( 'Cancel Edit', 'etwa' ); ?></button>
 						<button type="submit" class="etwa-btn etwa-btn-primary" id="etwa-dlv-type-submit"><?php esc_html_e( 'Add Type', 'etwa' ); ?></button>
 					</div>

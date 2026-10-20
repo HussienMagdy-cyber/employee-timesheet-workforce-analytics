@@ -72,6 +72,18 @@ final class RequestController extends RestController {
 
 		register_rest_route(
 			self::NAMESPACE,
+			'/requests/permission-usage',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'permission_usage' ),
+					'permission_callback' => array( $this, 'can_access' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/requests/holiday-work-types',
 			array(
 				array(
@@ -113,7 +125,7 @@ final class RequestController extends RestController {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'export' ),
-					'permission_callback' => array( $this, 'can_manage' ),
+					'permission_callback' => array( $this, 'can_export' ),
 				),
 			)
 		);
@@ -152,7 +164,7 @@ final class RequestController extends RestController {
 				array(
 					'methods'             => WP_REST_Server::DELETABLE,
 					'callback'            => array( $this, 'delete_request' ),
-					'permission_callback' => array( $this, 'can_view_own' ),
+					'permission_callback' => array( $this, 'can_access' ),
 				),
 			)
 		);
@@ -187,6 +199,10 @@ final class RequestController extends RestController {
 	public function can_review(): bool {
 		$user_id = get_current_user_id();
 		return $this->service->can_review( $user_id );
+	}
+
+	public function can_export(): bool {
+		return is_user_logged_in() && current_user_can( RoleManager::CAP_EXPORT );
 	}
 
 	public function list_requests( WP_REST_Request $request ) {
@@ -253,12 +269,14 @@ final class RequestController extends RestController {
 
 	public function review_request( WP_REST_Request $request ) {
 		$data   = $this->get_request_data( $request );
+		$days   = isset( $data['days'] ) ? (float) $data['days'] : null;
 		$result = $this->service->review_request(
 			get_current_user_id(),
 			$this->get_int_param( $request, 'id' ),
 			$this->get_string_param( $request, 'status', (string) ( $data['status'] ?? '' ) ),
 			$this->get_string_param( $request, 'notes', (string) ( $data['notes'] ?? '' ) ),
-			$this->get_string_param( $request, 'approval_slot', (string) ( $data['approval_slot'] ?? '' ) )
+			$this->get_string_param( $request, 'approval_slot', (string) ( $data['approval_slot'] ?? '' ) ),
+			null !== $days && $days > 0 ? $days : null
 		);
 		if ( is_wp_error( $result ) ) {
 			return $this->error( $result );
@@ -272,6 +290,15 @@ final class RequestController extends RestController {
 
 	public function permission_reasons() {
 		return $this->success( array( 'items' => $this->service->permission_reasons() ) );
+	}
+
+	public function permission_usage( WP_REST_Request $request ) {
+		$user_id = $this->get_int_param( $request, 'user_id' );
+		$result  = $this->service->permission_monthly_usage( get_current_user_id(), $user_id ?: null );
+		if ( is_wp_error( $result ) ) {
+			return $this->error( $result );
+		}
+		return $this->success( $result );
 	}
 
 	public function holiday_work_types() {
@@ -333,20 +360,13 @@ final class RequestController extends RestController {
 			return $this->error( $file );
 		}
 
-		$contents = file_get_contents( $file );
-		@unlink( $file );
-
-		if ( false === $contents ) {
-			return $this->error(
-				new \WP_Error( 'export_failed', __( 'Could not read export file.', 'etwa' ), array( 'status' => 500 ) )
-			);
-		}
+		$upload = wp_upload_dir();
+		$url    = str_replace( $upload['basedir'], $upload['baseurl'], $file );
 
 		return $this->success(
 			array(
-				'filename' => 'etwa-' . $type . '-requests-' . gmdate( 'Y-m-d' ) . '.xlsx',
-				'content'  => base64_encode( $contents ),
-				'mime'     => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+				'filename' => basename( $file ),
+				'file_url' => $url,
 			)
 		);
 	}

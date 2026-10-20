@@ -12,6 +12,7 @@ namespace ETWA\Services;
 use ETWA\Frontend\PortalNav;
 use ETWA\Helpers\DepartmentHelper;
 use ETWA\Helpers\RoleManager;
+use ETWA\Helpers\SuperClientAccessHelper;
 use ETWA\Repositories\RequestRepository;
 use ETWA\Repositories\TimesheetRepository;
 use ETWA\Repositories\VacationRequestRepository;
@@ -56,6 +57,42 @@ final class ReviewerCountsService {
 
 		if ( ( new DepartmentService() )->can_view_department_dashboard( $viewer_id ) ) {
 			$badges['dept-dashboard'] = $this->reviewer_pending_total( $viewer_id );
+		}
+
+		$badges = array_merge( $badges, $this->product_request_nav_badges( $viewer_id ) );
+
+		return $badges;
+	}
+
+	/** @return array<string,int> */
+	private function product_request_nav_badges( int $viewer_id ): array {
+		if ( ! SuperClientAccessHelper::can_access_product_hub( $viewer_id ) ) {
+			return array();
+		}
+
+		$counts = ( new SuperClientRequestService() )->pending_counts_for_user( $viewer_id );
+		if ( is_wp_error( $counts ) ) {
+			return array();
+		}
+
+		$badges = array();
+		$total  = (int) ( $counts['total'] ?? 0 );
+
+		if ( SuperClientAccessHelper::can_manage_products( $viewer_id ) ) {
+			if ( $total > 0 ) {
+				$badges['super-clients'] = $total;
+			}
+		} elseif ( $total > 0 ) {
+			$badges['product-hub'] = $total;
+		}
+
+		foreach ( $counts['tabs'] ?? array() as $tab ) {
+			$tab_id = (int) ( $tab['id'] ?? 0 );
+			$count  = (int) ( $tab['pending_count'] ?? 0 );
+			if ( $tab_id <= 0 || $count <= 0 ) {
+				continue;
+			}
+			$badges[ 'super-client-' . $tab_id ] = $count;
 		}
 
 		return $badges;

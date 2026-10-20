@@ -12,7 +12,6 @@ namespace ETWA\Cron;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Services\DeliverableNotificationService;
-use ETWA\Services\EmailService;
 use ETWA\Services\MailService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -22,15 +21,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class CronJobs {
 
 	public function __construct() {
-		add_action( 'etwa_weekly_report_email', array( $this, 'send_weekly_report' ) );
+		wp_clear_scheduled_hook( 'etwa_weekly_report_email' );
 		add_action( 'etwa_daily_reminder', array( $this, 'send_daily_reminder' ) );
 		add_action( 'etwa_deliverable_expiration_check', array( $this, 'send_deliverable_expiration_alerts' ) );
-	}
-
-	public function send_weekly_report(): void {
-		$week    = DateHelper::get_previous_work_week();
-		$service = new EmailService();
-		$service->send_report( $week['period_start'], $week['period_end'], null, true );
 	}
 
 	public function send_daily_reminder(): void {

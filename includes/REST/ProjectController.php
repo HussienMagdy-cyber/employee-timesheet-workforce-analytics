@@ -25,6 +25,25 @@ final class ProjectController extends RestController {
 	public function register_routes(): void {
 		register_rest_route(
 			self::NAMESPACE,
+			'/projects',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'list_standalone_projects' ),
+					'permission_callback' => function () {
+						return is_user_logged_in();
+					},
+				),
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'create_standalone_project' ),
+					'permission_callback' => array( $this, 'can_manage' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/clients/(?P<client_id>\d+)/projects',
 			array(
 				array(
@@ -92,6 +111,31 @@ final class ProjectController extends RestController {
 
 	public function can_manage(): bool {
 		return is_user_logged_in() && current_user_can( RoleManager::CAP_MANAGE_SETTINGS );
+	}
+
+	public function list_standalone_projects( WP_REST_Request $request ) {
+		$service = new ProjectService();
+		$result  = $service->list_standalone_tree(
+			get_current_user_id(),
+			! $request->get_param( 'include_archived' )
+		);
+		if ( is_wp_error( $result ) ) {
+			return $this->error( $result );
+		}
+		return $this->success( $result );
+	}
+
+	public function create_standalone_project( WP_REST_Request $request ) {
+		$service = new ProjectService();
+		$result  = $service->create_standalone(
+			get_current_user_id(),
+			array(
+				'name'              => $this->get_string_param( $request, 'name' ),
+				'description'       => $this->get_string_param( $request, 'description' ),
+				'parent_project_id' => $request->get_param( 'parent_project_id' ),
+			)
+		);
+		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result->to_array() );
 	}
 
 	public function list_projects( WP_REST_Request $request ) {

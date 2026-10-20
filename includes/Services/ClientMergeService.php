@@ -137,6 +137,9 @@ final class ClientMergeService {
 		if ( $this->clients->is_system_client( $primary ) ) {
 			return new WP_Error( 'invalid', __( 'System clients cannot be merge targets.', 'etwa' ), array( 'status' => 400 ) );
 		}
+		if ( $primary->is_super() ) {
+			return new WP_Error( 'invalid', __( 'Products cannot be merge targets.', 'etwa' ), array( 'status' => 400 ) );
+		}
 
 		foreach ( $merge_ids as $mid ) {
 			$client = $this->clients->find( $mid );
@@ -145,6 +148,9 @@ final class ClientMergeService {
 			}
 			if ( $this->clients->is_system_client( $client ) ) {
 				return new WP_Error( 'invalid', __( 'System clients cannot be merged.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			if ( $client->is_super() ) {
+				return new WP_Error( 'invalid', __( 'Products cannot be merged.', 'etwa' ), array( 'status' => 400 ) );
 			}
 		}
 

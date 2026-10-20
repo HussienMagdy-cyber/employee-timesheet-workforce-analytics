@@ -25,8 +25,9 @@ final class Entry {
 		public readonly string $entry_date,
 		public readonly string $start_time,
 		public readonly string $end_time,
-		public readonly int $client_id,
+		public readonly ?int $client_id,
 		public readonly ?int $project_id,
+		public readonly ?int $prospect_id,
 		public readonly string $task,
 		public readonly ?string $notes,
 		public readonly int $duration_minutes,
@@ -38,6 +39,7 @@ final class Entry {
 		public readonly string $updated_at,
 		public readonly ?string $client_name = null,
 		public readonly ?string $project_name = null,
+		public readonly ?string $prospect_name = null,
 	) {}
 
 	/** @param object|array<string,mixed> $row */
@@ -50,8 +52,9 @@ final class Entry {
 			(string) $r['entry_date'],
 			substr( (string) $r['start_time'], 0, 5 ),
 			substr( (string) $r['end_time'], 0, 5 ),
-			(int) $r['client_id'],
+			isset( $r['client_id'] ) && (int) $r['client_id'] > 0 ? (int) $r['client_id'] : null,
 			isset( $r['project_id'] ) && (int) $r['project_id'] > 0 ? (int) $r['project_id'] : null,
+			isset( $r['prospect_id'] ) && (int) $r['prospect_id'] > 0 ? (int) $r['prospect_id'] : null,
 			(string) ( $r['task'] ?? '' ),
 			$r['notes'] ?? null,
 			(int) $r['duration_minutes'],
@@ -63,6 +66,7 @@ final class Entry {
 			(string) $r['updated_at'],
 			$r['client_name'] ?? null,
 			$r['project_name'] ?? null,
+			$r['prospect_name'] ?? null,
 		);
 	}
 
@@ -77,8 +81,10 @@ final class Entry {
 			'end_time'         => $this->end_time,
 			'client_id'        => $this->client_id,
 			'project_id'       => $this->project_id,
+			'prospect_id'      => $this->prospect_id,
 			'client_name'      => $this->client_name,
 			'project_name'     => $this->project_name,
+			'prospect_name'    => $this->prospect_name,
 			'task'             => $this->task,
 			'notes'            => $this->notes,
 			'duration_minutes' => $this->duration_minutes,
@@ -101,6 +107,17 @@ final class Entry {
 		$data['time_range_label'] = DateHelper::format_time_range( $this->start_time, $this->end_time );
 
 		return $data;
+	}
+
+	public function display_target_name(): string {
+		if ( $this->client_name ) {
+			return $this->client_name;
+		}
+		if ( $this->prospect_name ) {
+			return $this->prospect_name;
+		}
+
+		return $this->project_name ?? '';
 	}
 
 	private static function normalize_entry_type( string $type ): string {

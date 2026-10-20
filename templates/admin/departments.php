@@ -89,6 +89,13 @@ $in_portal = 'frontend' === $context;
 					<option value="inactive"><?php esc_html_e( 'Inactive', 'etwa' ); ?></option>
 				</select>
 			</label>
+			<div class="etwa-span-2" id="etwa-dept-product-tabs-section">
+				<h4 class="etwa-super-client__section-title"><?php esc_html_e( 'Product Hub Access', 'etwa' ); ?></h4>
+				<p class="etwa-muted"><?php esc_html_e( 'Select which Product Tabs are available to employees in this department.', 'etwa' ); ?></p>
+				<div class="etwa-sc-unit-checks" id="etwa-dept-product-tabs-list">
+					<p class="etwa-muted"><?php esc_html_e( 'Loading…', 'etwa' ); ?></p>
+				</div>
+			</div>
 			<div class="etwa-modal-actions etwa-span-2">
 				<button type="button" class="etwa-btn etwa-btn-secondary etwa-modal-close"><?php esc_html_e( 'Cancel', 'etwa' ); ?></button>
 				<button type="submit" class="etwa-btn etwa-btn-primary"><?php esc_html_e( 'Save', 'etwa' ); ?></button>

@@ -156,6 +156,38 @@
 	color: #b91c1c !important;
 }
 
+.etwa-status-open {
+	background: var(--etwa-primary-muted) !important;
+	color: #4338ca !important;
+}
+
+.etwa-status-won {
+	background: var(--etwa-success-muted) !important;
+	color: #047857 !important;
+}
+
+.etwa-status-lost {
+	background: var(--etwa-danger-muted) !important;
+	color: #b91c1c !important;
+}
+
+.etwa-definition-list {
+	display: grid;
+	grid-template-columns: minmax(8rem, 14rem) 1fr;
+	gap: 8px 16px;
+	margin: 0 0 16px;
+}
+
+.etwa-definition-list dt {
+	margin: 0;
+	color: var(--etwa-muted, #64748b);
+	font-weight: 600;
+}
+
+.etwa-definition-list dd {
+	margin: 0;
+}
+
 .etwa-status-in_progress,
 .etwa-status-missing {
 	background: #f3f4f6 !important;
@@ -637,6 +669,22 @@
 	margin-bottom: var(--etwa-space-4) !important;
 }
 
+.etwa-permission-usage-panel {
+	margin-bottom: var(--etwa-space-4) !important;
+}
+
+.etwa-permission-usage-list {
+	list-style: none !important;
+	margin: 0 0 var(--etwa-space-3) !important;
+	padding: 0 !important;
+	display: grid !important;
+	gap: var(--etwa-space-2) !important;
+}
+
+.etwa-permission-usage-list li {
+	font-weight: 600 !important;
+}
+
 .etwa-vacation-card-primary {
 	border-color: var(--etwa-primary) !important;
 	box-shadow: 0 0 0 1px color-mix(in srgb, var(--etwa-primary) 25%, transparent) !important;
@@ -740,6 +788,10 @@
 
 .etwa-portal-nav-badge {
 	margin-left: auto !important;
+}
+
+.etwa-portal-nav-group-toggle .etwa-portal-nav-badge {
+	flex-shrink: 0 !important;
 }
 
 .etwa-aging-badge {

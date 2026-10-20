@@ -41,8 +41,8 @@ final class TimesheetDraftHelper {
 		usort(
 			$rows,
 			static function ( array $a, array $b ): int {
-				return array( $a['entry_date'], $a['start_time'], $a['client_id'], $a['task'] )
-					<=> array( $b['entry_date'], $b['start_time'], $b['client_id'], $b['task'] );
+				return array( $a['entry_date'], $a['start_time'], $a['client_id'] ?? 0, $a['task'] )
+					<=> array( $b['entry_date'], $b['start_time'], $b['client_id'] ?? 0, $b['task'] );
 			}
 		);
 
@@ -161,6 +161,7 @@ final class TimesheetDraftHelper {
 				'end_time'         => self::normalize_time_value( $entry->end_time ),
 				'client_id'        => $entry->client_id,
 				'project_id'       => $entry->project_id,
+				'prospect_id'      => $entry->prospect_id,
 				'task'             => $entry->task,
 				'notes'            => (string) ( $entry->notes ?? '' ),
 				'duration_minutes' => $entry->duration_minutes,
@@ -183,8 +184,9 @@ final class TimesheetDraftHelper {
 			'entry_date'       => (string) ( $row['entry_date'] ?? '' ),
 			'start_time'       => self::normalize_time_value( (string) ( $row['start_time'] ?? '' ) ),
 			'end_time'         => self::normalize_time_value( (string) ( $row['end_time'] ?? '' ) ),
-			'client_id'        => (int) ( $row['client_id'] ?? 0 ),
+			'client_id'        => ! empty( $row['client_id'] ) ? (int) $row['client_id'] : null,
 			'project_id'       => ! empty( $row['project_id'] ) ? (int) $row['project_id'] : null,
+			'prospect_id'      => ! empty( $row['prospect_id'] ) ? (int) $row['prospect_id'] : null,
 			'task'             => (string) ( $row['task'] ?? '' ),
 			'notes'            => (string) ( $row['notes'] ?? '' ),
 			'duration_minutes' => (int) ( $row['duration_minutes'] ?? 0 ),

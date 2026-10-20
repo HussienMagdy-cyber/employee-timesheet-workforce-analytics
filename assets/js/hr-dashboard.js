@@ -128,14 +128,36 @@
 		});
 	}
 
+	function activateTab(tab) {
+		if (!tab) return;
+		$('.etwa-hr-tabs .etwa-tab').removeClass('active');
+		$(`.etwa-hr-tabs .etwa-tab[data-tab="${tab}"]`).addClass('active');
+		$('.etwa-tab-panel').removeClass('active');
+		$(`#etwa-tab-${tab}`).addClass('active');
+		ensureTabLoaded(tab);
+	}
+
 	function bindTabs() {
 		$('.etwa-hr-tabs .etwa-tab').on('click', function () {
-			const tab = $(this).data('tab');
-			$('.etwa-hr-tabs .etwa-tab').removeClass('active');
-			$(this).addClass('active');
-			$('.etwa-tab-panel').removeClass('active');
-			$(`#etwa-tab-${tab}`).addClass('active');
-			ensureTabLoaded(tab);
+			activateTab($(this).data('tab'));
+		});
+
+		$('#etwa-hr-app').on('click', 'a.etwa-kpi-card[data-hr-tab]', function (e) {
+			const tab = $(this).data('hr-tab');
+			const status = $(this).data('hr-status');
+			if (status) {
+				$('#etwa-hr-status-filter').val(String(status));
+				loadedTabs['all-reports'] = false;
+			}
+			activateTab(tab);
+			const panel = document.getElementById(`etwa-tab-${tab}`);
+			if (panel) {
+				e.preventDefault();
+				panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				if (this.hash) {
+					history.replaceState(null, '', this.hash);
+				}
+			}
 		});
 	}
 
@@ -186,6 +208,15 @@
 
 		loadDepartments();
 		bindTabs();
+
+		const hash = window.location.hash || '';
+		if (hash.startsWith('#etwa-tab-')) {
+			const tab = hash.replace('#etwa-tab-', '');
+			if (['employees', 'pending', 'all-reports', 'export'].includes(tab)) {
+				activateTab(tab);
+			}
+		}
+
 		$('#etwa-hr-filter').on('click', loadFilteredTimesheets);
 		$('#etwa-hr-dept-filter').on('change', loadFilteredTimesheets);
 		$('#etwa-hr-search').on(

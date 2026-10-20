@@ -74,7 +74,6 @@ final class ClientScopeService {
 			'client'                => $client ? $client->to_array() : null,
 			'project'               => $project ? $project->to_array() : null,
 			'contract_deliverables' => (float) $scope->contract_deliverables,
-			'patches'               => array(),
 			'metrics'               => $metrics,
 		);
 	}
@@ -124,8 +123,6 @@ final class ClientScopeService {
 				'starts_on'             => $this->nullable_date( $data['starts_on'] ?? null ),
 				'ends_on'               => $this->nullable_date( $data['ends_on'] ?? null ),
 				'contract_deliverables' => $contract,
-				'package_id'            => null,
-				'package_snapshot'      => null,
 				'created_by'            => $user_id,
 			)
 		);
@@ -201,9 +198,6 @@ final class ClientScopeService {
 			$payload['contract_deliverables'] = $contract;
 		}
 
-		$payload['patch_count']        = 0;
-		$payload['expected_per_patch'] = 0;
-
 		if ( $payload ) {
 			$this->scopes->update( $scope_id, $payload );
 		}
@@ -214,19 +208,6 @@ final class ClientScopeService {
 		}
 
 		return $this->details( $user_id, $scope_id );
-	}
-
-	/**
-	 * @param array<int,array<string,mixed>> $lines
-	 * @return array<string,mixed>|WP_Error
-	 */
-	public function set_contract_lines( int $user_id, int $scope_id, array $lines ): array|WP_Error {
-		unset( $user_id, $scope_id, $lines );
-		return new WP_Error(
-			'gone',
-			__( 'Contract line distribution has been retired. Set total expected deliverables on the scope instead.', 'etwa' ),
-			array( 'status' => 410 )
-		);
 	}
 
 	/** @param array<string,mixed> $data */

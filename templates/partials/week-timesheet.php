@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 use ETWA\Repositories\ClientRepository;
 use ETWA\Helpers\DateHelper;
 use ETWA\Helpers\EntryTypeHelper;
+use ETWA\Services\ProjectService;
 
 extract( $view, EXTR_SKIP );
 
@@ -176,6 +177,7 @@ $hr_can_edit = ! empty( $hr_can_edit );
 					<?php else : ?>
 						<?php foreach ( $day_items as $entry ) : ?>
 							<?php $is_break_entry = (int) $entry->client_id === $break_client_id; ?>
+							<?php $is_all_clients_entry = (int) $entry->client_id === $all_clients_id; ?>
 							<?php
 							$entry_hours = $is_break_entry
 								? $entry->duration_minutes / 60
@@ -187,7 +189,9 @@ $hr_can_edit = ! empty( $hr_can_edit );
 								data-entry-date="<?php echo esc_attr( $entry->entry_date ); ?>"
 								data-start-time="<?php echo esc_attr( $entry->start_time ); ?>"
 								data-end-time="<?php echo esc_attr( $entry->end_time ); ?>"
-								data-client-id="<?php echo esc_attr( (string) $entry->client_id ); ?>"
+								data-client-id="<?php echo esc_attr( (string) ( $entry->client_id ?? '' ) ); ?>"
+								data-project-id="<?php echo esc_attr( (string) ( $entry->project_id ?? '' ) ); ?>"
+								data-prospect-id="<?php echo esc_attr( (string) ( $entry->prospect_id ?? '' ) ); ?>"
 								data-task="<?php echo esc_attr( $entry->task ); ?>"
 								data-notes="<?php echo esc_attr( (string) $entry->notes ); ?>"
 								data-entry-type="<?php echo esc_attr( $entry->entry_type ); ?>"
@@ -198,7 +202,12 @@ $hr_can_edit = ! empty( $hr_can_edit );
 							>
 								<div class="etwa-entry-time"><?php echo esc_html( DateHelper::format_time_range( $entry->start_time, $entry->end_time ) ); ?></div>
 								<div class="etwa-entry-meta">
-									<strong><?php echo esc_html( $entry->client_name ?? '' ); ?></strong>
+									<strong><?php echo esc_html( $entry->display_target_name() ); ?></strong>
+									<?php if ( $entry->project_id && $entry->client_id && $entry->project_name ) : ?>
+										<span class="etwa-entry-project"><?php echo esc_html( $entry->project_name ); ?></span>
+									<?php elseif ( $entry->client_id && ! $entry->project_id && ! $is_break_entry && ! $is_all_clients_entry ) : ?>
+										<span class="etwa-entry-project"><?php echo esc_html( ProjectService::unassigned_label() ); ?></span>
+									<?php endif; ?>
 									<span><?php echo esc_html( $entry->task ); ?></span>
 								</div>
 								<div class="etwa-entry-hours">
@@ -267,13 +276,14 @@ $hr_can_edit = ! empty( $hr_can_edit );
 						<p class="etwa-duration-preview" id="etwa-duration-preview" aria-live="polite"></p>
 					</div>
 					<label class="etwa-span-2">
-						<?php esc_html_e( 'Client / Internal', 'etwa' ); ?>
+						<?php esc_html_e( 'Client / Prospect', 'etwa' ); ?>
 						<select name="client_id" id="etwa-client-id" required>
 							<option value=""><?php esc_html_e( 'Select…', 'etwa' ); ?></option>
 							<?php
-							$internal_clients = array();
-							$general_clients  = array();
-							$work_clients     = array();
+							$internal_clients     = array();
+							$general_clients      = array();
+							$work_clients         = array();
+							$standalone_projects  = $standalone_projects ?? array();
 							foreach ( $clients as $client ) {
 								$code = strtoupper( $client->code );
 								if ( in_array( $code, ClientRepository::internal_codes(), true ) ) {
@@ -292,6 +302,16 @@ $hr_can_edit = ! empty( $hr_can_edit );
 									<?php endforeach; ?>
 								</optgroup>
 							<?php endif; ?>
+							<?php if ( $standalone_projects ) : ?>
+								<optgroup label="<?php esc_attr_e( 'Projects', 'etwa' ); ?>">
+									<?php foreach ( $standalone_projects as $parent ) : ?>
+										<option value="<?php echo esc_attr( 'p:' . (int) $parent['id'] ); ?>"><?php echo esc_html( (string) $parent['name'] ); ?></option>
+										<?php foreach ( $parent['children'] ?? array() as $child ) : ?>
+											<option value="<?php echo esc_attr( 'p:' . (int) $child['id'] ); ?>"><?php echo esc_html( '— ' . (string) $child['name'] ); ?></option>
+										<?php endforeach; ?>
+									<?php endforeach; ?>
+								</optgroup>
+							<?php endif; ?>
 							<?php if ( $general_clients ) : ?>
 								<optgroup label="<?php esc_attr_e( 'General', 'etwa' ); ?>">
 									<?php foreach ( $general_clients as $client ) : ?>
@@ -303,6 +323,16 @@ $hr_can_edit = ! empty( $hr_can_edit );
 								<optgroup label="<?php esc_attr_e( 'Clients', 'etwa' ); ?>">
 									<?php foreach ( $work_clients as $client ) : ?>
 										<option value="<?php echo esc_attr( (string) $client->id ); ?>"><?php echo esc_html( $client->name ); ?></option>
+									<?php endforeach; ?>
+								</optgroup>
+							<?php endif; ?>
+							<?php
+							$prospects = $prospects ?? array();
+							if ( $prospects ) :
+								?>
+								<optgroup label="<?php esc_attr_e( 'Prospects', 'etwa' ); ?>">
+									<?php foreach ( $prospects as $prospect ) : ?>
+										<option value="<?php echo esc_attr( 'pr:' . (int) $prospect->id ); ?>"<?php disabled( ! $prospect->is_open() ); ?>><?php echo esc_html( $prospect->name ); ?></option>
 									<?php endforeach; ?>
 								</optgroup>
 							<?php endif; ?>
@@ -331,4 +361,7 @@ $hr_can_edit = ! empty( $hr_can_edit );
 			</form>
 		</div>
 	</div>
+	<?php if ( ! empty( $standalone_projects ) ) : ?>
+		<script type="application/json" id="etwa-standalone-projects-json"><?php echo wp_json_encode( $standalone_projects ); ?></script>
+	<?php endif; ?>
 </div>

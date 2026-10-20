@@ -13,7 +13,9 @@ use ETWA\Helpers\DepartmentHelper;
 use ETWA\Helpers\RoleManager;
 use ETWA\Models\Department;
 use ETWA\Repositories\AuditLogRepository;
+use ETWA\Repositories\ClientRepository;
 use ETWA\Repositories\DepartmentRepository;
+use ETWA\Repositories\SuperClientUnitRepository;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,6 +26,8 @@ final class DepartmentService {
 
 	public function __construct(
 		private DepartmentRepository $departments = new DepartmentRepository(),
+		private SuperClientUnitRepository $product_tabs = new SuperClientUnitRepository(),
+		private ClientRepository $clients = new ClientRepository(),
 		private AuditLogRepository $audit = new AuditLogRepository(),
 	) {}
 
@@ -164,6 +168,7 @@ final class DepartmentService {
 		}
 
 		$this->departments->delete( $id );
+		$this->product_tabs->delete_for_department( $id );
 
 		$this->audit->log(
 			'delete',
@@ -175,6 +180,96 @@ final class DepartmentService {
 		);
 
 		return true;
+	}
+
+	/**
+	 * Product Tab options for department configuration UI.
+	 *
+	 * @return array{items:array<int,array{id:int,name:string,is_active:bool}>}|WP_Error
+	 */
+	public function list_product_tab_options( int $viewer_id ): array|WP_Error {
+		if ( ! $this->can_manage( $viewer_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot manage department product access.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$items = array();
+		foreach ( $this->clients->list_super_clients() as $client ) {
+			if ( ! $client->is_super() ) {
+				continue;
+			}
+			$items[] = array(
+				'id'        => (int) $client->id,
+				'name'      => $client->name,
+				'is_active' => (bool) $client->is_active,
+			);
+		}
+
+		return array( 'items' => $items );
+	}
+
+	/**
+	 * @return array{product_tab_ids:int[]}|WP_Error
+	 */
+	public function get_product_tab_access( int $viewer_id, int $department_id ): array|WP_Error {
+		if ( ! $this->can_manage( $viewer_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot manage department product access.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$dept = $this->departments->find( $department_id );
+		if ( ! $dept ) {
+			return new WP_Error( 'not_found', __( 'Department not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		return array(
+			'product_tab_ids' => $this->product_tabs->list_ids_for_department( $department_id ),
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $data
+	 * @return array{product_tab_ids:int[]}|WP_Error
+	 */
+	public function set_product_tab_access( int $editor_id, int $department_id, array $data ): array|WP_Error {
+		if ( ! $this->can_manage( $editor_id ) ) {
+			return new WP_Error( 'forbidden', __( 'You cannot manage department product access.', 'etwa' ), array( 'status' => 403 ) );
+		}
+
+		$dept = $this->departments->find( $department_id );
+		if ( ! $dept ) {
+			return new WP_Error( 'not_found', __( 'Department not found.', 'etwa' ), array( 'status' => 404 ) );
+		}
+
+		$raw = $data['product_tab_ids'] ?? $data['allowed_product_tab_ids'] ?? array();
+		if ( ! is_array( $raw ) ) {
+			$raw = array();
+		}
+
+		$ids = array();
+		foreach ( $raw as $value ) {
+			$id = (int) $value;
+			if ( $id <= 0 ) {
+				continue;
+			}
+			$client = $this->clients->find( $id );
+			if ( ! $client || ! $client->is_super() || ! $client->is_active ) {
+				return new WP_Error( 'invalid', __( 'Invalid Product Tab.', 'etwa' ), array( 'status' => 400 ) );
+			}
+			$ids[] = $id;
+		}
+		$ids = array_values( array_unique( $ids ) );
+
+		$previous = $this->product_tabs->list_ids_for_department( $department_id );
+		$this->product_tabs->replace_for_department( $department_id, $ids );
+		$this->audit->log(
+			'update',
+			'department_product_tabs',
+			$department_id,
+			array( 'product_tab_ids' => $previous ),
+			array( 'product_tab_ids' => $ids ),
+			$editor_id
+		);
+
+		return array( 'product_tab_ids' => $ids );
 	}
 
 	/** @return true|WP_Error */

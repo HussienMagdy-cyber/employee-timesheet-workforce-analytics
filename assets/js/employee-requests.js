@@ -136,12 +136,39 @@
 			.catch((err) => ui.error(err.message));
 	}
 
+	function renderPermissionUsage(usage, prefix = 'etwa-permission') {
+		const panel = $(`#${prefix}-usage-summary`);
+		if (!usage) {
+			panel.attr('hidden', 'hidden');
+			return;
+		}
+		panel.removeAttr('hidden');
+		$(`#${prefix}-usage-count`).text(
+			usage.permissions_label || `Permissions This Month: ${usage.approved_count} / ${usage.free_allowance}`
+		);
+		$(`#${prefix}-usage-free`).text(
+			usage.free_remaining_label || `Permissions Remaining: ${usage.free_remaining}`
+		);
+		$(`#${prefix}-usage-deducted`).text(
+			usage.vacation_deducted_label || `Vacation Deducted: ${Number(usage.vacation_deducted || 0).toFixed(2)} day`
+		);
+	}
+
+	function loadPermissionUsage() {
+		api('requests/permission-usage')
+			.then((res) => {
+				if (res.success) renderPermissionUsage(res.data, 'etwa-permission');
+			})
+			.catch(() => {});
+	}
+
 	function loadPermissionRequests() {
 		api(`requests?request_type=permission&page=${permissionPage}&per_page=25`)
 			.then((res) => {
 				if (!res.success) throw new Error(res.message);
 				const data = res.data || {};
 				const items = data.items || [];
+				renderPermissionUsage(data.permission_usage, 'etwa-permission');
 				if (!items.length) {
 					$('#etwa-permission-requests-body').html(
 						`<tr><td colspan="7" class="etwa-empty-cell">${cfg.i18n?.noRequests || 'No requests found.'}</td></tr>`

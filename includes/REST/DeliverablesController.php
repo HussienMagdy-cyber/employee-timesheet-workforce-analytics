@@ -149,48 +149,6 @@ final class DeliverablesController extends RestController {
 			)
 		);
 
-		// Deprecated: legacy type-based contract lines. Prefer contract_deliverables on scope create/update.
-		register_rest_route(
-			self::NAMESPACE,
-			'/deliverables/scopes/(?P<id>\d+)/contract-lines',
-			array(
-				array(
-					'methods'             => WP_REST_Server::EDITABLE,
-					'callback'            => array( $this, 'set_contract_lines' ),
-					'permission_callback' => array( $this, 'can_manage' ),
-				),
-			)
-		);
-
-		register_rest_route(
-			self::NAMESPACE,
-			'/deliverables/scopes/(?P<scope_id>\d+)/patches',
-			array(
-				array(
-					'methods'             => WP_REST_Server::CREATABLE,
-					'callback'            => array( $this, 'create_patch' ),
-					'permission_callback' => array( $this, 'can_manage' ),
-				),
-			)
-		);
-
-		register_rest_route(
-			self::NAMESPACE,
-			'/deliverables/patches/(?P<id>\d+)',
-			array(
-				array(
-					'methods'             => WP_REST_Server::READABLE,
-					'callback'            => array( $this, 'get_patch' ),
-					'permission_callback' => array( $this, 'can_view' ),
-				),
-				array(
-					'methods'             => WP_REST_Server::EDITABLE,
-					'callback'            => array( $this, 'update_patch' ),
-					'permission_callback' => array( $this, 'can_manage' ),
-				),
-			)
-		);
-
 		register_rest_route(
 			self::NAMESPACE,
 			'/deliverables/allocations',
@@ -388,46 +346,10 @@ final class DeliverablesController extends RestController {
 		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
 	}
 
-	public function set_contract_lines( WP_REST_Request $request ) {
-		$data  = $this->get_request_data( $request );
-		$lines = $data['contract_lines'] ?? $data['lines'] ?? $data;
-		if ( ! is_array( $lines ) ) {
-			$lines = array();
-		}
-		$result = ( new ClientScopeService() )->set_contract_lines(
-			get_current_user_id(),
-			$this->get_int_param( $request, 'id' ),
-			$lines
-		);
-		return is_wp_error( $result ) ? $this->error( $result ) : $this->success( $result );
-	}
-
-	public function create_patch( WP_REST_Request $request ) {
-		return $this->error(
-			new \WP_Error(
-				'gone',
-				__( 'Batches have been retired from deliverables planning.', 'etwa' ),
-				array( 'status' => 410 )
-			)
-		);
-	}
-
-	public function get_patch( WP_REST_Request $request ) {
-		return $this->create_patch( $request );
-	}
-
-	public function update_patch( WP_REST_Request $request ) {
-		return $this->create_patch( $request );
-	}
-
 	public function list_allocations( WP_REST_Request $request ) {
 		$filters = array(
 			'scope_id' => $this->get_int_param( $request, 'scope_id' ),
 		);
-		$patch = $request->get_param( 'patch_id' );
-		if ( null !== $patch && '' !== $patch ) {
-			$filters['patch_id'] = (int) $patch;
-		}
 		$impact = $this->get_string_param( $request, 'scope_impact' );
 		if ( '' !== $impact ) {
 			$filters['scope_impact'] = $impact;
